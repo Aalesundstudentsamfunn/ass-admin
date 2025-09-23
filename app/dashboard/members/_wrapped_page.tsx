@@ -230,6 +230,23 @@ function DataTable({ columns, data }: { columns: ColumnDef<UserRow, any>[]; data
           >
             Forrige
           </Button>
+          {/* Go to page input */}
+          <span className="text-xs">Gå til side</span>
+          <Input
+            type="number"
+            min={1}
+            max={table.getPageCount()}
+            value={table.getState().pagination.pageIndex + 1}
+            onChange={e => {
+              let page = Number(e.target.value) - 1;
+              if (!isNaN(page)) {
+                page = Math.max(0, Math.min(page, table.getPageCount() - 1));
+                table.setPageIndex(page);
+              }
+            }}
+            className="w-16 h-8 px-2 py-1 text-xs"
+            style={{ fontVariantNumeric: "tabular-nums" }}
+          />
           <Button
             variant="outline"
             size="sm"
@@ -247,19 +264,11 @@ function DataTable({ columns, data }: { columns: ColumnDef<UserRow, any>[]; data
 
 
 // ----- Page ------------------------------------------------------------------
-export default function UsersPage({ initialData }: { initialData?: UserRow[] }) {
+export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
 
   // If no data is provided, show a tiny demo set for layout/dev
   //get data from supabase
-  const [rows] = React.useState<UserRow[]>(
-    initialData?.length
-      ? initialData
-      : [
-        { id: 1, firstname: "Ola", lastname: "Nordmann", email: "ola@example.com" },
-        { id: 2, firstname: "Kari", lastname: "Nordmann", email: "kari@example.com" },
-        { id: 3, firstname: "Per", lastname: "Hansen", email: "per.hansen@example.com" },
-      ],
-  )
+  const [rows] = React.useState<UserRow[]>(initialData)
 
   return (
     <div className="space-y-6">
