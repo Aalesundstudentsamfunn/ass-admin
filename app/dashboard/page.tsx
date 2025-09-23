@@ -1,6 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, UserCheck, HardHat, Package, Building2, TrendingUp, UserCheck2 } from "lucide-react"
-import getStats from "./get_stats";
+import { Users, Package, Building2, TrendingUp, UserCheck2 } from "lucide-react"
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
@@ -53,7 +52,7 @@ const stats = [
 export default async function DashboardPage() {
   const supabase = await createClient();
   //const { data } = await supabase.from("profiles").select("*");
-  const { data: stats, error } = await supabase.rpc('volunteer_stats')
+  const { data: stats } = await supabase.rpc('volunteer_stats')
   const data2 = await supabase.rpc('admin_list_profiles');
   console.log("data2t", data2);
   console.log("stats", stats);

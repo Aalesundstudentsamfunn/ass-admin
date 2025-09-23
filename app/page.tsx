@@ -10,7 +10,7 @@ import favicon from "@/favicon.webp";
 // Tech: Next.js (App Router compatible), TailwindCSS, TypeScript
 // Drop this file in /app/admin/page.tsx or /app/page.tsx as needed.
 
-export default function AssAdminLanding(): JSX.Element {
+export default function AssAdminLanding() {
   return (
     <main className="relative min-h-dvh overflow-hidden antialiased">
       {/* Ambient gradient blobs ("liquid" feel) */}
@@ -119,7 +119,7 @@ export default function AssAdminLanding(): JSX.Element {
 
 /* --------------------------------- UI ---------------------------------- */
 
-function NavBar(): JSX.Element {
+function NavBar() {
   return (
     <header className="sticky top-0 z-20 backdrop-blur supports-[backdrop-filter]:bg-zinc-950/40">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
@@ -152,7 +152,7 @@ function NavBar(): JSX.Element {
   );
 }
 
-function Footer(): JSX.Element {
+function Footer() {
   return (
     <footer className="mx-auto mt-16 max-w-6xl px-4 pb-12">
       <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
