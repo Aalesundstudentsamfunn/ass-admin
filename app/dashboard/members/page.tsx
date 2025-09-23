@@ -3,11 +3,11 @@ import DataTable from "./_wrapped_page";
 
 export default async function MembersPage() {
   const supabase = await createClient();
-  const { data: rowss, error } = await supabase.from('ass_members').select('*')
+  const { data: rows, error } = await supabase.from('ass_members').select('*')
   //print the first 5 rows
   if (error) {
     return <div>Error: {error?.message}</div>
   } else {
-    return <DataTable initialData={rowss} />
+    return <DataTable initialData={rows} />
   }
 }

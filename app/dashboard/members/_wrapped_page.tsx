@@ -19,7 +19,6 @@ import {
   ColumnFiltersState,
   VisibilityState,
 } from "@tanstack/react-table"
-import { createClient } from "@/lib/supabase/client"
 
 /**
  * Liquid Glass Users Page
@@ -135,7 +134,7 @@ export const columns: ColumnDef<UserRow>[] = [
 ]
 
 // ----- DataTable -------------------------------------------------------------
-function DataTable({ columns, data }: { columns: ColumnDef<UserRow, any>[]; data: UserRow[] }) {
+function DataTable({ columns, data }: { columns: ColumnDef<UserRow, UserRow>[]; data: UserRow[] }) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
