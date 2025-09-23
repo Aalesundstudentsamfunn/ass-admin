@@ -54,6 +54,8 @@ export default async function DashboardPage() {
   const supabase = await createClient();
   //const { data } = await supabase.from("profiles").select("*");
   const { data: stats, error } = await supabase.rpc('volunteer_stats')
+  const data2 = await supabase.rpc('admin_list_profiles');
+  console.log("data2t", data2);
   console.log("stats", stats);
   if (stats && stats.error) {
     console.log("redirecting to not volunteer page");
