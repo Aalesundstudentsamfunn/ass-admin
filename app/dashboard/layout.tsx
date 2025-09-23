@@ -5,7 +5,7 @@ import type React from "react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Users, UserCheck, HardHat, Package, Building2, Menu, Shield } from "lucide-react"
+import { Users, UserCheck, Heart, Package, Building2, Menu, Shield, Settings } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -22,9 +22,10 @@ import { LogoutButton } from "@/components/logout-button"
 const navigation = [
   { name: "Medlemmer", href: "/dashboard/members", icon: Users },
   { name: "Brukere", href: "/dashboard/users", icon: UserCheck },
-  { name: "Frivillige", href: "/dashboard/workers", icon: HardHat },
+  { name: "Frivillige", href: "/dashboard/workers", icon: Heart },
   { name: "Utstyr", href: "/dashboard/equipment", icon: Package },
   { name: "Grupper", href: "/dashboard/groups", icon: Building2 },
+  { name: "Innstillinger", href: "/dashboard/settings", icon: Settings },
 ]
 
 // ---- Reusable UI primitives -------------------------------------------------
