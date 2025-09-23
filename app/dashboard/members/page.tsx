@@ -7,7 +7,9 @@ export default async function MembersPage() {
   //print the first 5 rows
   if (error) {
     return <div>Error: {error?.message}</div>
-  } else {
+  } else if (rows && rows.length > 0) {
     return <DataTable initialData={rows} />
+  } else {
+    return <div>Ingen data</div>
   }
 }
