@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import DataTable from "./_wrapped_page";
+import Landing from "./_wrapped_page";
 
 export default async function Page() {
   const supabase = await createClient();
@@ -8,7 +8,7 @@ export default async function Page() {
   if (error) {
     return <div>Error: {error?.message}</div>
   } else if (rows && rows.length > 0) {
-    return <DataTable initialData={rows} />
+    return <Landing initialData={rows} />
   } else {
     return <div>Ingen data</div>
   }

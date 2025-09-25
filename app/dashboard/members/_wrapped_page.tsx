@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ArrowUpDown, Info, Trash2, Plus, Filter } from "lucide-react"
+import { ArrowUpDown, Info, Trash2, Filter } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   ColumnDef,
@@ -19,6 +19,7 @@ import {
   ColumnFiltersState,
   VisibilityState,
 } from "@tanstack/react-table"
+import { CreateUserDialog } from "@/components/add-new-member"
 
 /**
  * Liquid Glass Users Page
@@ -170,9 +171,7 @@ function DataTable({ columns, data }: { columns: ColumnDef<UserRow, UserRow>[]; 
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button className="rounded-xl">
-            <Plus className="mr-1 h-4 w-4" /> Ny bruker
-          </Button>
+          <CreateUserDialog />
         </div>
       </div>
 
@@ -264,7 +263,6 @@ function DataTable({ columns, data }: { columns: ColumnDef<UserRow, UserRow>[]; 
 
 // ----- Page ------------------------------------------------------------------
 export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
-
   // If no data is provided, show a tiny demo set for layout/dev
   //get data from supabase
   const [rows] = React.useState<UserRow[]>(initialData)
