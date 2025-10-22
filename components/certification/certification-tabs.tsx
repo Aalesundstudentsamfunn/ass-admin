@@ -1,0 +1,54 @@
+"use client"
+
+import React, { useState } from "react"
+import CertificationCard, { AppShape } from "./certification-card"
+
+type ActionsRenderer = (app: any) => React.ReactNode
+
+export default function CertificationTabs({ processed, unprocessed, actions, onAccept, onReject, onDelete }: { processed: AppShape[]; unprocessed: AppShape[]; actions?: ActionsRenderer, onAccept?: (id: number) => void, onReject?: (id: number) => void, onDelete?: (id: number) => void }) {
+  const [tab, setTab] = useState<"unprocessed" | "processed">("unprocessed")
+
+  // If the page is loaded with a hash like #app-123, switch to the correct tab and scroll the element into view
+  React.useEffect(() => {
+    try {
+      const hash = typeof window !== "undefined" ? window.location.hash : ""
+      if (!hash) return
+      const m = hash.match(/^#app-(\d+)$/)
+      if (!m) return
+      const id = Number(m[1])
+      // check if id is in unprocessed or processed
+      const inUnprocessed = unprocessed.some(a => a.id === id)
+      const inProcessed = processed.some(a => a.id === id)
+      if (inUnprocessed) setTab("unprocessed")
+      else if (inProcessed) setTab("processed")
+
+      // scroll after a short delay so the tab change has been applied
+      setTimeout(() => {
+        const el = document.getElementById(`app-${id}`)
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" })
+      }, 60)
+    } catch (e) {
+      // noop
+    }
+  }, [processed, unprocessed])
+
+  const list = tab === "unprocessed" ? unprocessed : processed
+
+  return (
+    <div>
+      <div className="mb-4 flex gap-2">
+        <button onClick={() => setTab("unprocessed")} className={`px-3 py-1 rounded ${tab === "unprocessed" ? "bg-orange-800 text-white" : "bg-muted-foreground/10"}`}>Ubehandlede</button>
+        <button onClick={() => setTab("processed")} className={`px-3 py-1 rounded ${tab === "processed" ? "bg-primary text-white" : "bg-muted-foreground/10"}`}>Behandlet</button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {list.map((app) => (
+          <div key={app.id} id={`app-${app.id}`} className="flex flex-col gap-2">
+            <CertificationCard app={app} onAccept={onAccept} onReject={onReject} onDelete={onDelete} />
+            {actions ? <div className="px-1">{actions(app)}</div> : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
