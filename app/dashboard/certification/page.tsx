@@ -3,6 +3,14 @@
 import * as React from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -95,6 +103,16 @@ export const columns: ColumnDef<CertificateRow>[] = [
     }
   },
   {
+    accessorKey: "profiles",
+    id: "email",
+    header: () => <span>Email</span>,
+    cell: ({ row }) => {
+      const p = row.getValue("profiles") as CertificateRow["profiles"]
+      if (!p || !p.email) return <span>—</span>
+      return <a className="underline-offset-2 hover:underline" href={`mailto:${p.email}`}>{p.email}</a>
+    }
+  },
+  {
     accessorKey: "type",
     header: () => <span>Type</span>,
     cell: ({ row }) => {
@@ -115,9 +133,38 @@ export const columns: ColumnDef<CertificateRow>[] = [
       )
     }
   },
+  {
+    id: "actions",
+    header: () => <span className="sr-only">Actions</span>,
+    cell: ({ row, table }) => {
+      const cert = row.original
+      const [open, setOpen] = React.useState(false)
+      const onDelete = (table.options.meta as any)?.onDelete as (id: number) => Promise<void> | undefined
+
+      return (
+        <div className="flex items-center justify-end gap-2">
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button variant="destructive" size="sm" className="rounded-lg">Slett</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Bekreft sletting</DialogTitle>
+                <DialogDescription>Er du sikker på at du vil slette sertifikat #{cert.id}? Dette kan ikke angres.</DialogDescription>
+              </DialogHeader>
+              <div className="mt-4 flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setOpen(false)}>Avbryt</Button>
+                <Button variant="destructive" size="sm" onClick={async () => { setOpen(false); if (onDelete) await onDelete(cert.id) }}>Slett</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      )
+    }
+  }
 ]
 
-function DataTable({ columns, data }: { columns: ColumnDef<CertificateRow, CertificateRow>[]; data: CertificateRow[] }) {
+function DataTable({ columns, data, onDelete }: { columns: ColumnDef<CertificateRow, CertificateRow>[]; data: CertificateRow[]; onDelete?: (id: number) => Promise<void> }) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
@@ -129,6 +176,7 @@ function DataTable({ columns, data }: { columns: ColumnDef<CertificateRow, Certi
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
+    meta: { onDelete },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -137,15 +185,6 @@ function DataTable({ columns, data }: { columns: ColumnDef<CertificateRow, Certi
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 items-center gap-2">
-          <div className="relative w-full max-w-xs">
-            {/* Search input is handled upstream; render placeholder input (no-op) */}
-            <Input placeholder="Søk navn eller e-post…" disabled className="rounded-xl bg-background/60" />
-          </div>
-        </div>
-      </div>
-
       <Glass>
         <div className="overflow-x-auto rounded-2xl">
           <Table>
@@ -253,25 +292,55 @@ export default function CertificationPage() {
       return (
         (p.firstname || "").toLowerCase().includes(q) ||
         (p.lastname || "").toLowerCase().includes(q) ||
-        (p.email || "").toLowerCase().includes(q)
+        (p.email || "").toLowerCase().includes(q) ||
+        (p.firstname + " " + p.lastname).toLowerCase().includes(q)
       )
     })
   }, [rows, search])
+
+  async function handleDelete(id: number) {
+    const applicationId = filtered.find(r => r.id === id)?.application_id || null
+    let appError = null;
+    if (applicationId !== null) {
+      const { error: _error } = await supabase
+        .from("certification_application")
+        .delete()
+        .eq("id", applicationId)
+      if (_error) {
+        appError = _error
+      }
+    }
+    const { error } = await supabase
+      .from("certificate")
+      .delete()
+      .eq("id", id)
+
+    if (error) {
+      console.error("Failed to delete certificate", error)
+      return
+    }
+
+    if (appError) {
+      console.error("Failed to delete søknad, må slettes manuelt!", appError)
+    }
+
+    setRows(prev => prev.filter(r => r.id !== id))
+  }
 
   return (
     <div>
       <h1 className="text-2xl font-semibold mb-4">Sertifikater</h1>
       <p className="text-sm text-muted-foreground mb-4">Oversikt over alle utstedte sertifikater. Klikk på Application for å gå til søknaden.</p>
-      <div className="mb-4 max-w-sm">
-        <Input placeholder="Søk navn eller e-post…" value={search} onChange={e => setSearch(e.target.value)} />
-      </div>
       <Card className="border-0 bg-transparent shadow-none">
         <CardHeader className="px-0 pt-0">
           <CardTitle>Oversikt</CardTitle>
           <CardDescription>Sorter, søk og se sertifikater.</CardDescription>
+          <div className="mb-4 max-w-sm">
+            <Input placeholder="Søk navn eller e-post…" value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
         </CardHeader>
         <CardContent className="px-0">
-          <DataTable columns={columns} data={filtered} />
+          <DataTable columns={columns} data={filtered} onDelete={handleDelete} />
         </CardContent>
       </Card>
     </div>
