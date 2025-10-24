@@ -57,6 +57,7 @@ async function getCertificates(client: SupabaseClient) {
   }
 
   // Supabase may return relation fields as arrays; normalize them to single objects or null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- backend rows are untyped here; mapping to CertificateRow
   const normalized: CertificateRow[] = (rows || []).map((r: any) => ({
     id: r.id,
     created_at: r.created_at,
@@ -84,7 +85,34 @@ function Glass({ className = "", children }: React.PropsWithChildren<{ className
   )
 }
 
-export const columns: ColumnDef<CertificateRow>[] = [
+function ActionsCell({ cert, table }: { cert: CertificateRow; table: unknown }) {
+  const [open, setOpen] = useState(false)
+  // Safely narrow the table.options.meta shape without using `any`
+  const meta = (table as { options?: { meta?: { onDelete?: (id: number) => Promise<void> } } })?.options?.meta
+  const onDelete = meta?.onDelete
+
+  return (
+    <div className="flex items-center justify-end gap-2">
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button variant="destructive" size="sm" className="rounded-lg">Slett</Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Bekreft sletting</DialogTitle>
+            <DialogDescription>Er du sikker på at du vil slette sertifikat #{cert.id}? Dette kan ikke angres.</DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setOpen(false)}>Avbryt</Button>
+            <Button variant="destructive" size="sm" onClick={async () => { setOpen(false); if (onDelete) await onDelete(cert.id) }}>Slett</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+const Columns: ColumnDef<CertificateRow>[] = [
   {
     accessorKey: "id",
     header: () => <span>ID</span>,
@@ -135,31 +163,7 @@ export const columns: ColumnDef<CertificateRow>[] = [
   {
     id: "actions",
     header: () => <span className="sr-only">Actions</span>,
-    cell: ({ row, table }) => {
-      const cert = row.original
-      const [open, setOpen] = React.useState(false)
-      const onDelete = (table.options.meta as any)?.onDelete as (id: number) => Promise<void> | undefined
-
-      return (
-        <div className="flex items-center justify-end gap-2">
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button variant="destructive" size="sm" className="rounded-lg">Slett</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Bekreft sletting</DialogTitle>
-                <DialogDescription>Er du sikker på at du vil slette sertifikat #{cert.id}? Dette kan ikke angres.</DialogDescription>
-              </DialogHeader>
-              <div className="mt-4 flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={() => setOpen(false)}>Avbryt</Button>
-                <Button variant="destructive" size="sm" onClick={async () => { setOpen(false); if (onDelete) await onDelete(cert.id) }}>Slett</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-      )
-    }
+    cell: ({ row, table }) => <ActionsCell cert={row.original} table={table} />
   }
 ]
 
@@ -339,7 +343,7 @@ export default function CertificationPage() {
           </div>
         </CardHeader>
         <CardContent className="px-0">
-          <DataTable columns={columns} data={filtered} onDelete={handleDelete} />
+          <DataTable columns={Columns} data={filtered} onDelete={handleDelete} />
         </CardContent>
       </Card>
     </div>

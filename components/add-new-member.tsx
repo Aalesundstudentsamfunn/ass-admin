@@ -52,7 +52,7 @@ export function CreateUserDialog() {
             setOpen(false);
             state.ok = false;
         }
-    }, [state?.ok, setOpen, setFirstname, setLastname, setEmail, setVoluntary]);
+    }, [state, setOpen, setFirstname, setLastname, setEmail, setVoluntary]);
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>

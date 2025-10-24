@@ -75,7 +75,7 @@ export default function CertificationPage() {
       setApps(data)
     }
     fetchData()
-  }, [])
+  }, [supabase])
 
   const processed = apps.filter((a) => a.verified || a.rejected)
   const unprocessed = apps.filter((a) => !a.verified && !a.rejected)

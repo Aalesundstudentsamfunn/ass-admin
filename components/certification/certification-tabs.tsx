@@ -3,6 +3,8 @@
 import React, { useState } from "react"
 import CertificationCard, { AppShape } from "./certification-card"
 
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- fix later
 type ActionsRenderer = (app: any) => React.ReactNode
 
 export default function CertificationTabs({ processed, unprocessed, actions, onAccept, onReject, onDelete }: { processed: AppShape[]; unprocessed: AppShape[]; actions?: ActionsRenderer, onAccept?: (id: number) => void, onReject?: (id: number) => void, onDelete?: (id: number) => void }) {
@@ -27,7 +29,7 @@ export default function CertificationTabs({ processed, unprocessed, actions, onA
         const el = document.getElementById(`app-${id}`)
         if (el) el.scrollIntoView({ behavior: "smooth", block: "center" })
       }, 60)
-    } catch (_) {
+    } catch {
       // noop
     }
   }, [processed, unprocessed])
