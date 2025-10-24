@@ -38,7 +38,6 @@ export default async function MembersPage() {
     if (error) {
         return <div>Error: {error?.message}</div>
     } else if (rows && rows.length > 0) {
-        "use server"
         return (
             <ActionsProvider addNewMember={addNewMember}>
                 <DataTable initialData={rows}

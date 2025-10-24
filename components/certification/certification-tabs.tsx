@@ -27,7 +27,7 @@ export default function CertificationTabs({ processed, unprocessed, actions, onA
         const el = document.getElementById(`app-${id}`)
         if (el) el.scrollIntoView({ behavior: "smooth", block: "center" })
       }, 60)
-    } catch (e) {
+    } catch (_) {
       // noop
     }
   }, [processed, unprocessed])

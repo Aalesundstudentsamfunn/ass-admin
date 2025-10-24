@@ -1,6 +1,5 @@
 "use client"
 import { createClient } from "@/lib/supabase/client"
-import { Button } from "@/components/ui/button"
 import CertificationTabs from "@/components/certification/certification-tabs"
 import { SupabaseClient } from "@supabase/supabase-js"
 import { useEffect, useState } from "react"

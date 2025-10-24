@@ -14,7 +14,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ArrowUpDown, Info } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   ColumnDef,
@@ -280,7 +279,7 @@ export default function CertificationPage() {
     }
     fetch()
     return () => { mounted = false }
-  }, [])
+  }, [supabase])
 
   // client-side filter by firstname, lastname or email
   const filtered = React.useMemo(() => {
