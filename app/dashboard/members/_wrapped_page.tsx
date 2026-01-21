@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ArrowUpDown, Trash2, Filter, Printer, Info } from "lucide-react"
+import { ArrowUpDown, Trash2, Filter, Printer } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
@@ -62,7 +62,7 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
   return [
     {
       accessorKey: "id",
-      header: ({ column }: { column: any }) => (
+      header: ({ column }) => (
         <button
           className="inline-flex items-center gap-1"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
@@ -70,13 +70,13 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
           ID <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
-      cell: ({ row }: { row: any }) => <span className="font-medium">{row.getValue("id")}</span>,
+      cell: ({ row }) => <span className="font-medium">{row.getValue("id")}</span>,
       enableHiding: false,
       size: 80,
     },
     {
       accessorKey: "firstname",
-      header: ({ column }: { column: any }) => (
+      header: ({ column }) => (
         <button
           className="inline-flex items-center gap-1"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
@@ -84,11 +84,11 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
           First name <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
-      cell: ({ row }: { row: any }) => <span>{row.getValue("firstname")}</span>,
+      cell: ({ row }) => <span>{row.getValue("firstname")}</span>,
     },
     {
       accessorKey: "lastname",
-      header: ({ column }: { column: any }) => (
+      header: ({ column }) => (
         <button
           className="inline-flex items-center gap-1"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
@@ -96,11 +96,11 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
           Last name <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
-      cell: ({ row }: { row: any }) => <span>{row.getValue("lastname")}</span>,
+      cell: ({ row }) => <span>{row.getValue("lastname")}</span>,
     },
     {
       accessorKey: "email",
-      header: ({ column }: { column: any }) => (
+      header: ({ column }) => (
         <button
           className="inline-flex items-center gap-1"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
@@ -108,7 +108,7 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
           Email <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
-      cell: ({ row }: { row: any }) => (
+      cell: ({ row }) => (
         <a href={`mailto:${row.getValue("email")}`} className="underline-offset-2 hover:underline">
           {row.getValue("email")}
         </a>
@@ -117,7 +117,7 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
     {
       id: "actions",
       header: () => <span className="sr-only">Actions</span>,
-      cell: ({ row }: { row: any }) => {
+      cell: ({ row }) => {
         const user = row.original as UserRow
         return (
           <div className="flex items-center gap-2 justify-end">
