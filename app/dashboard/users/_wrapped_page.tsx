@@ -97,7 +97,7 @@ export const columns: ColumnDef<UserRow>[] = [
   {
     id: "actions",
     header: () => <span className="sr-only">Actions</span>,
-    cell: ({ row }) => {
+    cell: ({ }) => {
       return (
         <div className="flex items-center gap-2 justify-end">
           <Button variant="secondary" size="sm" className="rounded-lg">
