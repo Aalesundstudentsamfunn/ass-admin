@@ -156,7 +156,7 @@ function DataTable({ columns, data }: { columns: ColumnDef<UserRow, UserRow>[]; 
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs">For å legge til bruker, be de registrere seg i app eller på side.</span>
+          <span className="text-xs">For å legge til bruker, be dem registrere seg i app eller på side.</span>
         </div>
       </div>
 
@@ -256,14 +256,14 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-balance">Brukere de som har registrert seg på siden / aktive brukere</h1>
-        <p className="text-muted-foreground text-pretty">Administrer aktive medlemmer i systemet.</p>
+        <h1 className="text-3xl font-bold text-balance">Brukere som er registrert i App / Admin side</h1>
+        <p className="text-muted-foreground text-pretty">Administrer aktive brukere</p>
       </div>
 
       <Card className="border-0 bg-transparent shadow-none">
         <CardHeader className="px-0 pt-0">
           <CardTitle>Oversikt</CardTitle>
-          <CardDescription>Sorter, filtrer og håndter brukere (de som har registrert seg på siden / aktive brukere).</CardDescription>
+          <CardDescription>Sorter, filtrer og håndter brukere</CardDescription>
         </CardHeader>
         <CardContent className="px-0">
           <DataTable columns={columns} data={rows} />

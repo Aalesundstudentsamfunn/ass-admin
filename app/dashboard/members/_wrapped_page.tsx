@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ArrowUpDown, Info, Trash2, Filter } from "lucide-react"
+import { ArrowUpDown, Trash2, Filter, Printer } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { createClient } from "@/lib/supabase/client"
+import { toast } from "sonner"
 import {
   ColumnDef,
   flexRender,
@@ -35,6 +37,7 @@ export type UserRow = {
   firstname: string
   lastname: string
   email: string
+  is_voluntary: boolean
 }
 
 // ----- Liquid Glass primitives ----------------------------------------------
@@ -116,8 +119,43 @@ export const columns: ColumnDef<UserRow>[] = [
       const user = row.original
       return (
         <div className="flex items-center gap-2 justify-end">
-          <Button variant="secondary" size="sm" className="rounded-lg">
-            <Info className="mr-1 h-4 w-4" /> Mer info
+          <Button
+            variant="default"
+            size="sm"
+            className="rounded-lg"
+            onClick={async () => {
+              const supabase = createClient()
+              const { data: authData, error: authError } = await supabase.auth.getUser()
+
+              if (authError || !authData.user) {
+                console.error("Kunne ikke hente innlogget bruker for printer_queue", authError)
+                alert("Kunne ikke legge til i utskriftskø. Prøv å logge inn på nytt.")
+                return
+              }
+
+              const { error } = await supabase.from("printer_queue").insert({
+                firstname: user.firstname,
+                lastname: user.lastname,
+                email: user.email,
+                ref: user.id,
+                ref_invoker: authData.user.id,
+                is_voluntary: user.is_voluntary,
+                completed: false,
+                error_msg: null,
+              })
+
+              if (error) {
+                console.error("Feil ved innsending til printer_queue", error)
+                toast.error(
+                  "Kunne ikke legge til i utskriftskø.",
+                  error.message ? { description: error.message } : undefined,
+                )
+              } else {
+                toast.success("Lagt til i utskriftskø for utskrift av kort.")
+              }
+            }}
+          >
+            <Printer className="mr-1 h-4 w-4" /> Print kort
           </Button>
           <Button
             variant="destructive"
@@ -270,14 +308,14 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-balance">Brukere (de som har betalt åss medlemskap)</h1>
-        <p className="text-muted-foreground text-pretty">Administrer aktive medlemmer i systemet.</p>
+        <h1 className="text-3xl font-bold text-balance">Medlemmer med betalt åss medlemskap</h1>
+        <p className="text-muted-foreground text-pretty">Administrer aktive medlemmer</p>
       </div>
 
       <Card className="border-0 bg-transparent shadow-none">
         <CardHeader className="px-0 pt-0">
           <CardTitle>Oversikt</CardTitle>
-          <CardDescription>Sorter, filtrer og håndter brukere.</CardDescription>
+          <CardDescription>Sorter, filtrer og håndter medlemmer</CardDescription>
         </CardHeader>
         <CardContent className="px-0">
           <DataTable columns={columns} data={rows} />

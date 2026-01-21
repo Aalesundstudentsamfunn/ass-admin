@@ -258,14 +258,14 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-balance">Frivillige</h1>
-        <p className="text-muted-foreground text-pretty">Administrer aktive frivillige i systemet.</p>
+        <h1 className="text-3xl font-bold text-balance">Frivillige i ÅSS</h1>
+        <p className="text-muted-foreground text-pretty">Administrer aktive frivillige</p>
       </div>
 
       <Card className="border-0 bg-transparent shadow-none">
         <CardHeader className="px-0 pt-0">
           <CardTitle>Oversikt</CardTitle>
-          <CardDescription>Sorter, filtrer og håndter frivillige.</CardDescription>
+          <CardDescription>Sorter, filtrer og håndter frivillige</CardDescription>
         </CardHeader>
         <CardContent className="px-0">
           <DataTable columns={columns} data={rows} />
