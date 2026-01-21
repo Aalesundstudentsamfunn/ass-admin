@@ -20,6 +20,8 @@ import {
   VisibilityState,
 } from "@tanstack/react-table"
 import { CreateUserDialog } from "@/components/add-new-member"
+import { createClient } from "@/lib/supabase/client"
+import { useRouter } from "next/navigation"
 
 /**
  * Liquid Glass Users Page
@@ -54,88 +56,94 @@ function Glass({ className = "", children }: React.PropsWithChildren<{ className
 }
 
 // ----- Columns ---------------------------------------------------------------
-export const columns: ColumnDef<UserRow>[] = [
-  {
-    accessorKey: "id",
-    header: ({ column }) => (
-      <button
-        className="inline-flex items-center gap-1"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      >
-        ID <ArrowUpDown className="h-3.5 w-3.5" />
-      </button>
-    ),
-    cell: ({ row }) => <span className="font-medium">{row.getValue("id")}</span>,
-    enableHiding: false,
-    size: 80,
-  },
-  {
-    accessorKey: "firstname",
-    header: ({ column }) => (
-      <button
-        className="inline-flex items-center gap-1"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      >
-        First name <ArrowUpDown className="h-3.5 w-3.5" />
-      </button>
-    ),
-    cell: ({ row }) => <span>{row.getValue("firstname")}</span>,
-  },
-  {
-    accessorKey: "lastname",
-    header: ({ column }) => (
-      <button
-        className="inline-flex items-center gap-1"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      >
-        Last name <ArrowUpDown className="h-3.5 w-3.5" />
-      </button>
-    ),
-    cell: ({ row }) => <span>{row.getValue("lastname")}</span>,
-  },
-  {
-    accessorKey: "email",
-    header: ({ column }) => (
-      <button
-        className="inline-flex items-center gap-1"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      >
-        Email <ArrowUpDown className="h-3.5 w-3.5" />
-      </button>
-    ),
-    cell: ({ row }) => (
-      <a href={`mailto:${row.getValue("email")}`} className="underline-offset-2 hover:underline">
-        {row.getValue("email")}
-      </a>
-    ),
-  },
-  {
-    id: "actions",
-    header: () => <span className="sr-only">Actions</span>,
-    cell: ({ row }) => {
-      const user = row.original
-      return (
-        <div className="flex items-center gap-2 justify-end">
-          <Button variant="secondary" size="sm" className="rounded-lg">
-            <Info className="mr-1 h-4 w-4" /> Mer info
-          </Button>
-          <Button
-            variant="destructive"
-            size="sm"
-            className="rounded-lg"
-            onClick={() => confirm(`Slette ${user.firstname} ${user.lastname}?`)}
-          >
-            <Trash2 className="mr-1 h-4 w-4" /> Delete
-          </Button>
-        </div>
-      )
+function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleting: boolean) {
+  return [
+    {
+      accessorKey: "id",
+      header: ({ column }: { column: any }) => (
+        <button
+          className="inline-flex items-center gap-1"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          ID <ArrowUpDown className="h-3.5 w-3.5" />
+        </button>
+      ),
+      cell: ({ row }: { row: any }) => <span className="font-medium">{row.getValue("id")}</span>,
+      enableHiding: false,
+      size: 80,
     },
-    enableHiding: false,
-  },
-]
+    {
+      accessorKey: "firstname",
+      header: ({ column }: { column: any }) => (
+        <button
+          className="inline-flex items-center gap-1"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          First name <ArrowUpDown className="h-3.5 w-3.5" />
+        </button>
+      ),
+      cell: ({ row }: { row: any }) => <span>{row.getValue("firstname")}</span>,
+    },
+    {
+      accessorKey: "lastname",
+      header: ({ column }: { column: any }) => (
+        <button
+          className="inline-flex items-center gap-1"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Last name <ArrowUpDown className="h-3.5 w-3.5" />
+        </button>
+      ),
+      cell: ({ row }: { row: any }) => <span>{row.getValue("lastname")}</span>,
+    },
+    {
+      accessorKey: "email",
+      header: ({ column }: { column: any }) => (
+        <button
+          className="inline-flex items-center gap-1"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Email <ArrowUpDown className="h-3.5 w-3.5" />
+        </button>
+      ),
+      cell: ({ row }: { row: any }) => (
+        <a href={`mailto:${row.getValue("email")}`} className="underline-offset-2 hover:underline">
+          {row.getValue("email")}
+        </a>
+      ),
+    },
+    {
+      id: "actions",
+      header: () => <span className="sr-only">Actions</span>,
+      cell: ({ row }: { row: any }) => {
+        const user = row.original as UserRow
+        return (
+          <div className="flex items-center gap-2 justify-end">
+            <Button variant="secondary" size="sm" className="rounded-lg">
+              <Info className="mr-1 h-4 w-4" /> Mer info
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="rounded-lg"
+              disabled={isDeleting}
+              onClick={async () => {
+                onDelete(user.id)
+              }}
+            >
+              <Trash2 className="mr-1 h-4 w-4" /> {isDeleting ? "Sletter..." : "Delete"}
+            </Button>
+          </div>
+        )
+      },
+      enableHiding: false,
+    },
+  ] as ColumnDef<UserRow, unknown>[]
+}
+
 
 // ----- DataTable -------------------------------------------------------------
-function DataTable({ columns, data }: { columns: ColumnDef<UserRow, UserRow>[]; data: UserRow[] }) {
+function DataTable({ columns, data }: { columns: ColumnDef<UserRow, unknown>[]; data: UserRow[] }) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
@@ -262,10 +270,49 @@ function DataTable({ columns, data }: { columns: ColumnDef<UserRow, UserRow>[]; 
 
 
 // ----- Page ------------------------------------------------------------------
-export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
-  // If no data is provided, show a tiny demo set for layout/dev
-  //get data from supabase
-  const [rows] = React.useState<UserRow[]>(initialData)
+export default function UsersPage({
+  initialData,
+}: {
+  initialData: UserRow[]
+}) {
+  const router = useRouter()
+  const supabase = React.useMemo(() => createClient(), [])
+  const [rows, setRows] = React.useState<UserRow[]>(initialData)
+  const [isDeleting, setIsDeleting] = React.useState(false)
+
+  // Update rows when initialData changes (after router.refresh())
+  React.useEffect(() => {
+    setRows(initialData)
+  }, [initialData])
+
+  const columns = React.useMemo(() => buildColumns(async (id: string | number) => {
+    setIsDeleting(true)
+    try {
+      console.log("deleting..")
+      console.log((await supabase.auth.getUser()).data.user?.email)
+      const targetId = typeof id === "string" ? Number(id) : id
+      if (Number.isNaN(targetId)) {
+        throw new Error("Invalid member id")
+      }
+
+      // Optimistically remove from UI
+      setRows(prev => prev.filter(row => row.id !== id))
+
+      const { error: deleteError, data } = await supabase.from("ass_members").delete().eq("id", targetId)
+      if (deleteError) {
+        throw new Error(deleteError.message)
+      }
+      console.log(data)
+      router.refresh()
+    } catch (error) {
+      console.error("Failed to delete member", error)
+      alert("Kunne ikke slette medlem. Prøv igjen.")
+      // Restore on error
+      setRows(initialData)
+    } finally {
+      setIsDeleting(false)
+    }
+  }, isDeleting), [supabase, isDeleting, router, initialData])
 
   return (
     <div className="space-y-6">

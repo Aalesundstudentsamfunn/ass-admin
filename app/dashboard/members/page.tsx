@@ -12,11 +12,12 @@ export default async function MembersPage() {
         const firstname = String(formData.get('firstname') ?? '');
         const email = String(formData.get('email') ?? '');
         const lastname = String(formData.get('lastname') ?? '');
-        const voluntary = Boolean(formData.get('voluntary') ?? false)
+        const voluntary = Boolean(formData.get('voluntary')) ? true : false
+        console.log(voluntary)
         //const voluntary = Boolean(formData.get('voluntary') ?? false)
         try {
             const sb = await createClient();
-            const s_m = await sb.from("ass_members").insert({ email, firstname, lastname })
+            const s_m = await sb.from("ass_members").insert({ email, firstname, lastname, is_voluntary: voluntary })
             console.log("successfully added new member")
             if (voluntary && s_m.status === 201) {
                 try {
