@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ArrowUpDown, Info, Trash2, Filter } from "lucide-react"
+import { ArrowUpDown, Info, Filter } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   ColumnDef,
@@ -98,7 +98,6 @@ export const columns: ColumnDef<UserRow>[] = [
     id: "actions",
     header: () => <span className="sr-only">Actions</span>,
     cell: ({ row }) => {
-      const user = row.original
       return (
         <div className="flex items-center gap-2 justify-end">
           <Button variant="secondary" size="sm" className="rounded-lg">
