@@ -115,6 +115,18 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
       ),
     },
     {
+      accessorKey: "is_voluntary",
+      header: ({ column }) => (
+        <button
+          className="inline-flex items-center gap-1"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Frivillig <ArrowUpDown className="h-3.5 w-3.5" />
+        </button>
+      ),
+      cell: ({ row }) => <span>{row.getValue("is_voluntary") ? "Ja" : ""}</span>,
+    },
+    {
       id: "actions",
       header: () => <span className="sr-only">Actions</span>,
       cell: ({ row }) => {

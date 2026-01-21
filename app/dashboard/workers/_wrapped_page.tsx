@@ -104,14 +104,6 @@ export const columns: ColumnDef<UserRow>[] = [
           <Button variant="secondary" size="sm" className="rounded-lg">
             <Info className="mr-1 h-4 w-4" /> Mer info
           </Button>
-          <Button
-            variant="destructive"
-            size="sm"
-            className="rounded-lg"
-            onClick={() => confirm(`Slette ${user.firstname} ${user.lastname}?`)}
-          >
-            <Trash2 className="mr-1 h-4 w-4" /> Delete
-          </Button>
         </div>
       )
     },
@@ -156,9 +148,6 @@ function DataTable({ columns, data }: { columns: ColumnDef<UserRow, UserRow>[]; 
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button className="rounded-xl">
-            <Plus className="mr-1 h-4 w-4" /> Ny bruker
-          </Button>
         </div>
       </div>
 
