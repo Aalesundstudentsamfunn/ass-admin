@@ -111,7 +111,7 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
                   toast.error("Kunne ikke legge til i utskriftskø.", {
                     id: toastId,
                     description: "Prøv å logge inn på nytt.",
-                    duration: 10000,
+                    duration: Infinity,
                   });
                   return;
                 }
@@ -127,7 +127,7 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
 
                 if (error) {
                   console.error("Feil ved innsending til printer_queue", error);
-                  toast.error("Kunne ikke legge til i utskriftskø.", error.message ? { id: toastId, description: error.message, duration: 10000 } : { id: toastId, duration: 10000 });
+                  toast.error("Kunne ikke legge til i utskriftskø.", error.message ? { id: toastId, description: error.message, duration: Infinity } : { id: toastId, duration: Infinity });
                 } else {
                   toast.message("Lagt til i utskriftskø.", {
                     id: toastId,
@@ -144,7 +144,7 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
                       toast.success("Utskrift sendt til printer.", { id: toastId, duration: 10000 });
                     },
                     onError: (message) => {
-                      toast.error("Utskrift feilet.", { id: toastId, description: message, duration: 10000 });
+                      toast.error("Utskrift feilet.", { id: toastId, description: message, duration: Infinity });
                     },
                     onTimeout: () => {
                       toast.warning("Utskrift tar lengre tid enn vanlig.", {
@@ -178,7 +178,9 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
 
 // ----- DataTable -------------------------------------------------------------
 function DataTable({ columns, data }: { columns: ColumnDef<UserRow, unknown>[]; data: UserRow[] }) {
-  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [sorting, setSorting] = React.useState<SortingState>([
+    { id: "id", desc: true },
+  ]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
 

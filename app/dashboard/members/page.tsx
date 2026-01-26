@@ -6,7 +6,10 @@ import { enqueuePrinterQueue } from "@/lib/printer-queue";
 
 export default async function MembersPage() {
     const supabase = await createClient();
-    const { data: rows, error } = await supabase.from('ass_members').select('*')
+    const { data: rows, error } = await supabase
+        .from('ass_members')
+        .select('*')
+        .order('id', { ascending: false })
     async function addNewMember(_: unknown, formData: FormData) {
         'use server';
         console.log(formData)
