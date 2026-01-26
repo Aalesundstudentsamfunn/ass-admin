@@ -42,6 +42,7 @@ export function watchPrinterQueueStatus(
     pollingIntervalMs = 3000,
     timeoutMs = 15000,
     onTimeout,
+    timeoutErrorMessage,
   }: {
     queueId?: string | number;
     ref?: string | number;
@@ -52,6 +53,7 @@ export function watchPrinterQueueStatus(
     pollingIntervalMs?: number;
     timeoutMs?: number;
     onTimeout?: () => void;
+    timeoutErrorMessage?: string;
   },
 ) {
   const filter = queueId
@@ -67,6 +69,7 @@ export function watchPrinterQueueStatus(
   let isClosed = false;
   let pollInterval: ReturnType<typeof setInterval> | null = null;
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  let timeoutTriggered = false;
 
   const cleanup = () => {
     if (isClosed) return;
@@ -86,12 +89,46 @@ export function watchPrinterQueueStatus(
     onUpdate?.(row);
 
     if (row?.error_msg) {
+      if (timeoutTriggered && row.error_msg === timeoutErrorMessage) {
+        cleanup();
+        return;
+      }
       onError?.(row.error_msg);
       cleanup();
     } else if (row?.completed) {
       onCompleted?.();
       cleanup();
     }
+  };
+
+  const markTimeoutError = async () => {
+    if (!timeoutErrorMessage) return;
+    let targetId = queueId;
+
+    if (targetId === undefined && ref !== undefined && refInvoker) {
+      const { data } = await supabase
+        .from("printer_queue")
+        .select("id, completed, error_msg")
+        .eq("ref", ref)
+        .eq("ref_invoker", refInvoker)
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!data || data.completed || data.error_msg) {
+        return;
+      }
+      targetId = data.id;
+    }
+
+    if (targetId === undefined) return;
+
+    await supabase
+      .from("printer_queue")
+      .update({ error_msg: timeoutErrorMessage })
+      .eq("id", targetId)
+      .eq("completed", false)
+      .is("error_msg", null);
   };
 
   const pollStatus = async () => {
@@ -143,6 +180,8 @@ export function watchPrinterQueueStatus(
   if (timeoutMs > 0) {
     timeoutId = setTimeout(() => {
       if (isClosed) return;
+      timeoutTriggered = true;
+      void markTimeoutError();
       onTimeout?.();
     }, timeoutMs);
   }

@@ -129,17 +129,18 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
                   console.error("Feil ved innsending til printer_queue", error);
                   toast.error("Kunne ikke legge til i utskriftskø.", error.message ? { id: toastId, description: error.message, duration: Infinity } : { id: toastId, duration: Infinity });
                 } else {
-                  toast.message("Lagt til i utskriftskø.", {
+                  toast.loading("Venter på utskrift...", {
                     id: toastId,
                     description: "Utskrift starter når skriveren er klar.",
-                    duration: 10000,
+                    duration: Infinity,
                   });
 
                   watchPrinterQueueStatus(supabase, {
                     queueId: queueRow?.id,
                     ref: user.id,
                     refInvoker: authData.user.id,
-                    timeoutMs: 15000,
+                    timeoutMs: 25000,
+                    timeoutErrorMessage: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
                     onCompleted: () => {
                       toast.success("Utskrift sendt til printer.", { id: toastId, duration: 10000 });
                     },
@@ -147,10 +148,10 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
                       toast.error("Utskrift feilet.", { id: toastId, description: message, duration: Infinity });
                     },
                     onTimeout: () => {
-                      toast.warning("Utskrift tar lengre tid enn vanlig.", {
+                      toast.error("Utskrift tar lengre tid enn vanlig.", {
                         id: toastId,
                         description: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
-                        duration: 10000,
+                        duration: Infinity,
                       });
                     },
                   });
@@ -178,9 +179,7 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
 
 // ----- DataTable -------------------------------------------------------------
 function DataTable({ columns, data }: { columns: ColumnDef<UserRow, unknown>[]; data: UserRow[] }) {
-  const [sorting, setSorting] = React.useState<SortingState>([
-    { id: "id", desc: true },
-  ]);
+  const [sorting, setSorting] = React.useState<SortingState>([{ id: "id", desc: true }]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
 
@@ -302,6 +301,13 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
   const columns = React.useMemo(
     () =>
       buildColumns(async (id: string | number) => {
+        const confirmed = window.confirm("Er du sikker på at du vil slette dette medlemmet?");
+        if (!confirmed) {
+          toast.message("Sletting avbrutt.", { duration: 10000 });
+          return;
+        }
+
+        const toastId = toast.loading("Sletter medlem...", { duration: 10000 });
         setIsDeleting(true);
         try {
           console.log("deleting..");
@@ -319,10 +325,15 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
             throw new Error(deleteError.message);
           }
           console.log(data);
+          toast.success("Medlem slettet.", { id: toastId, duration: 10000 });
           router.refresh();
         } catch (error) {
           console.error("Failed to delete member", error);
-          alert("Kunne ikke slette medlem. Prøv igjen.");
+          toast.error("Kunne ikke slette medlem.", {
+            id: toastId,
+            description: error instanceof Error ? error.message : String(error),
+            duration: Infinity,
+          });
           // Restore on error
           setRows(initialData);
         } finally {
