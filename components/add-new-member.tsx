@@ -92,7 +92,7 @@ export function CreateUserDialog() {
             toast.error("Kunne ikke opprette medlem.", {
                 id: toastIdRef.current ?? undefined,
                 description: String(state.error),
-                duration: 10000,
+                duration: Infinity,
             })
             toastIdRef.current = null
         }
@@ -138,7 +138,7 @@ export function CreateUserDialog() {
                 toast.error("Utskrift feilet.", {
                     id: toastIdRef.current ?? undefined,
                     description: message,
-                    duration: 10000,
+                    duration: Infinity,
                 })
                 toastIdRef.current = null
                 queueKeyRef.current = null
