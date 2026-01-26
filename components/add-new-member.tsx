@@ -76,6 +76,7 @@ export function CreateUserDialog() {
                 toast.success("Medlem lagt til.", {
                     id: toastIdRef.current ?? undefined,
                     description: "Kortet er lagt i utskriftskø.",
+                    duration: 10000,
                 })
                 toastIdRef.current = null
                 submittedRef.current = false
@@ -85,12 +86,13 @@ export function CreateUserDialog() {
             toast.message("Medlem lagt til.", {
                 id: toastIdRef.current ?? undefined,
                 description: "Kortet ligger i utskriftskø.",
-                duration: Infinity,
+                duration: 10000,
             })
         } else if (state?.error) {
             toast.error("Kunne ikke opprette medlem.", {
                 id: toastIdRef.current ?? undefined,
                 description: String(state.error),
+                duration: 10000,
             })
             toastIdRef.current = null
         }
@@ -126,15 +128,27 @@ export function CreateUserDialog() {
             queueId,
             ref: queueRef,
             refInvoker: queueInvoker,
+            timeoutMs: 15000,
             onCompleted: () => {
-                toast.success("Utskrift fullført.", { id: toastIdRef.current ?? undefined })
+                toast.success("Utskrift fullført.", { id: toastIdRef.current ?? undefined, duration: 10000 })
                 toastIdRef.current = null
                 queueKeyRef.current = null
             },
             onError: (message) => {
-                toast.error("Utskrift feilet.", { id: toastIdRef.current ?? undefined, description: message })
+                toast.error("Utskrift feilet.", {
+                    id: toastIdRef.current ?? undefined,
+                    description: message,
+                    duration: 10000,
+                })
                 toastIdRef.current = null
                 queueKeyRef.current = null
+            },
+            onTimeout: () => {
+                toast.warning("Utskrift tar lengre tid enn vanlig.", {
+                    id: toastIdRef.current ?? undefined,
+                    description: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
+                    duration: 10000,
+                })
             },
         })
     }, [state, supabase])
@@ -184,7 +198,7 @@ export function CreateUserDialog() {
                                     unsubscribeRef.current = null
                                 }
                                 if (!toastIdRef.current) {
-                                    toastIdRef.current = toast.loading("Oppretter medlem...", { duration: Infinity })
+                                    toastIdRef.current = toast.loading("Oppretter medlem...", { duration: 10000 })
                                 }
                             }}
                         >
