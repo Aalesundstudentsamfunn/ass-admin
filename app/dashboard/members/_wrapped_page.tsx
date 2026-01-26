@@ -140,6 +140,7 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
                     ref: user.id,
                     refInvoker: authData.user.id,
                     timeoutMs: 15000,
+                    timeoutErrorMessage: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
                     onCompleted: () => {
                       toast.success("Utskrift sendt til printer.", { id: toastId, duration: 10000 });
                     },
@@ -147,10 +148,10 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
                       toast.error("Utskrift feilet.", { id: toastId, description: message, duration: Infinity });
                     },
                     onTimeout: () => {
-                      toast.warning("Utskrift tar lengre tid enn vanlig.", {
+                      toast.error("Utskrift tar lengre tid enn vanlig.", {
                         id: toastId,
                         description: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
-                        duration: 10000,
+                        duration: Infinity,
                       });
                     },
                   });
@@ -302,6 +303,13 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
   const columns = React.useMemo(
     () =>
       buildColumns(async (id: string | number) => {
+        const confirmed = window.confirm("Er du sikker på at du vil slette dette medlemmet?");
+        if (!confirmed) {
+          toast.message("Sletting avbrutt.", { duration: 10000 });
+          return;
+        }
+
+        const toastId = toast.loading("Sletter medlem...", { duration: 10000 });
         setIsDeleting(true);
         try {
           console.log("deleting..");
@@ -319,10 +327,15 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
             throw new Error(deleteError.message);
           }
           console.log(data);
+          toast.success("Medlem slettet.", { id: toastId, duration: 10000 });
           router.refresh();
         } catch (error) {
           console.error("Failed to delete member", error);
-          alert("Kunne ikke slette medlem. Prøv igjen.");
+          toast.error("Kunne ikke slette medlem.", {
+            id: toastId,
+            description: error instanceof Error ? error.message : String(error),
+            duration: Infinity,
+          });
           // Restore on error
           setRows(initialData);
         } finally {
