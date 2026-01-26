@@ -15,6 +15,7 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog"
 import { Plus } from "lucide-react"
+import { toast } from "sonner"
 import { useActionState, useEffect } from "react"
 
 // Liquid glass wrapper
@@ -42,6 +43,29 @@ export function CreateUserDialog() {
 
     const { addNewMember } = useActions();
     const [state, formAction, pending] = useActionState(addNewMember, { ok: false });
+    const toastIdRef = React.useRef<string | number | null>(null)
+    const submittedRef = React.useRef(false)
+
+    useEffect(() => {
+        if (!submittedRef.current || pending) {
+            return
+        }
+
+        if (state?.ok) {
+            toast.success("Medlem lagt til.", {
+                id: toastIdRef.current ?? undefined,
+                description: "Kortet er lagt i utskriftskø.",
+            })
+        } else if (state?.error) {
+            toast.error("Kunne ikke opprette medlem.", {
+                id: toastIdRef.current ?? undefined,
+                description: String(state.error),
+            })
+        }
+
+        toastIdRef.current = null
+        submittedRef.current = false
+    }, [state, pending])
 
     useEffect(() => {
         if (state?.ok) {
@@ -50,7 +74,6 @@ export function CreateUserDialog() {
             setEmail("")
             setVoluntary(false)
             setOpen(false);
-            state.ok = false;
         }
     }, [state, setOpen, setFirstname, setLastname, setEmail, setVoluntary]);
 
@@ -69,7 +92,16 @@ export function CreateUserDialog() {
                             <DialogDescription>Fyll inn informasjonen under for å legge til en ny bruker.</DialogDescription>
                         </DialogHeader>
 
-                        <form action={formAction} className="mt-4 space-y-4">
+                        <form
+                            action={formAction}
+                            className="mt-4 space-y-4"
+                            onSubmit={() => {
+                                submittedRef.current = true
+                                if (!toastIdRef.current) {
+                                    toastIdRef.current = toast.loading("Oppretter medlem...")
+                                }
+                            }}
+                        >
                             <div className="space-y-2">
                                 <Label htmlFor="firstname">Fornavn</Label>
                                 <Input
