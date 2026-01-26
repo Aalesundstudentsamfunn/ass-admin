@@ -139,7 +139,7 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
                     queueId: queueRow?.id,
                     ref: user.id,
                     refInvoker: authData.user.id,
-                    timeoutMs: 15000,
+                    timeoutMs: 25000,
                     timeoutErrorMessage: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
                     onCompleted: () => {
                       toast.success("Utskrift sendt til printer.", { id: toastId, duration: 10000 });
@@ -179,9 +179,7 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
 
 // ----- DataTable -------------------------------------------------------------
 function DataTable({ columns, data }: { columns: ColumnDef<UserRow, unknown>[]; data: UserRow[] }) {
-  const [sorting, setSorting] = React.useState<SortingState>([
-    { id: "id", desc: true },
-  ]);
+  const [sorting, setSorting] = React.useState<SortingState>([{ id: "id", desc: true }]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
 
