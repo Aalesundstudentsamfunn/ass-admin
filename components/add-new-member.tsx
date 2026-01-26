@@ -83,10 +83,10 @@ export function CreateUserDialog() {
                 return
             }
 
-            toast.message("Medlem lagt til.", {
+            toast.loading("Venter på utskrift...", {
                 id: toastIdRef.current ?? undefined,
-                description: "Kortet ligger i utskriftskø.",
-                duration: 10000,
+                description: "Medlem lagt til og ligger i utskriftskø.",
+                duration: Infinity,
             })
         } else if (state?.error) {
             toast.error("Kunne ikke opprette medlem.", {
@@ -129,6 +129,7 @@ export function CreateUserDialog() {
             ref: queueRef,
             refInvoker: queueInvoker,
             timeoutMs: 15000,
+            timeoutErrorMessage: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
             onCompleted: () => {
                 toast.success("Utskrift fullført.", { id: toastIdRef.current ?? undefined, duration: 10000 })
                 toastIdRef.current = null
@@ -144,10 +145,10 @@ export function CreateUserDialog() {
                 queueKeyRef.current = null
             },
             onTimeout: () => {
-                toast.warning("Utskrift tar lengre tid enn vanlig.", {
+                toast.error("Utskrift tar lengre tid enn vanlig.", {
                     id: toastIdRef.current ?? undefined,
                     description: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
-                    duration: 10000,
+                    duration: Infinity,
                 })
             },
         })

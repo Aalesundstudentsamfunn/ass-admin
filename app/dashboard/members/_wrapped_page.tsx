@@ -129,10 +129,10 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
                   console.error("Feil ved innsending til printer_queue", error);
                   toast.error("Kunne ikke legge til i utskriftskø.", error.message ? { id: toastId, description: error.message, duration: Infinity } : { id: toastId, duration: Infinity });
                 } else {
-                  toast.message("Lagt til i utskriftskø.", {
+                  toast.loading("Venter på utskrift...", {
                     id: toastId,
                     description: "Utskrift starter når skriveren er klar.",
-                    duration: 10000,
+                    duration: Infinity,
                   });
 
                   watchPrinterQueueStatus(supabase, {
