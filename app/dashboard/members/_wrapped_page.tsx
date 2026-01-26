@@ -9,6 +9,7 @@ import { ArrowUpDown, Trash2, Filter, Printer } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
+import { enqueuePrinterQueue, watchPrinterQueueStatus } from "@/lib/printer-queue"
 import {
   ColumnDef,
   flexRender,
@@ -139,33 +140,53 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
               className="rounded-lg"
               onClick={async () => {
                 const supabase = createClient()
+                const toastId = toast.loading("Sender til utskriftskø...")
                 const { data: authData, error: authError } = await supabase.auth.getUser()
 
                 if (authError || !authData.user) {
                   console.error("Kunne ikke hente innlogget bruker for printer_queue", authError)
-                  alert("Kunne ikke legge til i utskriftskø. Prøv å logge inn på nytt.")
+                  toast.error("Kunne ikke legge til i utskriftskø.", {
+                    id: toastId,
+                    description: "Prøv å logge inn på nytt.",
+                  })
                   return
                 }
 
-                const { error } = await supabase.from("printer_queue").insert({
+                const { data: queueRow, error } = await enqueuePrinterQueue(supabase, {
                   firstname: user.firstname,
                   lastname: user.lastname,
                   email: user.email,
                   ref: user.id,
                   ref_invoker: authData.user.id,
                   is_voluntary: user.is_voluntary,
-                  completed: false,
-                  error_msg: null,
                 })
 
                 if (error) {
                   console.error("Feil ved innsending til printer_queue", error)
                   toast.error(
                     "Kunne ikke legge til i utskriftskø.",
-                    error.message ? { description: error.message } : undefined,
+                    error.message
+                      ? { id: toastId, description: error.message }
+                      : { id: toastId },
                   )
                 } else {
-                  toast.success("Lagt til i utskriftskø for utskrift av kort.")
+                  toast.message("Lagt til i utskriftskø.", {
+                    id: toastId,
+                    description: "Utskrift starter når skriveren er klar.",
+                    duration: Infinity,
+                  })
+
+                  watchPrinterQueueStatus(supabase, {
+                    queueId: queueRow?.id,
+                    ref: user.id,
+                    refInvoker: authData.user.id,
+                    onCompleted: () => {
+                      toast.success("Utskrift fullført.", { id: toastId })
+                    },
+                    onError: (message) => {
+                      toast.error("Utskrift feilet.", { id: toastId, description: message })
+                    },
+                  })
                 }
               }}
             >
