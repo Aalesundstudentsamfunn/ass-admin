@@ -1,28 +1,18 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ArrowUpDown, Trash2, Filter, Printer } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { createClient } from "@/lib/supabase/client"
-import { toast } from "sonner"
-import {
-  ColumnDef,
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  SortingState,
-  useReactTable,
-  ColumnFiltersState,
-  VisibilityState,
-} from "@tanstack/react-table"
-import { CreateUserDialog } from "@/components/add-new-member"
-import { useRouter } from "next/navigation"
+import * as React from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ArrowUpDown, Trash2, Filter, Printer } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
+import { enqueuePrinterQueue, watchPrinterQueueStatus } from "@/lib/printer-queue";
+import { ColumnDef, flexRender, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, SortingState, useReactTable, ColumnFiltersState, VisibilityState } from "@tanstack/react-table";
+import { CreateUserDialog } from "@/components/add-new-member";
+import { useRouter } from "next/navigation";
 
 /**
  * Liquid Glass Users Page
@@ -34,27 +24,16 @@ import { useRouter } from "next/navigation"
 
 // ----- Types -----------------------------------------------------------------
 export type UserRow = {
-  id: string | number
-  firstname: string
-  lastname: string
-  email: string
-  is_voluntary: boolean
-}
+  id: string | number;
+  firstname: string;
+  lastname: string;
+  email: string;
+  is_voluntary: boolean;
+};
 
 // ----- Liquid Glass primitives ----------------------------------------------
 function Glass({ className = "", children }: React.PropsWithChildren<{ className?: string }>) {
-  return (
-    <div
-      className={cn(
-        "relative rounded-2xl border backdrop-blur-xl",
-        "bg-white/65 border-white/50 shadow-[0_1px_0_rgba(255,255,255,0.6),0_10px_30px_-10px_rgba(16,24,40,0.25)]",
-        "dark:bg-white/5 dark:border-white/10 dark:shadow-[0_1px_0_rgba(255,255,255,0.07),0_20px_60px_-20px_rgba(0,0,0,0.6)]",
-        className,
-      )}
-    >
-      {children}
-    </div>
-  )
+  return <div className={cn("relative rounded-2xl border backdrop-blur-xl", "bg-white/65 border-white/50 shadow-[0_1px_0_rgba(255,255,255,0.6),0_10px_30px_-10px_rgba(16,24,40,0.25)]", "dark:bg-white/5 dark:border-white/10 dark:shadow-[0_1px_0_rgba(255,255,255,0.07),0_20px_60px_-20px_rgba(0,0,0,0.6)]", className)}>{children}</div>;
 }
 
 // ----- Columns ---------------------------------------------------------------
@@ -63,10 +42,7 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
     {
       accessorKey: "id",
       header: ({ column }) => (
-        <button
-          className="inline-flex items-center gap-1"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
+        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
           ID <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
@@ -77,10 +53,7 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
     {
       accessorKey: "firstname",
       header: ({ column }) => (
-        <button
-          className="inline-flex items-center gap-1"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
+        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
           First name <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
@@ -89,10 +62,7 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
     {
       accessorKey: "lastname",
       header: ({ column }) => (
-        <button
-          className="inline-flex items-center gap-1"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
+        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
           Last name <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
@@ -101,10 +71,7 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
     {
       accessorKey: "email",
       header: ({ column }) => (
-        <button
-          className="inline-flex items-center gap-1"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
+        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
           Email <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
@@ -117,10 +84,7 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
     {
       accessorKey: "is_voluntary",
       header: ({ column }) => (
-        <button
-          className="inline-flex items-center gap-1"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
+        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
           Frivillig <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
@@ -130,7 +94,7 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
       id: "actions",
       header: () => <span className="sr-only">Actions</span>,
       cell: ({ row }) => {
-        const user = row.original as UserRow
+        const user = row.original as UserRow;
         return (
           <div className="flex items-center gap-2 justify-end">
             <Button
@@ -138,37 +102,60 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
               size="sm"
               className="rounded-lg"
               onClick={async () => {
-                const supabase = createClient()
-                const { data: authData, error: authError } = await supabase.auth.getUser()
+                const supabase = createClient();
+                const toastId = toast.loading("Sender til utskriftskø...", { duration: 10000 });
+                const { data: authData, error: authError } = await supabase.auth.getUser();
 
                 if (authError || !authData.user) {
-                  console.error("Kunne ikke hente innlogget bruker for printer_queue", authError)
-                  alert("Kunne ikke legge til i utskriftskø. Prøv å logge inn på nytt.")
-                  return
+                  console.error("Kunne ikke hente innlogget bruker for printer_queue", authError);
+                  toast.error("Kunne ikke legge til i utskriftskø.", {
+                    id: toastId,
+                    description: "Prøv å logge inn på nytt.",
+                    duration: Infinity,
+                  });
+                  return;
                 }
 
-                const { error } = await supabase.from("printer_queue").insert({
+                const { data: queueRow, error } = await enqueuePrinterQueue(supabase, {
                   firstname: user.firstname,
                   lastname: user.lastname,
                   email: user.email,
                   ref: user.id,
                   ref_invoker: authData.user.id,
                   is_voluntary: user.is_voluntary,
-                  completed: false,
-                  error_msg: null,
-                })
+                });
 
                 if (error) {
-                  console.error("Feil ved innsending til printer_queue", error)
-                  toast.error(
-                    "Kunne ikke legge til i utskriftskø.",
-                    error.message ? { description: error.message } : undefined,
-                  )
+                  console.error("Feil ved innsending til printer_queue", error);
+                  toast.error("Kunne ikke legge til i utskriftskø.", error.message ? { id: toastId, description: error.message, duration: Infinity } : { id: toastId, duration: Infinity });
                 } else {
-                  toast.success("Lagt til i utskriftskø for utskrift av kort.")
+                  toast.message("Lagt til i utskriftskø.", {
+                    id: toastId,
+                    description: "Utskrift starter når skriveren er klar.",
+                    duration: 10000,
+                  });
+
+                  watchPrinterQueueStatus(supabase, {
+                    queueId: queueRow?.id,
+                    ref: user.id,
+                    refInvoker: authData.user.id,
+                    timeoutMs: 15000,
+                    onCompleted: () => {
+                      toast.success("Utskrift sendt til printer.", { id: toastId, duration: 10000 });
+                    },
+                    onError: (message) => {
+                      toast.error("Utskrift feilet.", { id: toastId, description: message, duration: Infinity });
+                    },
+                    onTimeout: () => {
+                      toast.warning("Utskrift tar lengre tid enn vanlig.", {
+                        id: toastId,
+                        description: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
+                        duration: 10000,
+                      });
+                    },
+                  });
                 }
-              }}
-            >
+              }}>
               <Printer className="mr-1 h-4 w-4" /> Print kort
             </Button>
             <Button
@@ -177,24 +164,25 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
               className="rounded-lg"
               disabled={isDeleting}
               onClick={async () => {
-                onDelete(user.id)
-              }}
-            >
+                onDelete(user.id);
+              }}>
               <Trash2 className="mr-1 h-4 w-4" /> {isDeleting ? "Sletter..." : "Delete"}
             </Button>
           </div>
-        )
+        );
       },
       enableHiding: false,
     },
-  ] as ColumnDef<UserRow, unknown>[]
+  ] as ColumnDef<UserRow, unknown>[];
 }
 
 // ----- DataTable -------------------------------------------------------------
 function DataTable({ columns, data }: { columns: ColumnDef<UserRow, unknown>[]; data: UserRow[] }) {
-  const [sorting, setSorting] = React.useState<SortingState>([])
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
+  const [sorting, setSorting] = React.useState<SortingState>([
+    { id: "id", desc: true },
+  ]);
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
 
   const table = useReactTable({
     data,
@@ -206,8 +194,8 @@ function DataTable({ columns, data }: { columns: ColumnDef<UserRow, unknown>[]; 
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel()
-  })
+    getPaginationRowModel: getPaginationRowModel(),
+  });
 
   return (
     <div className="space-y-3">
@@ -215,12 +203,7 @@ function DataTable({ columns, data }: { columns: ColumnDef<UserRow, unknown>[]; 
       <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-1 items-center gap-2">
           <div className="relative w-full max-w-xs">
-            <Input
-              placeholder="Søk e-post…"
-              value={(table.getColumn("email")?.getFilterValue() as string) ?? ""}
-              onChange={(e) => table.getColumn("email")?.setFilterValue(e.target.value)}
-              className="rounded-xl bg-background/60"
-            />
+            <Input placeholder="Søk e-post…" value={(table.getColumn("email")?.getFilterValue() as string) ?? ""} onChange={(e) => table.getColumn("email")?.setFilterValue(e.target.value)} className="rounded-xl bg-background/60" />
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
               <Filter className="h-4 w-4" />
             </span>
@@ -275,13 +258,7 @@ function DataTable({ columns, data }: { columns: ColumnDef<UserRow, unknown>[]; 
           Viser {table.getRowModel().rows.length} av {table.getFilteredRowModel().rows.length} rader
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-xl"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
+          <Button variant="outline" size="sm" className="rounded-xl" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
             Forrige
           </Button>
           {/* Go to page input */}
@@ -291,7 +268,7 @@ function DataTable({ columns, data }: { columns: ColumnDef<UserRow, unknown>[]; 
             min={1}
             max={table.getPageCount()}
             value={table.getState().pagination.pageIndex + 1}
-            onChange={e => {
+            onChange={(e) => {
               let page = Number(e.target.value) - 1;
               if (!isNaN(page)) {
                 page = Math.max(0, Math.min(page, table.getPageCount() - 1));
@@ -301,66 +278,59 @@ function DataTable({ columns, data }: { columns: ColumnDef<UserRow, unknown>[]; 
             className="w-16 h-8 px-2 py-1 text-xs"
             style={{ fontVariantNumeric: "tabular-nums" }}
           />
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-xl"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
+          <Button variant="outline" size="sm" className="rounded-xl" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
             Neste
           </Button>
         </div>
       </div>
     </div>
-  )
+  );
 }
 
-
 // ----- Page ------------------------------------------------------------------
-export default function UsersPage({
-  initialData,
-}: {
-  initialData: UserRow[]
-}) {
-  const router = useRouter()
-  const supabase = React.useMemo(() => createClient(), [])
-  const [rows, setRows] = React.useState<UserRow[]>(initialData)
-  const [isDeleting, setIsDeleting] = React.useState(false)
+export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
+  const router = useRouter();
+  const supabase = React.useMemo(() => createClient(), []);
+  const [rows, setRows] = React.useState<UserRow[]>(initialData);
+  const [isDeleting, setIsDeleting] = React.useState(false);
 
   // Update rows when initialData changes (after router.refresh())
   React.useEffect(() => {
-    setRows(initialData)
-  }, [initialData])
+    setRows(initialData);
+  }, [initialData]);
 
-  const columns = React.useMemo(() => buildColumns(async (id: string | number) => {
-    setIsDeleting(true)
-    try {
-      console.log("deleting..")
-      console.log((await supabase.auth.getUser()).data.user?.email)
-      const targetId = typeof id === "string" ? Number(id) : id
-      if (Number.isNaN(targetId)) {
-        throw new Error("Invalid member id")
-      }
+  const columns = React.useMemo(
+    () =>
+      buildColumns(async (id: string | number) => {
+        setIsDeleting(true);
+        try {
+          console.log("deleting..");
+          console.log((await supabase.auth.getUser()).data.user?.email);
+          const targetId = typeof id === "string" ? Number(id) : id;
+          if (Number.isNaN(targetId)) {
+            throw new Error("Invalid member id");
+          }
 
-      // Optimistically remove from UI
-      setRows(prev => prev.filter(row => row.id !== id))
+          // Optimistically remove from UI
+          setRows((prev) => prev.filter((row) => row.id !== id));
 
-      const { error: deleteError, data } = await supabase.from("ass_members").delete().eq("id", targetId)
-      if (deleteError) {
-        throw new Error(deleteError.message)
-      }
-      console.log(data)
-      router.refresh()
-    } catch (error) {
-      console.error("Failed to delete member", error)
-      alert("Kunne ikke slette medlem. Prøv igjen.")
-      // Restore on error
-      setRows(initialData)
-    } finally {
-      setIsDeleting(false)
-    }
-  }, isDeleting), [supabase, isDeleting, router, initialData])
+          const { error: deleteError, data } = await supabase.from("ass_members").delete().eq("id", targetId);
+          if (deleteError) {
+            throw new Error(deleteError.message);
+          }
+          console.log(data);
+          router.refresh();
+        } catch (error) {
+          console.error("Failed to delete member", error);
+          alert("Kunne ikke slette medlem. Prøv igjen.");
+          // Restore on error
+          setRows(initialData);
+        } finally {
+          setIsDeleting(false);
+        }
+      }, isDeleting),
+    [supabase, isDeleting, router, initialData],
+  );
 
   return (
     <div className="space-y-6">
@@ -379,5 +349,5 @@ export default function UsersPage({
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

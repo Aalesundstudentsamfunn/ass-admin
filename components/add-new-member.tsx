@@ -15,6 +15,9 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog"
 import { Plus } from "lucide-react"
+import { toast } from "sonner"
+import { createClient } from "@/lib/supabase/client"
+import { watchPrinterQueueStatus } from "@/lib/printer-queue"
 import { useActionState, useEffect } from "react"
 
 // Liquid glass wrapper
@@ -41,7 +44,123 @@ export function CreateUserDialog() {
     const [voluntary, setVoluntary] = React.useState(false)
 
     const { addNewMember } = useActions();
-    const [state, formAction, pending] = useActionState(addNewMember, { ok: false });
+    const [state, formAction, pending] = useActionState(
+        addNewMember,
+        { ok: false } as {
+            ok: boolean
+            error?: string
+            queueId?: string | number
+            queueRef?: string | number
+            queueInvoker?: string
+        },
+    );
+    const supabase = React.useMemo(() => createClient(), [])
+    const toastIdRef = React.useRef<string | number | null>(null)
+    const submittedRef = React.useRef(false)
+    const unsubscribeRef = React.useRef<(() => void) | null>(null)
+    const queueKeyRef = React.useRef<string | null>(null)
+
+    useEffect(() => {
+        if (!submittedRef.current || pending) {
+            return
+        }
+
+        if (state?.ok) {
+            const queueKey = state?.queueId
+                ? `id:${state.queueId}`
+                : state?.queueRef && state?.queueInvoker
+                  ? `ref:${state.queueRef}:invoker:${state.queueInvoker}`
+                  : null
+
+            if (!queueKey) {
+                toast.success("Medlem lagt til.", {
+                    id: toastIdRef.current ?? undefined,
+                    description: "Kortet er lagt i utskriftskø.",
+                    duration: 10000,
+                })
+                toastIdRef.current = null
+                submittedRef.current = false
+                return
+            }
+
+            toast.message("Medlem lagt til.", {
+                id: toastIdRef.current ?? undefined,
+                description: "Kortet ligger i utskriftskø.",
+                duration: 10000,
+            })
+        } else if (state?.error) {
+            toast.error("Kunne ikke opprette medlem.", {
+                id: toastIdRef.current ?? undefined,
+                description: String(state.error),
+                duration: Infinity,
+            })
+            toastIdRef.current = null
+        }
+
+        submittedRef.current = false
+    }, [state, pending])
+
+    useEffect(() => {
+        if (!state?.ok || !toastIdRef.current) {
+            return
+        }
+
+        const queueId = state?.queueId
+        const queueRef = state?.queueRef
+        const queueInvoker = state?.queueInvoker
+        const queueKey = queueId
+            ? `id:${queueId}`
+            : queueRef && queueInvoker
+              ? `ref:${queueRef}:invoker:${queueInvoker}`
+              : null
+
+        if (!queueKey || queueKeyRef.current === queueKey) {
+            return
+        }
+
+        queueKeyRef.current = queueKey
+        if (unsubscribeRef.current) {
+            unsubscribeRef.current()
+            unsubscribeRef.current = null
+        }
+
+        unsubscribeRef.current = watchPrinterQueueStatus(supabase, {
+            queueId,
+            ref: queueRef,
+            refInvoker: queueInvoker,
+            timeoutMs: 15000,
+            onCompleted: () => {
+                toast.success("Utskrift fullført.", { id: toastIdRef.current ?? undefined, duration: 10000 })
+                toastIdRef.current = null
+                queueKeyRef.current = null
+            },
+            onError: (message) => {
+                toast.error("Utskrift feilet.", {
+                    id: toastIdRef.current ?? undefined,
+                    description: message,
+                    duration: Infinity,
+                })
+                toastIdRef.current = null
+                queueKeyRef.current = null
+            },
+            onTimeout: () => {
+                toast.warning("Utskrift tar lengre tid enn vanlig.", {
+                    id: toastIdRef.current ?? undefined,
+                    description: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
+                    duration: 10000,
+                })
+            },
+        })
+    }, [state, supabase])
+
+    useEffect(() => {
+        return () => {
+            if (unsubscribeRef.current) {
+                unsubscribeRef.current()
+                unsubscribeRef.current = null
+            }
+        }
+    }, [])
 
     useEffect(() => {
         if (state?.ok) {
@@ -50,7 +169,6 @@ export function CreateUserDialog() {
             setEmail("")
             setVoluntary(false)
             setOpen(false);
-            state.ok = false;
         }
     }, [state, setOpen, setFirstname, setLastname, setEmail, setVoluntary]);
 
@@ -69,7 +187,21 @@ export function CreateUserDialog() {
                             <DialogDescription>Fyll inn informasjonen under for å legge til en ny bruker.</DialogDescription>
                         </DialogHeader>
 
-                        <form action={formAction} className="mt-4 space-y-4">
+                        <form
+                            action={formAction}
+                            className="mt-4 space-y-4"
+                            onSubmit={() => {
+                                submittedRef.current = true
+                                queueKeyRef.current = null
+                                if (unsubscribeRef.current) {
+                                    unsubscribeRef.current()
+                                    unsubscribeRef.current = null
+                                }
+                                if (!toastIdRef.current) {
+                                    toastIdRef.current = toast.loading("Oppretter medlem...", { duration: 10000 })
+                                }
+                            }}
+                        >
                             <div className="space-y-2">
                                 <Label htmlFor="firstname">Fornavn</Label>
                                 <Input
