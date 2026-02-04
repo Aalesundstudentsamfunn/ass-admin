@@ -40,6 +40,20 @@ function Glass({ className = "", children }: React.PropsWithChildren<{ className
 function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleting: boolean) {
   return [
     {
+      id: "search",
+      accessorFn: (row: UserRow) => `${row.firstname} ${row.lastname} ${row.email ?? ""}`.trim(),
+      filterFn: (row, columnId, value) => {
+        const query = String(value ?? "").trim().toLowerCase();
+        if (!query) {
+          return true;
+        }
+        const haystack = String(row.getValue(columnId) ?? "").toLowerCase();
+        return haystack.includes(query);
+      },
+      enableSorting: false,
+      enableHiding: true,
+    },
+    {
       accessorKey: "id",
       header: ({ column }) => (
         <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
@@ -181,7 +195,7 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
 function DataTable({ columns, data }: { columns: ColumnDef<UserRow, unknown>[]; data: UserRow[] }) {
   const [sorting, setSorting] = React.useState<SortingState>([{ id: "id", desc: true }]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({ search: false });
 
   const table = useReactTable({
     data,
@@ -202,7 +216,12 @@ function DataTable({ columns, data }: { columns: ColumnDef<UserRow, unknown>[]; 
       <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-1 items-center gap-2">
           <div className="relative w-full max-w-xs">
-            <Input placeholder="Søk e-post…" value={(table.getColumn("email")?.getFilterValue() as string) ?? ""} onChange={(e) => table.getColumn("email")?.setFilterValue(e.target.value)} className="rounded-xl bg-background/60" />
+            <Input
+              placeholder="Søk navn eller e-post…"
+              value={(table.getColumn("search")?.getFilterValue() as string) ?? ""}
+              onChange={(e) => table.getColumn("search")?.setFilterValue(e.target.value)}
+              className="rounded-xl bg-background/60"
+            />
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
               <Filter className="h-4 w-4" />
             </span>
