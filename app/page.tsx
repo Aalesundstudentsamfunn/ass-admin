@@ -4,7 +4,7 @@ import React from "react";
 import { Lock, ChevronRight, Wrench, Building2, Users2, CalendarDays, Waves, Mountain, Music4, Gamepad2, ArrowUpRight } from "lucide-react";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import Image from "next/image";
-import favicon from "@/favicon.webp";
+import favicon from "./favicon.webp";
 
 // Minimal, glassy admin landing page for ÅSS (Ålesund Studentsamfunn)
 // Tech: Next.js (App Router compatible), TailwindCSS, TypeScript
