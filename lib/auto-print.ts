@@ -1,52 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { getStoredSetting, setStoredSetting, useStoredSetting } from "@/lib/settings-storage";
 
 const AUTO_PRINT_KEY = "ass_admin_auto_print";
+const AUTO_PRINT_DEFAULT = true;
+const parseAutoPrint = (raw: string) => raw !== "false";
+const serializeAutoPrint = (value: boolean) => (value ? "true" : "false");
 
 export function getStoredAutoPrint(): boolean {
-  if (typeof window === "undefined") {
-    return true;
-  }
-
-  const raw = window.localStorage.getItem(AUTO_PRINT_KEY);
-  if (raw === null) {
-    return true;
-  }
-
-  return raw !== "false";
+  return getStoredSetting(AUTO_PRINT_KEY, AUTO_PRINT_DEFAULT, parseAutoPrint);
 }
 
 export function setStoredAutoPrint(value: boolean) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(AUTO_PRINT_KEY, value ? "true" : "false");
+  setStoredSetting(AUTO_PRINT_KEY, value, serializeAutoPrint);
 }
 
 export function useAutoPrintSetting() {
-  const [autoPrint, setAutoPrintState] = useState(true);
+  const { value: autoPrint, setValue } = useStoredSetting(AUTO_PRINT_KEY, AUTO_PRINT_DEFAULT, parseAutoPrint, serializeAutoPrint);
 
-  useEffect(() => {
-    setAutoPrintState(getStoredAutoPrint());
-  }, []);
-
-  useEffect(() => {
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === AUTO_PRINT_KEY) {
-        setAutoPrintState(getStoredAutoPrint());
-      }
-    };
-
-    window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
-  }, []);
-
-  const setAutoPrint = useCallback((value: boolean) => {
-    setAutoPrintState(value);
-    setStoredAutoPrint(value);
-  }, []);
-
-  return { autoPrint, setAutoPrint };
+  return { autoPrint, setAutoPrint: setValue };
 }
