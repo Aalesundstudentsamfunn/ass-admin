@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { enqueuePrinterQueue, watchPrinterQueueStatus } from "@/lib/printer-queue";
+import { MEMBER_PAGE_SIZES, useMemberPageSizeDefault } from "@/lib/table-settings";
 import { ColumnDef, flexRender, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, SortingState, useReactTable, ColumnFiltersState, VisibilityState } from "@tanstack/react-table";
 import { CreateUserDialog } from "@/components/add-new-member";
 import { useRouter } from "next/navigation";
@@ -192,23 +193,30 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
 }
 
 // ----- DataTable -------------------------------------------------------------
-function DataTable({ columns, data }: { columns: ColumnDef<UserRow, unknown>[]; data: UserRow[] }) {
+function DataTable({ columns, data, defaultPageSize }: { columns: ColumnDef<UserRow, unknown>[]; data: UserRow[]; defaultPageSize: number }) {
   const [sorting, setSorting] = React.useState<SortingState>([{ id: "id", desc: true }]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({ search: false });
+  const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: defaultPageSize });
+  const pageSizeOptions = MEMBER_PAGE_SIZES;
 
   const table = useReactTable({
     data,
     columns,
-    state: { sorting, columnFilters, columnVisibility },
+    state: { sorting, columnFilters, columnVisibility, pagination },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
   });
+
+  React.useEffect(() => {
+    setPagination((prev) => ({ ...prev, pageSize: defaultPageSize, pageIndex: 0 }));
+  }, [defaultPageSize]);
 
   return (
     <div className="space-y-3">
@@ -276,6 +284,26 @@ function DataTable({ columns, data }: { columns: ColumnDef<UserRow, unknown>[]; 
           Viser {table.getRowModel().rows.length} av {table.getFilteredRowModel().rows.length} rader
         </div>
         <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Rader per side</span>
+          <select
+            value={table.getState().pagination.pageSize}
+            onChange={(e) => {
+              const next = Number(e.target.value);
+              if (Number.isNaN(next)) {
+                return;
+              }
+              table.setPageSize(next);
+              table.setPageIndex(0);
+            }}
+            className="h-8 w-20 rounded-xl border border-border/60 bg-background/60 px-2 text-xs"
+            style={{ fontVariantNumeric: "tabular-nums" }}
+          >
+            {pageSizeOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
           <Button variant="outline" size="sm" className="rounded-xl" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
             Forrige
           </Button>
@@ -309,6 +337,7 @@ function DataTable({ columns, data }: { columns: ColumnDef<UserRow, unknown>[]; 
 export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
   const router = useRouter();
   const supabase = React.useMemo(() => createClient(), []);
+  const defaultPageSize = useMemberPageSizeDefault();
   const [rows, setRows] = React.useState<UserRow[]>(initialData);
   const [isDeleting, setIsDeleting] = React.useState(false);
 
@@ -375,7 +404,7 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
           <CardDescription>Sorter, filtrer og håndter medlemmer</CardDescription>
         </CardHeader>
         <CardContent className="px-0">
-          <DataTable columns={columns} data={rows} />
+          <DataTable columns={columns} data={rows} defaultPageSize={defaultPageSize} />
         </CardContent>
       </Card>
     </div>

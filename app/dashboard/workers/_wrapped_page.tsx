@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ArrowUpDown, Info, Filter } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { MEMBER_PAGE_SIZES, useMemberPageSizeDefault } from "@/lib/table-settings"
 import {
   ColumnDef,
   flexRender,
@@ -111,23 +112,30 @@ export const columns: ColumnDef<UserRow>[] = [
 ]
 
 // ----- DataTable -------------------------------------------------------------
-function DataTable({ columns, data }: { columns: ColumnDef<UserRow, UserRow>[]; data: UserRow[] }) {
+function DataTable({ columns, data, defaultPageSize }: { columns: ColumnDef<UserRow, UserRow>[]; data: UserRow[]; defaultPageSize: number }) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
+  const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: defaultPageSize })
+  const pageSizeOptions = MEMBER_PAGE_SIZES
 
   const table = useReactTable({
     data,
     columns,
-    state: { sorting, columnFilters, columnVisibility },
+    state: { sorting, columnFilters, columnVisibility, pagination },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel()
   })
+
+  React.useEffect(() => {
+    setPagination((prev) => ({ ...prev, pageSize: defaultPageSize, pageIndex: 0 }))
+  }, [defaultPageSize])
 
   return (
     <div className="space-y-3">
@@ -194,6 +202,26 @@ function DataTable({ columns, data }: { columns: ColumnDef<UserRow, UserRow>[]; 
           Viser {table.getRowModel().rows.length} av {table.getFilteredRowModel().rows.length} rader
         </div>
         <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Rader per side</span>
+          <select
+            value={table.getState().pagination.pageSize}
+            onChange={(e) => {
+              const next = Number(e.target.value)
+              if (Number.isNaN(next)) {
+                return
+              }
+              table.setPageSize(next)
+              table.setPageIndex(0)
+            }}
+            className="h-8 w-20 rounded-xl border border-border/60 bg-background/60 px-2 text-xs"
+            style={{ fontVariantNumeric: "tabular-nums" }}
+          >
+            {pageSizeOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
           <Button
             variant="outline"
             size="sm"
@@ -241,6 +269,7 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
 
   // If no data is provided, show a tiny demo set for layout/dev
   //get data from supabase
+  const defaultPageSize = useMemberPageSizeDefault()
   const [rows] = React.useState<UserRow[]>(initialData)
 
   return (
@@ -256,7 +285,7 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
           <CardDescription>Sorter, filtrer og håndter frivillige</CardDescription>
         </CardHeader>
         <CardContent className="px-0">
-          <DataTable columns={columns} data={rows} />
+          <DataTable columns={columns} data={rows} defaultPageSize={defaultPageSize} />
         </CardContent>
       </Card>
     </div>
