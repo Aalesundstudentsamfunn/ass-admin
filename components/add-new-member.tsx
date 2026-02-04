@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { watchPrinterQueueStatus } from "@/lib/printer-queue";
 import { useActionState, useEffect } from "react";
+import { useAutoPrintSetting } from "@/lib/auto-print";
 
 // Liquid glass wrapper
 function Glass({ className = "", children }: React.PropsWithChildren<{ className?: string }>) {
@@ -24,11 +25,13 @@ export function CreateUserDialog() {
   const [lastname, setLastname] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [voluntary, setVoluntary] = React.useState(false);
+  const { autoPrint } = useAutoPrintSetting();
 
   const { addNewMember } = useActions();
   const [state, formAction, pending] = useActionState(addNewMember, { ok: false } as {
     ok: boolean;
     error?: string;
+    autoPrint?: boolean;
     queueId?: string | number;
     queueRef?: string | number;
     queueInvoker?: string;
@@ -45,6 +48,18 @@ export function CreateUserDialog() {
     }
 
     if (state?.ok) {
+      const shouldAutoPrint = state?.autoPrint ?? true;
+      if (!shouldAutoPrint) {
+        toast.success("Medlem lagt til.", {
+          id: toastIdRef.current ?? undefined,
+          description: "Auto-utskrift er deaktivert. Trykk Print kort for å skrive ut.",
+          duration: 10000,
+        });
+        toastIdRef.current = null;
+        submittedRef.current = false;
+        return;
+      }
+
       const queueKey = state?.queueId ? `id:${state.queueId}` : state?.queueRef && state?.queueInvoker ? `ref:${state.queueRef}:invoker:${state.queueInvoker}` : null;
 
       if (!queueKey) {
@@ -76,7 +91,7 @@ export function CreateUserDialog() {
   }, [state, pending]);
 
   useEffect(() => {
-    if (!state?.ok || !toastIdRef.current) {
+    if (!state?.ok || state?.autoPrint === false || !toastIdRef.current) {
       return;
     }
 
@@ -173,6 +188,7 @@ export function CreateUserDialog() {
                   toastIdRef.current = toast.loading("Oppretter medlem...", { duration: 10000 });
                 }
               }}>
+              <input type="hidden" name="autoPrint" value={autoPrint ? "true" : "false"} />
               <div className="space-y-2">
                 <Label htmlFor="firstname">Fornavn</Label>
                 <Input id="firstname" name="firstname" placeholder="Ola" value={firstname} onChange={(e) => setFirstname(e.target.value)} required className="rounded-xl" />

@@ -17,6 +17,8 @@ export default async function MembersPage() {
         const email = String(formData.get('email') ?? '');
         const lastname = String(formData.get('lastname') ?? '');
         const voluntary = Boolean(formData.get('voluntary')) ? true : false
+        const autoPrintValue = formData.get('autoPrint');
+        const autoPrint = autoPrintValue === null ? true : String(autoPrintValue) !== 'false';
         console.log(voluntary)
         //const voluntary = Boolean(formData.get('voluntary') ?? false)
         try {
@@ -43,6 +45,11 @@ export default async function MembersPage() {
                 }
             }
 
+            if (!autoPrint) {
+                revalidatePath("/dashboard/members")
+                return { ok: true, autoPrint: false };
+            }
+
             const { data: authData, error: authError } = await sb.auth.getUser()
             if (authError || !authData.user) {
                 return { ok: false, error: "added user but failed to queue print job, please log in again." }
@@ -60,7 +67,7 @@ export default async function MembersPage() {
                 return { ok: false, error: "added user but failed to add to printer queue: " + queueError.message }
             }
             revalidatePath("/dashboard/members")
-            return { ok: true, queueId: queueRow?.id, queueRef: newMember.id, queueInvoker: authData.user.id };
+            return { ok: true, autoPrint: true, queueId: queueRow?.id, queueRef: newMember.id, queueInvoker: authData.user.id };
         } catch (error: unknown) {
             return { ok: false, error: error }
         }
