@@ -4,14 +4,12 @@ import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import { AppToaster } from "@/components/ui/sonner";
 
-const defaultUrl = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : "http://localhost:3000";
+const defaultUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "ÅSS ADMIN SIDE",
-  description: "Portal for frivillige i ÅSS. Kort, utstyr og medlemskaper samlet på ett sted.",
+  title: "ÅSS | ADMIN SIDE",
+  description: "Portal for frivillige i ÅSS. Kort, utstyr og medlemskap samlet på en side.",
 };
 
 const geistSans = Geist({
@@ -28,12 +26,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.className} antialiased`}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="light"
-          enableSystem
-          disableTransitionOnChange
-        >
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           {children}
           <AppToaster />
         </ThemeProvider>
