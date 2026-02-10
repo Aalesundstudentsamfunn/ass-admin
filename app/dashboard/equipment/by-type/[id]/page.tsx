@@ -1,7 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
 import WrappedItemPage from "./_wrappedPage";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
 
 
 export type ItemType = {
