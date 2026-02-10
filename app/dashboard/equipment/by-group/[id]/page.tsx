@@ -18,7 +18,7 @@ export type ItemType = {
 
 
 
-export default async function UtstyrPage({ params }: { params: { id: number } }) {
+export default async function UtstyrPage({ params }: { params: Promise<{ id: string }> }) {
 
     const { id } = await params
     const supabase = await createClient()

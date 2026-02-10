@@ -17,7 +17,7 @@ export type ItemType = {
 
 
 
-export default async function ItemPage({ params }: { params: { id: number } }) {
+export default async function ItemPage({ params }: { params: Promise<{ id: string }> }) {
 
     const { id } = await params
     const supabase = await createClient()
