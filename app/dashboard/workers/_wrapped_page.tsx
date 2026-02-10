@@ -2,13 +2,17 @@
 
 import * as React from "react"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { ArrowUpDown, Info, Filter } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { MEMBER_PAGE_SIZES, useMemberPageSizeDefault } from "@/lib/table-settings"
+import { createClient } from "@/lib/supabase/client"
+import { toast } from "sonner"
 import {
   ColumnDef,
   flexRender,
@@ -36,11 +40,170 @@ export type UserRow = {
   firstname: string
   lastname: string
   email: string
+  is_voluntary?: boolean | null
+  privilege_type?: number | null
 }
 
-function UserInfoDialog({ user }: { user: UserRow }) {
+const PRIVILEGE_OPTIONS = [
+  { value: 1, label: "Medlem" },
+  { value: 2, label: "Frivillig" },
+  { value: 3, label: "Gruppeleder" },
+  { value: 4, label: "Stortinget" },
+  { value: 5, label: "IT" },
+]
+
+function formatSupabaseError(error: { message?: string; details?: string | null; hint?: string | null; code?: string | null } | null) {
+  if (!error) {
+    return "Ukjent feil."
+  }
+  const parts = [error.message]
+  if (error.code) {
+    parts.push(`code=${error.code}`)
+  }
+  if (error.details) {
+    parts.push(`details=${error.details}`)
+  }
+  if (error.hint) {
+    parts.push(`hint=${error.hint}`)
+  }
+  return parts.filter(Boolean).join(" | ")
+}
+
+async function updateVoluntaryStatus(user: UserRow, next: boolean) {
+  const email = String(user.email ?? "").trim()
+  const supabase = createClient()
+
+  const { data, error } = await supabase.rpc("set_user_voluntary", {
+    p_user_id: null,
+    p_email: email || null,
+    p_voluntary: next,
+  })
+
+  if (error) {
+    return { ok: false, errorMessage: formatSupabaseError(error) }
+  }
+
+  const membersUpdated = typeof data?.members_updated === "number" ? data.members_updated : null
+  const warningMessage = membersUpdated === 0 ? "ass_members update affected 0 rows." : null
+
+  return { ok: true, warningMessage }
+}
+
+function UserInfoDialog({
+  user,
+  onVoluntaryUpdated,
+  onPrivilegeUpdated,
+}: {
+  user: UserRow
+  onVoluntaryUpdated: (next: boolean) => void
+  onPrivilegeUpdated: (next: number) => void
+}) {
   const fullName = `${user.firstname ?? ""} ${user.lastname ?? ""}`.trim()
   const email = user.email ?? ""
+  const canToggle = Boolean(email)
+  const hasIdentifier = Boolean(email || user.id)
+  const [isSaving, setIsSaving] = React.useState(false)
+  const [privilegeType, setPrivilegeType] = React.useState<number>(
+    typeof user.privilege_type === "number" ? user.privilege_type : 1,
+  )
+
+  React.useEffect(() => {
+    if (typeof user.privilege_type === "number") {
+      setPrivilegeType(user.privilege_type)
+    }
+  }, [user.privilege_type])
+
+  const handleToggleVoluntary = async (checked: boolean) => {
+    const isVoluntary = Boolean(user.is_voluntary)
+    if (isSaving || checked === isVoluntary) {
+      return
+    }
+    if (!canToggle) {
+      toast.error("Mangler e-post for å oppdatere frivillig-status.")
+      return
+    }
+
+    const next = checked
+    const toastId = toast.loading(next ? "Setter som frivillig..." : "Fjerner frivillig...", { duration: 10000 })
+    setIsSaving(true)
+
+    const result = await updateVoluntaryStatus(user, next)
+    if (!result.ok) {
+      toast.error("Kunne ikke oppdatere frivillig-status.", { id: toastId, description: result.errorMessage, duration: Infinity })
+      setIsSaving(false)
+      return
+    }
+
+    onVoluntaryUpdated(next)
+    toast.success(next ? "Satt som frivillig." : "Fjernet som frivillig.", { id: toastId, duration: 6000 })
+    if (result.warningMessage) {
+      toast.error("Kunne ikke oppdatere profiles.", { description: result.warningMessage, duration: 10000 })
+    }
+    setIsSaving(false)
+  }
+
+  const updatePrivilegeInTable = async (table: "profiles" | "ass_members", next: number) => {
+    const supabase = createClient()
+    const idValue =
+      typeof user.id === "number"
+        ? user.id
+        : typeof user.id === "string" && user.id !== ""
+          ? user.id
+          : null
+
+    let result = null
+    let error = null
+
+    if (idValue !== null) {
+      result = await supabase.from(table).update({ privilege_type: next }).eq("id", idValue).select("id, privilege_type")
+      if (result.error) {
+        error = result.error
+      } else if (result.data && result.data.length > 0) {
+        return { ok: true }
+      }
+    }
+
+    if (email) {
+      result = await supabase.from(table).update({ privilege_type: next }).eq("email", email).select("id, privilege_type")
+      if (result.error) {
+        error = result.error
+      } else if (result.data && result.data.length > 0) {
+        return { ok: true }
+      }
+    }
+
+    return { ok: false, error }
+  }
+
+  const handlePrivilegeChange = async (value: string) => {
+    const next = Number(value)
+    if (!Number.isFinite(next) || next === privilegeType) {
+      return
+    }
+    if (!hasIdentifier) {
+      toast.error("Mangler identifikator for å oppdatere tilgangsnivå.")
+      return
+    }
+
+    const toastId = toast.loading("Oppdaterer tilgangsnivå...", { duration: 10000 })
+    setIsSaving(true)
+
+    const profileUpdate = await updatePrivilegeInTable("profiles", next)
+    const memberUpdate = await updatePrivilegeInTable("ass_members", next)
+    const success = profileUpdate.ok || memberUpdate.ok
+    const errorMessage = profileUpdate.error?.message ?? memberUpdate.error?.message ?? "Kunne ikke oppdatere tilgangsnivå."
+
+    if (!success) {
+      toast.error("Kunne ikke oppdatere tilgangsnivå.", { id: toastId, description: errorMessage, duration: Infinity })
+      setIsSaving(false)
+      return
+    }
+
+    setPrivilegeType(next)
+    onPrivilegeUpdated(next)
+    toast.success("Tilgangsnivå oppdatert.", { id: toastId, duration: 6000 })
+    setIsSaving(false)
+  }
 
   return (
     <Dialog>
@@ -73,6 +236,44 @@ function UserInfoDialog({ user }: { user: UserRow }) {
               <span className="font-medium">—</span>
             )}
           </div>
+          <div className="flex items-center justify-between gap-4">
+            <Label className="text-muted-foreground" htmlFor={`privilege-${user.id}`}>
+              Tilgangsnivå
+            </Label>
+            <select
+              id={`privilege-${user.id}`}
+              value={privilegeType}
+              disabled={isSaving || !hasIdentifier}
+              onChange={(event) => handlePrivilegeChange(event.target.value)}
+              className="h-8 w-40 rounded-xl border border-border/60 bg-background/60 px-2 text-xs"
+              style={{ fontVariantNumeric: "tabular-nums" }}
+            >
+              {PRIVILEGE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <Label className="text-muted-foreground" htmlFor={`voluntary-${user.id}`}>
+              Frivillig
+            </Label>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{Boolean(user.is_voluntary) ? "Ja" : "Nei"}</span>
+              <Checkbox
+                id={`voluntary-${user.id}`}
+                checked={Boolean(user.is_voluntary)}
+                disabled={isSaving || !canToggle}
+                onCheckedChange={(checked) => {
+                  if (checked === "indeterminate") {
+                    return
+                  }
+                  handleToggleVoluntary(Boolean(checked))
+                }}
+              />
+            </div>
+          </div>
         </div>
         <DialogFooter>
           {email ? (
@@ -103,7 +304,11 @@ function Glass({ className = "", children }: React.PropsWithChildren<{ className
 }
 
 // ----- Columns ---------------------------------------------------------------
-export const columns: ColumnDef<UserRow>[] = [
+function buildColumns(
+  onVoluntaryUpdated: (user: UserRow, next: boolean) => void,
+  onPrivilegeUpdated: (user: UserRow, next: number) => void,
+): ColumnDef<UserRow, unknown>[] {
+  return [
   {
     accessorKey: "email",
     header: ({ column }) => (
@@ -151,16 +356,21 @@ export const columns: ColumnDef<UserRow>[] = [
       const user = row.original as UserRow
       return (
         <div className="flex items-center gap-2 justify-end">
-          <UserInfoDialog user={user} />
+          <UserInfoDialog
+            user={user}
+            onVoluntaryUpdated={(next) => onVoluntaryUpdated(user, next)}
+            onPrivilegeUpdated={(next) => onPrivilegeUpdated(user, next)}
+          />
         </div>
       )
     },
     enableHiding: false,
   },
-]
+  ]
+}
 
 // ----- DataTable -------------------------------------------------------------
-function DataTable({ columns, data, defaultPageSize }: { columns: ColumnDef<UserRow, UserRow>[]; data: UserRow[]; defaultPageSize: number }) {
+function DataTable({ columns, data, defaultPageSize }: { columns: ColumnDef<UserRow, unknown>[]; data: UserRow[]; defaultPageSize: number }) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
@@ -318,7 +528,28 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
   // If no data is provided, show a tiny demo set for layout/dev
   //get data from supabase
   const defaultPageSize = useMemberPageSizeDefault()
-  const [rows] = React.useState<UserRow[]>(initialData)
+  const [rows, setRows] = React.useState<UserRow[]>(initialData)
+  const handleVoluntaryUpdated = React.useCallback((user: UserRow, next: boolean) => {
+    setRows((prev) => {
+      if (!next) {
+        return prev.filter((row) => String(row.id) !== String(user.id))
+      }
+      return prev.map((row) =>
+        String(row.id) === String(user.id) ? { ...row, is_voluntary: next } : row,
+      )
+    })
+  }, [])
+  const handlePrivilegeUpdated = React.useCallback((user: UserRow, next: number) => {
+    setRows((prev) =>
+      prev.map((row) =>
+        String(row.id) === String(user.id) ? { ...row, privilege_type: next } : row,
+      ),
+    )
+  }, [])
+  const columns = React.useMemo(
+    () => buildColumns(handleVoluntaryUpdated, handlePrivilegeUpdated),
+    [handleVoluntaryUpdated, handlePrivilegeUpdated],
+  )
 
   return (
     <div className="space-y-6">
