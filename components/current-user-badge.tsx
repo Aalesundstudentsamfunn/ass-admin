@@ -1,82 +1,15 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { User } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { createClient } from "@/lib/supabase/client"
+import { User } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-type Profile = {
-  firstname?: string | null
-  lastname?: string | null
-  email?: string | null
-}
-
-export function CurrentUserBadge({
-  compact = false,
-  prominent = false,
-  className,
-}: {
-  compact?: boolean
-  prominent?: boolean
-  className?: string
-}) {
-  const [displayName, setDisplayName] = React.useState<string>("")
-  const [email, setEmail] = React.useState<string>("")
-  const [loading, setLoading] = React.useState(true)
-
-  React.useEffect(() => {
-    let active = true
-    const supabase = createClient()
-
-    const load = async () => {
-      const { data: authData, error: authError } = await supabase.auth.getUser()
-      if (!active) {
-        return
-      }
-      if (authError || !authData.user) {
-        setLoading(false)
-        return
-      }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("firstname, lastname, email")
-        .eq("id", authData.user.id)
-        .single<Profile>()
-
-      if (!active) {
-        return
-      }
-
-      const name = [profile?.firstname ?? "", profile?.lastname ?? ""].join(" ").trim()
-      setDisplayName(name || authData.user.email || "")
-      setEmail(profile?.email ?? authData.user.email ?? "")
-      setLoading(false)
-    }
-
-    load()
-
-    return () => {
-      active = false
-    }
-  }, [])
-
-  const label = loading
-    ? "Laster..."
-    : displayName
-      ? displayName
-      : "Ikke innlogget"
+export function CurrentUserBadge({ compact = false, prominent = false, name, email, className }: { compact?: boolean; prominent?: boolean; name?: string | null; email?: string | null; className?: string }) {
+  const safeName = (name ?? "").trim();
+  const safeEmail = (email ?? "").trim();
+  const label = safeName || safeEmail || "Problem med henting";
 
   return (
-    <div
-      className={cn(
-        "flex items-center gap-2 rounded-xl border border-white/40 px-3 py-2 text-xs text-foreground/80 dark:border-white/10",
-        compact && "px-2 py-1 text-[11px]",
-        prominent && "flex-col items-start gap-1 px-3 py-3 text-sm",
-        className,
-      )}
-      title={email || undefined}
-    >
+    <div className={cn("flex items-center gap-2 rounded-xl border border-white/40 px-3 py-2 text-xs text-foreground/80 dark:border-white/10", compact && "px-2 py-1 text-[11px]", prominent && "flex-col items-start gap-1 px-3 py-3 text-sm", className)} title={safeEmail || undefined}>
       {prominent ? (
         <>
           <div className="flex items-center gap-2 text-foreground">
@@ -85,14 +18,10 @@ export function CurrentUserBadge({
             </div>
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold">{label}</div>
-              {email ? (
-                <div className="truncate text-xs text-foreground/60">{email}</div>
-              ) : null}
+              {safeEmail ? <div className="truncate text-xs text-foreground/60">{safeEmail}</div> : null}
             </div>
           </div>
-          {email ? (
-            <div className="sr-only">{email}</div>
-          ) : null}
+          {safeEmail ? <div className="sr-only">{safeEmail}</div> : null}
         </>
       ) : (
         <>
@@ -101,5 +30,5 @@ export function CurrentUserBadge({
         </>
       )}
     </div>
-  )
+  );
 }
