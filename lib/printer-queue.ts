@@ -40,7 +40,7 @@ export function watchPrinterQueueStatus(
     onError,
     onUpdate,
     pollingIntervalMs = 3000,
-    timeoutMs = 15000,
+    timeoutMs = 30000,
     onTimeout,
     timeoutErrorMessage,
   }: {
@@ -63,7 +63,7 @@ export function watchPrinterQueueStatus(
       : null;
 
   if (!filter) {
-    return () => {};
+    return () => { };
   }
 
   let isClosed = false;
