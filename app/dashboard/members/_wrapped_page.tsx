@@ -394,7 +394,7 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-balance">Medlemmer med betalt åss medlemskap</h1>
+        <h1 className="text-3xl font-bold text-balance">Aktive ÅSS Medlemskap</h1>
         <p className="text-muted-foreground text-pretty">Administrer aktive medlemmer</p>
       </div>
 
