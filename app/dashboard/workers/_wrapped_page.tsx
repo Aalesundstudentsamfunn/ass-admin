@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { ArrowUpDown, Info, Filter } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { MEMBER_PAGE_SIZES, useMemberPageSizeDefault } from "@/lib/table-settings"
@@ -35,6 +36,54 @@ export type UserRow = {
   firstname: string
   lastname: string
   email: string
+}
+
+function UserInfoDialog({ user }: { user: UserRow }) {
+  const fullName = `${user.firstname ?? ""} ${user.lastname ?? ""}`.trim()
+  const email = user.email ?? ""
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="secondary" size="sm" className="rounded-lg">
+          <Info className="mr-1 h-4 w-4" /> Mer info
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Detaljer</DialogTitle>
+          <DialogDescription>Informasjon om frivillig.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-2 text-sm">
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-muted-foreground">ID</span>
+            <span className="font-medium">{user.id}</span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-muted-foreground">Navn</span>
+            <span className="font-medium">{fullName || "—"}</span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-muted-foreground">E-post</span>
+            {email ? (
+              <a href={`mailto:${email}`} className="font-medium underline-offset-2 hover:underline">
+                {email}
+              </a>
+            ) : (
+              <span className="font-medium">—</span>
+            )}
+          </div>
+        </div>
+        <DialogFooter>
+          {email ? (
+            <Button asChild variant="secondary">
+              <a href={`mailto:${email}`}>Send e-post</a>
+            </Button>
+          ) : null}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 // ----- Liquid Glass primitives ----------------------------------------------
@@ -98,12 +147,11 @@ export const columns: ColumnDef<UserRow>[] = [
   {
     id: "actions",
     header: () => <span className="sr-only">Actions</span>,
-    cell: ({ }) => {
+    cell: ({ row }) => {
+      const user = row.original as UserRow
       return (
         <div className="flex items-center gap-2 justify-end">
-          <Button variant="secondary" size="sm" className="rounded-lg">
-            <Info className="mr-1 h-4 w-4" /> Mer info
-          </Button>
+          <UserInfoDialog user={user} />
         </div>
       )
     },
