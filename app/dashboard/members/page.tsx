@@ -23,10 +23,15 @@ export default async function MembersPage() {
         //const voluntary = Boolean(formData.get('voluntary') ?? false)
         try {
             const sb = await createClient();
+            const { data: authData, error: authError } = await sb.auth.getUser()
+            if (authError || !authData.user) {
+                return { ok: false, error: "Du må være innlogget for å legge til medlem." }
+            }
+            const addedBy = authData.user.id
             const { data: newMember, error: insertError } = await sb
                 .from("ass_members")
-                .insert({ email, firstname, lastname, is_voluntary: voluntary })
-                .select("id, firstname, lastname, email, is_voluntary")
+                .insert({ email, firstname, lastname, is_voluntary: voluntary, added_by: addedBy })
+                .select("id, firstname, lastname, email, is_voluntary, added_by")
                 .single();
             if (insertError || !newMember) {
                 return { ok: false, error: insertError?.message ?? "Failed to add new member." }
@@ -35,7 +40,7 @@ export default async function MembersPage() {
             if (voluntary) {
                 try {
                     //todo add function for added_by
-                    const { error: voluntaryError } = await sb.from("voluntary").insert({ email })
+                    const { error: voluntaryError } = await sb.from("voluntary").insert({ email, added_by: addedBy })
                     if (voluntaryError) {
                         return { ok: false, error: "added user but failed to add as voluntary, kontakt it: error:" + voluntaryError.message }
                     }
@@ -50,17 +55,12 @@ export default async function MembersPage() {
                 return { ok: true, autoPrint: false };
             }
 
-            const { data: authData, error: authError } = await sb.auth.getUser()
-            if (authError || !authData.user) {
-                return { ok: false, error: "added user but failed to queue print job, please log in again." }
-            }
-
             const { data: queueRow, error: queueError } = await enqueuePrinterQueue(sb, {
                 firstname: newMember.firstname,
                 lastname: newMember.lastname,
                 email: newMember.email,
                 ref: newMember.id,
-                ref_invoker: authData.user.id,
+                ref_invoker: addedBy,
                 is_voluntary: newMember.is_voluntary,
             })
             if (queueError) {
