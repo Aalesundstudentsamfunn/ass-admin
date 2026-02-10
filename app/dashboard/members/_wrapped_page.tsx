@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowUpDown, Trash2, Filter, Printer } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ArrowUpDown, Trash2, Filter, Printer, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -30,6 +31,8 @@ export type UserRow = {
   lastname: string;
   email: string;
   is_voluntary: boolean;
+  added_by?: string | null;
+  created_at?: string | null;
 };
 
 // ----- Liquid Glass primitives ----------------------------------------------
@@ -38,7 +41,11 @@ function Glass({ className = "", children }: React.PropsWithChildren<{ className
 }
 
 // ----- Columns ---------------------------------------------------------------
-function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleting: boolean) {
+function buildColumns(
+  onDelete: (id: string | number) => Promise<void>,
+  isDeleting: boolean,
+  onVoluntaryUpdated: (member: UserRow, next: boolean) => void,
+) {
   return [
     {
       id: "search",
@@ -91,7 +98,11 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
         </button>
       ),
       cell: ({ row }) => (
-        <a href={`mailto:${row.getValue("email")}`} className="underline-offset-2 hover:underline">
+        <a
+          href={`mailto:${row.getValue("email")}`}
+          className="underline-offset-2 hover:underline"
+          onClick={(event) => event.stopPropagation()}
+        >
           {row.getValue("email")}
         </a>
       ),
@@ -103,7 +114,53 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
           Frivillig <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
-      cell: ({ row }) => <span>{row.getValue("is_voluntary") ? "Ja" : ""}</span>,
+      cell: ({ row }) => {
+        const member = row.original as UserRow;
+        const isVoluntary = Boolean(member.is_voluntary);
+        return (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full"
+            onClick={async (event) => {
+              event.stopPropagation();
+              const supabase = createClient();
+              const next = !isVoluntary;
+              const toastId = toast.loading(next ? "Setter som frivillig..." : "Fjerner frivillig...", { duration: 10000 });
+              const { data, error } = await supabase.rpc("set_user_voluntary", {
+                p_user_id: null,
+                p_email: member.email ?? null,
+                p_voluntary: next,
+              });
+
+              if (error) {
+                toast.error("Kunne ikke oppdatere frivillig-status.", {
+                  id: toastId,
+                  description: error.message,
+                  duration: Infinity,
+                });
+                return;
+              }
+
+              if (data?.members_updated === 0) {
+                toast.error("Kunne ikke oppdatere ass_members.", {
+                  id: toastId,
+                  description: "ass_members update affected 0 rows.",
+                  duration: 10000,
+                });
+              } else {
+                toast.success(next ? "Satt som frivillig." : "Fjernet som frivillig.", { id: toastId, duration: 6000 });
+              }
+
+              onVoluntaryUpdated(member, next);
+            }}
+            aria-pressed={isVoluntary}
+            title={isVoluntary ? "Fjern frivillig" : "Gjør frivillig"}
+          >
+            <Heart className={cn("h-4 w-4", isVoluntary ? "fill-rose-500 text-rose-500" : "text-muted-foreground")} />
+          </Button>
+        );
+      },
     },
     {
       id: "actions",
@@ -116,7 +173,8 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
               variant="default"
               size="sm"
               className="rounded-lg"
-              onClick={async () => {
+              onClick={async (event) => {
+                event.stopPropagation();
                 const supabase = createClient();
                 const toastId = toast.loading("Sender til utskriftskø...", { duration: 10000 });
                 const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -179,7 +237,8 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
               size="sm"
               className="rounded-lg"
               disabled={isDeleting}
-              onClick={async () => {
+              onClick={async (event) => {
+                event.stopPropagation();
                 onDelete(user.id);
               }}>
               <Trash2 className="mr-1 h-4 w-4" /> {isDeleting ? "Sletter..." : "Delete"}
@@ -193,7 +252,17 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
 }
 
 // ----- DataTable -------------------------------------------------------------
-function DataTable({ columns, data, defaultPageSize }: { columns: ColumnDef<UserRow, unknown>[]; data: UserRow[]; defaultPageSize: number }) {
+function DataTable({
+  columns,
+  data,
+  defaultPageSize,
+  onRowClick,
+}: {
+  columns: ColumnDef<UserRow, unknown>[];
+  data: UserRow[];
+  defaultPageSize: number;
+  onRowClick?: (member: UserRow) => void;
+}) {
   const [sorting, setSorting] = React.useState<SortingState>([{ id: "id", desc: true }]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({ search: false });
@@ -257,15 +326,36 @@ function DataTable({ columns, data, defaultPageSize }: { columns: ColumnDef<User
             </TableHeader>
             <TableBody>
               {table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                table.getRowModel().rows.map((row) => {
+                  const member = row.original as UserRow;
+                  return (
+                    <TableRow
+                      key={row.id}
+                      data-state={row.getIsSelected() && "selected"}
+                      onClick={() => onRowClick?.(member)}
+                      onKeyDown={(event) => {
+                        if (!onRowClick) {
+                          return;
+                        }
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          onRowClick(member);
+                        }
+                      }}
+                      tabIndex={onRowClick ? 0 : undefined}
+                      aria-label={onRowClick ? `Vis detaljer for ${member.firstname} ${member.lastname}` : undefined}
+                      className={cn(
+                        onRowClick && "cursor-pointer hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      )}
+                    >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id} className="align-middle">
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>
                     ))}
-                  </TableRow>
-                ))
+                    </TableRow>
+                  );
+                })
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
@@ -333,6 +423,110 @@ function DataTable({ columns, data, defaultPageSize }: { columns: ColumnDef<User
   );
 }
 
+type AddedByProfile = {
+  firstname?: string | null;
+  lastname?: string | null;
+  email?: string | null;
+};
+
+function MemberDetailsDialog({
+  open,
+  onOpenChange,
+  member,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  member: UserRow | null;
+}) {
+  const [addedByProfile, setAddedByProfile] = React.useState<AddedByProfile | null>(null);
+  const [loadingAddedBy, setLoadingAddedBy] = React.useState(false);
+
+  React.useEffect(() => {
+    let active = true;
+    const load = async () => {
+      if (!open || !member?.added_by) {
+        setAddedByProfile(null);
+        return;
+      }
+      setLoadingAddedBy(true);
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("profiles")
+        .select("firstname, lastname, email")
+        .eq("id", member.added_by)
+        .single<AddedByProfile>();
+      if (!active) {
+        return;
+      }
+      setAddedByProfile(data ?? null);
+      setLoadingAddedBy(false);
+    };
+
+    load();
+
+    return () => {
+      active = false;
+    };
+  }, [open, member?.added_by]);
+
+  const fullName = member ? `${member.firstname ?? ""} ${member.lastname ?? ""}`.trim() : "";
+  const addedByName = addedByProfile
+    ? [addedByProfile.firstname ?? "", addedByProfile.lastname ?? ""].join(" ").trim()
+    : "";
+
+  const addedByLabel = addedByName || addedByProfile?.email || member?.added_by || "—";
+  const createdAtLabel = member?.created_at ? new Date(member.created_at).toLocaleString() : "—";
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Medlemsdetaljer</DialogTitle>
+          <DialogDescription>Informasjon om valgt medlem.</DialogDescription>
+        </DialogHeader>
+        {member ? (
+          <div className="grid gap-2 text-sm">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">ID</span>
+              <span className="font-medium">{member.id}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Navn</span>
+              <span className="font-medium">{fullName || "—"}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">E-post</span>
+              {member.email ? (
+                <a href={`mailto:${member.email}`} className="font-medium underline-offset-2 hover:underline">
+                  {member.email}
+                </a>
+              ) : (
+                <span className="font-medium">—</span>
+              )}
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Frivillig</span>
+              <span className="font-medium">{member.is_voluntary ? "Ja" : "Nei"}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Lagt til av</span>
+              <span className="font-medium">
+                {loadingAddedBy ? "Laster..." : addedByLabel}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Opprettet</span>
+              <span className="font-medium">{createdAtLabel}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="text-sm text-muted-foreground">Ingen medlem valgt.</div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ----- Page ------------------------------------------------------------------
 export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
   const router = useRouter();
@@ -340,6 +534,8 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
   const defaultPageSize = useMemberPageSizeDefault();
   const [rows, setRows] = React.useState<UserRow[]>(initialData);
   const [isDeleting, setIsDeleting] = React.useState(false);
+  const [selectedMember, setSelectedMember] = React.useState<UserRow | null>(null);
+  const [detailsOpen, setDetailsOpen] = React.useState(false);
 
   // Update rows when initialData changes (after router.refresh())
   React.useEffect(() => {
@@ -348,47 +544,58 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
 
   const columns = React.useMemo(
     () =>
-      buildColumns(async (id: string | number) => {
-        const confirmed = window.confirm("Er du sikker på at du vil slette dette medlemmet?");
-        if (!confirmed) {
-          toast.message("Sletting avbrutt.", { duration: 10000 });
-          return;
-        }
-
-        const toastId = toast.loading("Sletter medlem...", { duration: 10000 });
-        setIsDeleting(true);
-        try {
-          console.log("deleting..");
-          console.log((await supabase.auth.getUser()).data.user?.email);
-          const targetId = typeof id === "string" ? Number(id) : id;
-          if (Number.isNaN(targetId)) {
-            throw new Error("Invalid member id");
+      buildColumns(
+        async (id: string | number) => {
+          const confirmed = window.confirm("Er du sikker på at du vil slette dette medlemmet?");
+          if (!confirmed) {
+            toast.message("Sletting avbrutt.", { duration: 10000 });
+            return;
           }
 
-          // Optimistically remove from UI
-          setRows((prev) => prev.filter((row) => row.id !== id));
+          const toastId = toast.loading("Sletter medlem...", { duration: 10000 });
+          setIsDeleting(true);
+          try {
+            console.log("deleting..");
+            console.log((await supabase.auth.getUser()).data.user?.email);
+            const targetId = typeof id === "string" ? Number(id) : id;
+            if (Number.isNaN(targetId)) {
+              throw new Error("Invalid member id");
+            }
 
-          const { error: deleteError, data } = await supabase.from("ass_members").delete().eq("id", targetId);
-          if (deleteError) {
-            throw new Error(deleteError.message);
+            // Optimistically remove from UI
+            setRows((prev) => prev.filter((row) => row.id !== id));
+
+            const { error: deleteError, data } = await supabase.from("ass_members").delete().eq("id", targetId);
+            if (deleteError) {
+              throw new Error(deleteError.message);
+            }
+            console.log(data);
+            toast.success("Medlem slettet.", { id: toastId, duration: 10000 });
+            router.refresh();
+          } catch (error) {
+            console.error("Failed to delete member", error);
+            toast.error("Kunne ikke slette medlem.", {
+              id: toastId,
+              description: error instanceof Error ? error.message : String(error),
+              duration: Infinity,
+            });
+            // Restore on error
+            setRows(initialData);
+          } finally {
+            setIsDeleting(false);
           }
-          console.log(data);
-          toast.success("Medlem slettet.", { id: toastId, duration: 10000 });
-          router.refresh();
-        } catch (error) {
-          console.error("Failed to delete member", error);
-          toast.error("Kunne ikke slette medlem.", {
-            id: toastId,
-            description: error instanceof Error ? error.message : String(error),
-            duration: Infinity,
-          });
-          // Restore on error
-          setRows(initialData);
-        } finally {
-          setIsDeleting(false);
-        }
-      }, isDeleting),
-    [supabase, isDeleting, router, initialData],
+        },
+        isDeleting,
+        (member, next) => {
+          setRows((prev) =>
+            prev.map((row) => (String(row.id) === String(member.id) ? { ...row, is_voluntary: next } : row)),
+          );
+          if (selectedMember && String(selectedMember.id) === String(member.id)) {
+            setSelectedMember((prev) => (prev ? { ...prev, is_voluntary: next } : prev));
+          }
+        },
+      ),
+    [supabase, isDeleting, router, initialData, selectedMember],
   );
 
   return (
@@ -404,9 +611,27 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
           <CardDescription>Sorter, filtrer og håndter medlemmer</CardDescription>
         </CardHeader>
         <CardContent className="px-0">
-          <DataTable columns={columns} data={rows} defaultPageSize={defaultPageSize} />
+          <DataTable
+            columns={columns}
+            data={rows}
+            defaultPageSize={defaultPageSize}
+            onRowClick={(member) => {
+              setSelectedMember(member);
+              setDetailsOpen(true);
+            }}
+          />
         </CardContent>
       </Card>
+      <MemberDetailsDialog
+        open={detailsOpen}
+        onOpenChange={(open) => {
+          setDetailsOpen(open);
+          if (!open) {
+            setSelectedMember(null);
+          }
+        }}
+        member={selectedMember}
+      />
     </div>
   );
 }

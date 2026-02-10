@@ -2,17 +2,14 @@
 
 import * as React from "react"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { ArrowUpDown, Info, Filter } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { ArrowUpDown, Info, Filter, Heart } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { MEMBER_PAGE_SIZES, useMemberPageSizeDefault } from "@/lib/table-settings"
 import { createClient } from "@/lib/supabase/client"
-import { toast } from "sonner"
 import {
   ColumnDef,
   flexRender,
@@ -42,173 +39,65 @@ export type UserRow = {
   email: string
   is_voluntary?: boolean | null
   privilege_type?: number | null
+  added_by?: string | null
+  created_at?: string | null
 }
 
-const PRIVILEGE_OPTIONS = [
-  { value: 1, label: "Medlem" },
-  { value: 2, label: "Frivillig" },
-  { value: 3, label: "Gruppeleder" },
-  { value: 4, label: "Stortinget" },
-  { value: 5, label: "IT" },
-]
-
-function formatSupabaseError(error: { message?: string; details?: string | null; hint?: string | null; code?: string | null } | null) {
-  if (!error) {
-    return "Ukjent feil."
-  }
-  const parts = [error.message]
-  if (error.code) {
-    parts.push(`code=${error.code}`)
-  }
-  if (error.details) {
-    parts.push(`details=${error.details}`)
-  }
-  if (error.hint) {
-    parts.push(`hint=${error.hint}`)
-  }
-  return parts.filter(Boolean).join(" | ")
-}
-
-async function updateVoluntaryStatus(user: UserRow, next: boolean) {
-  const email = String(user.email ?? "").trim()
-  const supabase = createClient()
-
-  const { data, error } = await supabase.rpc("set_user_voluntary", {
-    p_user_id: null,
-    p_email: email || null,
-    p_voluntary: next,
-  })
-
-  if (error) {
-    return { ok: false, errorMessage: formatSupabaseError(error) }
-  }
-
-  const membersUpdated = typeof data?.members_updated === "number" ? data.members_updated : null
-  const warningMessage = membersUpdated === 0 ? "ass_members update affected 0 rows." : null
-
-  return { ok: true, warningMessage }
+type AddedByProfile = {
+  firstname?: string | null
+  lastname?: string | null
+  email?: string | null
 }
 
 function UserInfoDialog({
   user,
-  onVoluntaryUpdated,
-  onPrivilegeUpdated,
 }: {
   user: UserRow
-  onVoluntaryUpdated: (next: boolean) => void
-  onPrivilegeUpdated: (next: number) => void
 }) {
   const fullName = `${user.firstname ?? ""} ${user.lastname ?? ""}`.trim()
   const email = user.email ?? ""
-  const canToggle = Boolean(email)
-  const hasIdentifier = Boolean(email || user.id)
-  const [isSaving, setIsSaving] = React.useState(false)
-  const [privilegeType, setPrivilegeType] = React.useState<number>(
-    typeof user.privilege_type === "number" ? user.privilege_type : 1,
-  )
+  const [open, setOpen] = React.useState(false)
+  const [addedByProfile, setAddedByProfile] = React.useState<AddedByProfile | null>(null)
+  const [loadingAddedBy, setLoadingAddedBy] = React.useState(false)
 
   React.useEffect(() => {
-    if (typeof user.privilege_type === "number") {
-      setPrivilegeType(user.privilege_type)
-    }
-  }, [user.privilege_type])
-
-  const handleToggleVoluntary = async (checked: boolean) => {
-    const isVoluntary = Boolean(user.is_voluntary)
-    if (isSaving || checked === isVoluntary) {
-      return
-    }
-    if (!canToggle) {
-      toast.error("Mangler e-post for å oppdatere frivillig-status.")
-      return
-    }
-
-    const next = checked
-    const toastId = toast.loading(next ? "Setter som frivillig..." : "Fjerner frivillig...", { duration: 10000 })
-    setIsSaving(true)
-
-    const result = await updateVoluntaryStatus(user, next)
-    if (!result.ok) {
-      toast.error("Kunne ikke oppdatere frivillig-status.", { id: toastId, description: result.errorMessage, duration: Infinity })
-      setIsSaving(false)
-      return
-    }
-
-    onVoluntaryUpdated(next)
-    toast.success(next ? "Satt som frivillig." : "Fjernet som frivillig.", { id: toastId, duration: 6000 })
-    if (result.warningMessage) {
-      toast.error("Kunne ikke oppdatere profiles.", { description: result.warningMessage, duration: 10000 })
-    }
-    setIsSaving(false)
-  }
-
-  const updatePrivilegeInTable = async (table: "profiles" | "ass_members", next: number) => {
-    const supabase = createClient()
-    const idValue =
-      typeof user.id === "number"
-        ? user.id
-        : typeof user.id === "string" && user.id !== ""
-          ? user.id
-          : null
-
-    let result = null
-    let error = null
-
-    if (idValue !== null) {
-      result = await supabase.from(table).update({ privilege_type: next }).eq("id", idValue).select("id, privilege_type")
-      if (result.error) {
-        error = result.error
-      } else if (result.data && result.data.length > 0) {
-        return { ok: true }
+    let active = true
+    const load = async () => {
+      if (!open || !user.added_by) {
+        setAddedByProfile(null)
+        return
       }
-    }
-
-    if (email) {
-      result = await supabase.from(table).update({ privilege_type: next }).eq("email", email).select("id, privilege_type")
-      if (result.error) {
-        error = result.error
-      } else if (result.data && result.data.length > 0) {
-        return { ok: true }
+      setLoadingAddedBy(true)
+      const supabase = createClient()
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("firstname, lastname, email")
+        .eq("id", user.added_by)
+        .single<AddedByProfile>()
+      if (!active) {
+        return
       }
+      setAddedByProfile(profile ?? null)
+      setLoadingAddedBy(false)
     }
 
-    return { ok: false, error }
-  }
+    load()
 
-  const handlePrivilegeChange = async (value: string) => {
-    const next = Number(value)
-    if (!Number.isFinite(next) || next === privilegeType) {
-      return
+    return () => {
+      active = false
     }
-    if (!hasIdentifier) {
-      toast.error("Mangler identifikator for å oppdatere tilgangsnivå.")
-      return
-    }
+  }, [open, user.added_by])
 
-    const toastId = toast.loading("Oppdaterer tilgangsnivå...", { duration: 10000 })
-    setIsSaving(true)
-
-    const profileUpdate = await updatePrivilegeInTable("profiles", next)
-    const memberUpdate = await updatePrivilegeInTable("ass_members", next)
-    const success = profileUpdate.ok || memberUpdate.ok
-    const errorMessage = profileUpdate.error?.message ?? memberUpdate.error?.message ?? "Kunne ikke oppdatere tilgangsnivå."
-
-    if (!success) {
-      toast.error("Kunne ikke oppdatere tilgangsnivå.", { id: toastId, description: errorMessage, duration: Infinity })
-      setIsSaving(false)
-      return
-    }
-
-    setPrivilegeType(next)
-    onPrivilegeUpdated(next)
-    toast.success("Tilgangsnivå oppdatert.", { id: toastId, duration: 6000 })
-    setIsSaving(false)
-  }
+  const addedByName = addedByProfile
+    ? [addedByProfile.firstname ?? "", addedByProfile.lastname ?? ""].join(" ").trim()
+    : ""
+  const addedByLabel = addedByName || addedByProfile?.email || user.added_by || "—"
+  const createdAtLabel = user.created_at ? new Date(user.created_at).toLocaleString() : "—"
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="secondary" size="sm" className="rounded-lg">
+        <Button variant="secondary" size="sm" className="rounded-lg" onClick={(event) => event.stopPropagation()}>
           <Info className="mr-1 h-4 w-4" /> Mer info
         </Button>
       </DialogTrigger>
@@ -237,51 +126,119 @@ function UserInfoDialog({
             )}
           </div>
           <div className="flex items-center justify-between gap-4">
-            <Label className="text-muted-foreground" htmlFor={`privilege-${user.id}`}>
-              Tilgangsnivå
-            </Label>
-            <select
-              id={`privilege-${user.id}`}
-              value={privilegeType}
-              disabled={isSaving || !hasIdentifier}
-              onChange={(event) => handlePrivilegeChange(event.target.value)}
-              className="h-8 w-40 rounded-xl border border-border/60 bg-background/60 px-2 text-xs"
-              style={{ fontVariantNumeric: "tabular-nums" }}
-            >
-              {PRIVILEGE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <span className="text-muted-foreground">Lagt til av</span>
+            <span className="font-medium">
+              {loadingAddedBy
+                ? "Laster..."
+                : addedByLabel}
+            </span>
           </div>
           <div className="flex items-center justify-between gap-4">
-            <Label className="text-muted-foreground" htmlFor={`voluntary-${user.id}`}>
-              Frivillig
-            </Label>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">{Boolean(user.is_voluntary) ? "Ja" : "Nei"}</span>
-              <Checkbox
-                id={`voluntary-${user.id}`}
-                checked={Boolean(user.is_voluntary)}
-                disabled={isSaving || !canToggle}
-                onCheckedChange={(checked) => {
-                  if (checked === "indeterminate") {
-                    return
-                  }
-                  handleToggleVoluntary(Boolean(checked))
-                }}
-              />
-            </div>
+            <span className="text-muted-foreground">Frivillig</span>
+            <span className="font-medium">{user.is_voluntary ? "Ja" : "Nei"}</span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-muted-foreground">Opprettet</span>
+            <span className="font-medium">{createdAtLabel}</span>
           </div>
         </div>
-        <DialogFooter>
-          {email ? (
-            <Button asChild variant="secondary">
-              <a href={`mailto:${email}`}>Send e-post</a>
-            </Button>
-          ) : null}
-        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function MemberDetailsDialog({
+  open,
+  onOpenChange,
+  member,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  member: UserRow | null;
+}) {
+  const [addedByProfile, setAddedByProfile] = React.useState<AddedByProfile | null>(null)
+  const [loadingAddedBy, setLoadingAddedBy] = React.useState(false)
+
+  React.useEffect(() => {
+    let active = true
+    const load = async () => {
+      if (!open || !member?.added_by) {
+        setAddedByProfile(null)
+        return
+      }
+      setLoadingAddedBy(true)
+      const supabase = createClient()
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("firstname, lastname, email")
+        .eq("id", member.added_by)
+        .single<AddedByProfile>()
+      if (!active) {
+        return
+      }
+      setAddedByProfile(profile ?? null)
+      setLoadingAddedBy(false)
+    }
+
+    load()
+
+    return () => {
+      active = false
+    }
+  }, [open, member?.added_by])
+
+  const fullName = member ? `${member.firstname ?? ""} ${member.lastname ?? ""}`.trim() : ""
+  const addedByName = addedByProfile
+    ? [addedByProfile.firstname ?? "", addedByProfile.lastname ?? ""].join(" ").trim()
+    : ""
+  const addedByLabel = addedByName || addedByProfile?.email || member?.added_by || "—"
+  const createdAtLabel = member?.created_at ? new Date(member.created_at).toLocaleString() : "—"
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Medlemsdetaljer</DialogTitle>
+          <DialogDescription>Informasjon om valgt medlem.</DialogDescription>
+        </DialogHeader>
+        {member ? (
+          <div className="grid gap-2 text-sm">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">ID</span>
+              <span className="font-medium">{member.id}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Navn</span>
+              <span className="font-medium">{fullName || "—"}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">E-post</span>
+              {member.email ? (
+                <a href={`mailto:${member.email}`} className="font-medium underline-offset-2 hover:underline">
+                  {member.email}
+                </a>
+              ) : (
+                <span className="font-medium">—</span>
+              )}
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Frivillig</span>
+              <span className="font-medium">{member.is_voluntary ? "Ja" : "Nei"}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Lagt til av</span>
+              <span className="font-medium">
+                {loadingAddedBy ? "Laster..." : addedByLabel}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Opprettet</span>
+              <span className="font-medium">{createdAtLabel}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="text-sm text-muted-foreground">Ingen medlem valgt.</div>
+        )}
       </DialogContent>
     </Dialog>
   )
@@ -305,8 +262,6 @@ function Glass({ className = "", children }: React.PropsWithChildren<{ className
 
 // ----- Columns ---------------------------------------------------------------
 function buildColumns(
-  onVoluntaryUpdated: (user: UserRow, next: boolean) => void,
-  onPrivilegeUpdated: (user: UserRow, next: number) => void,
 ): ColumnDef<UserRow, unknown>[] {
   return [
   {
@@ -320,7 +275,11 @@ function buildColumns(
       </button>
     ),
     cell: ({ row }) => (
-      <a href={`mailto:${row.getValue("email")}`} className="underline-offset-2 hover:underline">
+      <a
+        href={`mailto:${row.getValue("email")}`}
+        className="underline-offset-2 hover:underline"
+        onClick={(event) => event.stopPropagation()}
+      >
         {row.getValue("email")}
       </a>
     ),
@@ -350,17 +309,29 @@ function buildColumns(
     cell: ({ row }) => <span>{row.getValue("lastname")}</span>,
   },
   {
+    accessorKey: "is_voluntary",
+    header: ({ column }) => (
+      <button
+        className="inline-flex items-center gap-1"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        Frivillig <ArrowUpDown className="h-3.5 w-3.5" />
+      </button>
+    ),
+    cell: ({ row }) => (
+      <span className="inline-flex items-center justify-center">
+        <Heart className={cn("h-4 w-4", row.getValue("is_voluntary") ? "fill-rose-500 text-rose-500" : "text-muted-foreground")} />
+      </span>
+    ),
+  },
+  {
     id: "actions",
     header: () => <span className="sr-only">Actions</span>,
     cell: ({ row }) => {
       const user = row.original as UserRow
       return (
         <div className="flex items-center gap-2 justify-end">
-          <UserInfoDialog
-            user={user}
-            onVoluntaryUpdated={(next) => onVoluntaryUpdated(user, next)}
-            onPrivilegeUpdated={(next) => onPrivilegeUpdated(user, next)}
-          />
+          <UserInfoDialog user={user} />
         </div>
       )
     },
@@ -370,7 +341,17 @@ function buildColumns(
 }
 
 // ----- DataTable -------------------------------------------------------------
-function DataTable({ columns, data, defaultPageSize }: { columns: ColumnDef<UserRow, unknown>[]; data: UserRow[]; defaultPageSize: number }) {
+function DataTable({
+  columns,
+  data,
+  defaultPageSize,
+  onRowClick,
+}: {
+  columns: ColumnDef<UserRow, unknown>[];
+  data: UserRow[];
+  defaultPageSize: number;
+  onRowClick?: (member: UserRow) => void;
+}) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
@@ -433,15 +414,36 @@ function DataTable({ columns, data, defaultPageSize }: { columns: ColumnDef<User
             </TableHeader>
             <TableBody>
               {table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="align-middle">
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
+                table.getRowModel().rows.map((row) => {
+                  const member = row.original as UserRow;
+                  return (
+                    <TableRow
+                      key={row.id}
+                      data-state={row.getIsSelected() && "selected"}
+                      onClick={() => onRowClick?.(member)}
+                      onKeyDown={(event) => {
+                        if (!onRowClick) {
+                          return;
+                        }
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          onRowClick(member);
+                        }
+                      }}
+                      tabIndex={onRowClick ? 0 : undefined}
+                      aria-label={onRowClick ? `Vis detaljer for ${member.firstname} ${member.lastname}` : undefined}
+                      className={cn(
+                        onRowClick && "cursor-pointer hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      )}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id} className="align-middle">
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  );
+                })
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
@@ -528,27 +530,12 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
   // If no data is provided, show a tiny demo set for layout/dev
   //get data from supabase
   const defaultPageSize = useMemberPageSizeDefault()
-  const [rows, setRows] = React.useState<UserRow[]>(initialData)
-  const handleVoluntaryUpdated = React.useCallback((user: UserRow, next: boolean) => {
-    setRows((prev) => {
-      if (!next) {
-        return prev.filter((row) => String(row.id) !== String(user.id))
-      }
-      return prev.map((row) =>
-        String(row.id) === String(user.id) ? { ...row, is_voluntary: next } : row,
-      )
-    })
-  }, [])
-  const handlePrivilegeUpdated = React.useCallback((user: UserRow, next: number) => {
-    setRows((prev) =>
-      prev.map((row) =>
-        String(row.id) === String(user.id) ? { ...row, privilege_type: next } : row,
-      ),
-    )
-  }, [])
+  const [rows] = React.useState<UserRow[]>(initialData)
+  const [selectedMember, setSelectedMember] = React.useState<UserRow | null>(null)
+  const [detailsOpen, setDetailsOpen] = React.useState(false)
   const columns = React.useMemo(
-    () => buildColumns(handleVoluntaryUpdated, handlePrivilegeUpdated),
-    [handleVoluntaryUpdated, handlePrivilegeUpdated],
+    () => buildColumns(),
+    [],
   )
 
   return (
@@ -564,9 +551,27 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
           <CardDescription>Sorter, filtrer og håndter frivillige</CardDescription>
         </CardHeader>
         <CardContent className="px-0">
-          <DataTable columns={columns} data={rows} defaultPageSize={defaultPageSize} />
+          <DataTable
+            columns={columns}
+            data={rows}
+            defaultPageSize={defaultPageSize}
+            onRowClick={(member) => {
+              setSelectedMember(member)
+              setDetailsOpen(true)
+            }}
+          />
         </CardContent>
       </Card>
+      <MemberDetailsDialog
+        open={detailsOpen}
+        onOpenChange={(open) => {
+          setDetailsOpen(open)
+          if (!open) {
+            setSelectedMember(null)
+          }
+        }}
+        member={selectedMember}
+      />
     </div>
   )
 }

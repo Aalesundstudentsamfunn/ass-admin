@@ -2,12 +2,11 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ArrowUpDown, Heart, Info, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MEMBER_PAGE_SIZES, useMemberPageSizeDefault } from "@/lib/table-settings";
@@ -31,6 +30,7 @@ export type UserRow = {
   email: string;
   is_voluntary?: boolean | null;
   privilege_type?: number | null;
+  created_at?: string | null;
 };
 
 const PRIVILEGE_OPTIONS = [
@@ -85,7 +85,8 @@ function VoluntaryHeartButton({ user, onVoluntaryUpdated }: { user: UserRow; onV
   const [isSaving, setIsSaving] = React.useState(false);
   const canToggle = Boolean(user.email);
 
-  const handleToggle = async () => {
+  const handleToggle = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
     if (isSaving || !canToggle) {
       return;
     }
@@ -115,13 +116,32 @@ function VoluntaryHeartButton({ user, onVoluntaryUpdated }: { user: UserRow; onV
   );
 }
 
-function UserInfoDialog({ user, onVoluntaryUpdated, onPrivilegeUpdated }: { user: UserRow; onVoluntaryUpdated: (next: boolean) => void; onPrivilegeUpdated: (next: number) => void }) {
+function UserInfoDialog({
+  user,
+  onPrivilegeUpdated,
+  open,
+  onOpenChange,
+  showTrigger = true,
+  currentUserId,
+}: {
+  user: UserRow | null;
+  onPrivilegeUpdated: (next: number) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showTrigger?: boolean;
+  currentUserId?: string | null;
+}) {
+  if (!user) {
+    return null;
+  }
   const fullName = `${user.firstname ?? ""} ${user.lastname ?? ""}`.trim();
   const email = user.email ?? "";
-  const canToggle = Boolean(email);
   const hasIdentifier = Boolean(email || user.id);
   const [isSaving, setIsSaving] = React.useState(false);
   const [privilegeType, setPrivilegeType] = React.useState<number>(typeof user.privilege_type === "number" ? user.privilege_type : 1);
+  const [internalOpen, setInternalOpen] = React.useState(false);
+  const isOpen = typeof open === "boolean" ? open : internalOpen;
+  const isSelf = Boolean(currentUserId && user.id && String(user.id) === String(currentUserId));
 
   React.useEffect(() => {
     if (typeof user.privilege_type === "number") {
@@ -129,48 +149,23 @@ function UserInfoDialog({ user, onVoluntaryUpdated, onPrivilegeUpdated }: { user
     }
   }, [user.privilege_type]);
 
-  const handleToggleVoluntary = async (checked: boolean) => {
-    const isVoluntary = Boolean(user.is_voluntary);
-    if (isSaving || checked === isVoluntary) {
-      return;
-    }
-    if (!canToggle) {
-      toast.error("Mangler e-post for å oppdatere frivillig-status.");
-      return;
-    }
-
-    const next = checked;
-    const toastId = toast.loading(next ? "Setter som frivillig..." : "Fjerner frivillig...", { duration: 10000 });
-    setIsSaving(true);
-
-    const result = await updateVoluntaryStatus(user, next);
-    if (!result.ok) {
-      toast.error("Kunne ikke oppdatere frivillig-status.", { id: toastId, description: result.errorMessage, duration: Infinity });
-      setIsSaving(false);
-      return;
-    }
-
-    onVoluntaryUpdated(next);
-    toast.success(next ? "Satt som frivillig." : "Fjernet som frivillig.", { id: toastId, duration: 6000 });
-    if (result.warningMessage) {
-      toast.error("Kunne ikke oppdatere ass_members.", { description: result.warningMessage, duration: 10000 });
-    }
-    setIsSaving(false);
-  };
-
-  const updatePrivilegeInTable = async (table: "profiles" | "ass_members", next: number) => {
+  const updatePrivilegeInTable = async (table: "profiles", next: number) => {
     const supabase = createClient();
     const idValue = typeof user.id === "number" ? user.id : typeof user.id === "string" && user.id !== "" ? user.id : null;
 
     let result = null;
     let error = null;
+    const details: string[] = [];
 
     if (idValue !== null) {
       result = await supabase.from(table).update({ privilege_type: next }).eq("id", idValue).select("id, privilege_type");
       if (result.error) {
         error = result.error;
+        details.push(`id update failed (id=${idValue}): ${result.error.message}`);
       } else if (result.data && result.data.length > 0) {
         return { ok: true };
+      } else {
+        details.push(`id update affected 0 rows (id=${idValue})`);
       }
     }
 
@@ -178,17 +173,24 @@ function UserInfoDialog({ user, onVoluntaryUpdated, onPrivilegeUpdated }: { user
       result = await supabase.from(table).update({ privilege_type: next }).eq("email", email).select("id, privilege_type");
       if (result.error) {
         error = result.error;
+        details.push(`email update failed (email=${email}): ${result.error.message}`);
       } else if (result.data && result.data.length > 0) {
         return { ok: true };
+      } else {
+        details.push(`email update affected 0 rows (email=${email})`);
       }
     }
 
-    return { ok: false, error };
+    return { ok: false, error, details: details.join("; ") };
   };
 
   const handlePrivilegeChange = async (value: string) => {
     const next = Number(value);
     if (!Number.isFinite(next) || next === privilegeType) {
+      return;
+    }
+    if (isSelf && next > privilegeType) {
+      toast.error("Du kan ikke gi deg selv høyere tilgangsnivå.");
       return;
     }
     if (!hasIdentifier) {
@@ -200,9 +202,8 @@ function UserInfoDialog({ user, onVoluntaryUpdated, onPrivilegeUpdated }: { user
     setIsSaving(true);
 
     const profileUpdate = await updatePrivilegeInTable("profiles", next);
-    const memberUpdate = await updatePrivilegeInTable("ass_members", next);
-    const success = profileUpdate.ok || memberUpdate.ok;
-    const errorMessage = profileUpdate.error?.message ?? memberUpdate.error?.message ?? "Kunne ikke oppdatere tilgangsnivå.";
+    const success = profileUpdate.ok;
+    const errorMessage = profileUpdate.details ?? profileUpdate.error?.message ?? "Kunne ikke oppdatere tilgangsnivå.";
 
     if (!success) {
       toast.error("Kunne ikke oppdatere tilgangsnivå.", { id: toastId, description: errorMessage, duration: Infinity });
@@ -212,21 +213,38 @@ function UserInfoDialog({ user, onVoluntaryUpdated, onPrivilegeUpdated }: { user
 
     setPrivilegeType(next);
     onPrivilegeUpdated(next);
+    try {
+      const supabase = createClient();
+      await supabase.auth.refreshSession();
+    } catch {
+      // Best effort: session refresh isn't required for the update to succeed.
+    }
     toast.success("Tilgangsnivå oppdatert.", { id: toastId, duration: 6000 });
     setIsSaving(false);
   };
 
+  const dialogOpen = typeof open === "boolean" ? open : internalOpen;
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (typeof open === "boolean") {
+      onOpenChange?.(nextOpen);
+      return;
+    }
+    setInternalOpen(nextOpen);
+  };
+
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="secondary" size="sm" className="rounded-lg">
-          <Info className="mr-1 h-4 w-4" /> Mer info
-        </Button>
-      </DialogTrigger>
+    <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
+      {showTrigger ? (
+        <DialogTrigger asChild>
+          <Button variant="secondary" size="sm" className="rounded-lg" onClick={(event) => event.stopPropagation()}>
+            <Info className="mr-1 h-4 w-4" /> Mer info
+          </Button>
+        </DialogTrigger>
+      ) : null}
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Detaljer</DialogTitle>
-          <DialogDescription>Informasjon om brukeren.</DialogDescription>
+          <DialogTitle>Medlemsdetaljer</DialogTitle>
+          <DialogDescription>Informasjon om valgt medlem.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-2 text-sm">
           <div className="flex items-center justify-between gap-4">
@@ -248,6 +266,10 @@ function UserInfoDialog({ user, onVoluntaryUpdated, onPrivilegeUpdated }: { user
             )}
           </div>
           <div className="flex items-center justify-between gap-4">
+            <span className="text-muted-foreground">Frivillig</span>
+            <span className="font-medium">{Boolean(user.is_voluntary) ? "Ja" : "Nei"}</span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
             <Label className="text-muted-foreground" htmlFor={`privilege-${user.id}`}>
               Tilgangsnivå
             </Label>
@@ -260,32 +282,12 @@ function UserInfoDialog({ user, onVoluntaryUpdated, onPrivilegeUpdated }: { user
             </select>
           </div>
           <div className="flex items-center justify-between gap-4">
-            <Label className="text-muted-foreground" htmlFor={`voluntary-${user.id}`}>
-              Frivillig
-            </Label>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">{Boolean(user.is_voluntary) ? "Ja" : "Nei"}</span>
-              <Checkbox
-                id={`voluntary-${user.id}`}
-                checked={Boolean(user.is_voluntary)}
-                disabled={isSaving || !canToggle}
-                onCheckedChange={(checked) => {
-                  if (checked === "indeterminate") {
-                    return;
-                  }
-                  handleToggleVoluntary(Boolean(checked));
-                }}
-              />
-            </div>
+            <span className="text-muted-foreground">Opprettet</span>
+            <span className="font-medium">
+              {user.created_at ? new Date(user.created_at).toLocaleString() : "—"}
+            </span>
           </div>
         </div>
-        <DialogFooter>
-          {email ? (
-            <Button asChild variant="secondary">
-              <a href={`mailto:${email}`}>Send e-post</a>
-            </Button>
-          ) : null}
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -306,12 +308,16 @@ function buildColumns(onVoluntaryUpdated: (user: UserRow, next: boolean) => void
           Email <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
-      cell: ({ row }) => (
-        <a href={`mailto:${row.getValue("email")}`} className="underline-offset-2 hover:underline">
-          {row.getValue("email")}
-        </a>
-      ),
-    },
+    cell: ({ row }) => (
+      <a
+        href={`mailto:${row.getValue("email")}`}
+        className="underline-offset-2 hover:underline"
+        onClick={(event) => event.stopPropagation()}
+      >
+        {row.getValue("email")}
+      </a>
+    ),
+  },
     {
       accessorKey: "firstname",
       header: ({ column }) => (
@@ -349,7 +355,7 @@ function buildColumns(onVoluntaryUpdated: (user: UserRow, next: boolean) => void
         const user = row.original as UserRow;
         return (
           <div className="flex items-center gap-2 justify-end">
-            <UserInfoDialog user={user} onVoluntaryUpdated={(next) => onVoluntaryUpdated(user, next)} onPrivilegeUpdated={(next) => onPrivilegeUpdated(user, next)} />
+            <UserInfoDialog user={user} onPrivilegeUpdated={(next) => onPrivilegeUpdated(user, next)} />
           </div>
         );
       },
@@ -359,7 +365,17 @@ function buildColumns(onVoluntaryUpdated: (user: UserRow, next: boolean) => void
 }
 
 // ----- DataTable -------------------------------------------------------------
-function DataTable({ columns, data, defaultPageSize }: { columns: ColumnDef<UserRow, unknown>[]; data: UserRow[]; defaultPageSize: number }) {
+function DataTable({
+  columns,
+  data,
+  defaultPageSize,
+  onRowClick,
+}: {
+  columns: ColumnDef<UserRow, unknown>[];
+  data: UserRow[];
+  defaultPageSize: number;
+  onRowClick?: (user: UserRow) => void;
+}) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
@@ -418,15 +434,36 @@ function DataTable({ columns, data, defaultPageSize }: { columns: ColumnDef<User
             </TableHeader>
             <TableBody>
               {table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="align-middle">
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
+                table.getRowModel().rows.map((row) => {
+                  const user = row.original as UserRow;
+                  return (
+                    <TableRow
+                      key={row.id}
+                      data-state={row.getIsSelected() && "selected"}
+                      onClick={() => onRowClick?.(user)}
+                      onKeyDown={(event) => {
+                        if (!onRowClick) {
+                          return;
+                        }
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          onRowClick(user);
+                        }
+                      }}
+                      tabIndex={onRowClick ? 0 : undefined}
+                      aria-label={onRowClick ? `Vis detaljer for ${user.firstname} ${user.lastname}` : undefined}
+                      className={cn(
+                        onRowClick && "cursor-pointer hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      )}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id} className="align-middle">
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  );
+                })
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
@@ -499,11 +536,33 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
   //get data from supabase
   const defaultPageSize = useMemberPageSizeDefault();
   const [rows, setRows] = React.useState<UserRow[]>(initialData);
+  const [selectedUser, setSelectedUser] = React.useState<UserRow | null>(null);
+  const [detailsOpen, setDetailsOpen] = React.useState(false);
+  const [currentUserId, setCurrentUserId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data, error }) => {
+      if (!isMounted) {
+        return;
+      }
+      if (error) {
+        return;
+      }
+      setCurrentUserId(data.user?.id ?? null);
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
   const handleVoluntaryUpdated = React.useCallback((user: UserRow, next: boolean) => {
     setRows((prev) => prev.map((row) => (String(row.id) === String(user.id) ? { ...row, is_voluntary: next } : row)));
+    setSelectedUser((prev) => (prev && String(prev.id) === String(user.id) ? { ...prev, is_voluntary: next } : prev));
   }, []);
   const handlePrivilegeUpdated = React.useCallback((user: UserRow, next: number) => {
     setRows((prev) => prev.map((row) => (String(row.id) === String(user.id) ? { ...row, privilege_type: next } : row)));
+    setSelectedUser((prev) => (prev && String(prev.id) === String(user.id) ? { ...prev, privilege_type: next } : prev));
   }, []);
   const columns = React.useMemo(() => buildColumns(handleVoluntaryUpdated, handlePrivilegeUpdated), [handleVoluntaryUpdated, handlePrivilegeUpdated]);
 
@@ -520,9 +579,34 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
           <CardDescription>Sorter, filtrer og håndter brukere</CardDescription>
         </CardHeader>
         <CardContent className="px-0">
-          <DataTable columns={columns} data={rows} defaultPageSize={defaultPageSize} />
+          <DataTable
+            columns={columns}
+            data={rows}
+            defaultPageSize={defaultPageSize}
+            onRowClick={(user) => {
+              setSelectedUser(user);
+              setDetailsOpen(true);
+            }}
+          />
         </CardContent>
       </Card>
+      <UserInfoDialog
+        user={selectedUser}
+        currentUserId={currentUserId}
+        open={detailsOpen}
+        onOpenChange={(open) => {
+          setDetailsOpen(open);
+          if (!open) {
+            setSelectedUser(null);
+          }
+        }}
+        showTrigger={false}
+        onPrivilegeUpdated={(next) => {
+          if (selectedUser) {
+            handlePrivilegeUpdated(selectedUser, next);
+          }
+        }}
+      />
     </div>
   );
 }
