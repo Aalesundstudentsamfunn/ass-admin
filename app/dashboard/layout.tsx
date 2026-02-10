@@ -11,6 +11,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { ThemeSwitcher } from "@/components/theme-switcher"
 import { LogoutButton } from "@/components/logout-button"
+import { CurrentUserBadge } from "@/components/current-user-badge"
 
 /**
  * Liquid Glass redesign for your dashboard layout
@@ -130,6 +131,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </GlassPanel>
 
       <GlassPanel className="flex-1 p-3">
+        <div className="mb-3">
+          <CurrentUserBadge prominent />
+        </div>
         <nav aria-label="Primary">
           <ul className="space-y-1">
             {navigation.map((item) => (
@@ -172,7 +176,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </Sheet>
             <span className="text-sm font-semibold">Admin Panel</span>
           </div>
-          <ThemeSwitcher />
+          <div className="flex items-center gap-2">
+            <CurrentUserBadge compact />
+            <ThemeSwitcher />
+          </div>
         </GlassPanel>
       </div>
 
