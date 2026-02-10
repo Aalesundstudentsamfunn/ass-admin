@@ -1,21 +1,31 @@
-// app/dashboard/layout.tsx (SERVER)
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import DashboardShell from "./DashboardShell"
 
-export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default async function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   const supabase = await createClient()
 
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.user?.id) redirect("/")
+  // 🔐 Authentisert bruker (verifisert mot Supabase Auth)
+  const { data: { user }, error } = await supabase.auth.getUser()
 
-  const { data: profile, error } = await supabase
+  if (error || !user) {
+    redirect("/")
+  }
+
+  // 🔐 Autorisering (din business-logikk)
+  const { data: profile } = await supabase
     .from("profiles")
     .select("voluntary")
-    .eq("id", session.user.id)
+    .eq("id", user.id)
     .single()
 
-  if (error || !profile?.voluntary) redirect("/")
+  if (!profile?.voluntary) {
+    redirect("/not-volunteer")
+  }
 
   return <DashboardShell>{children}</DashboardShell>
 }
