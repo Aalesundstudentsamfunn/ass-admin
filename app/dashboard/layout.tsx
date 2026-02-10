@@ -9,14 +9,13 @@ export default async function DashboardLayout({
 }) {
   const supabase = await createClient()
 
-  // 🔐 Authentisert bruker (verifisert mot Supabase Auth)
   const { data: { user }, error } = await supabase.auth.getUser()
 
   if (error || !user) {
     redirect("/")
   }
 
-  // 🔐 Autorisering (din business-logikk)
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("voluntary")
