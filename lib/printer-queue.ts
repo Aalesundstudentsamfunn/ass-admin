@@ -125,7 +125,7 @@ export function watchPrinterQueueStatus(
 
     await supabase
       .from("printer_queue")
-      .update({ error_msg: timeoutErrorMessage })
+      .update({ error_msg: timeoutErrorMessage, completed: true })
       .eq("id", targetId)
       .eq("completed", false)
       .is("error_msg", null);

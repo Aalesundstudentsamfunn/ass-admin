@@ -139,8 +139,8 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
                     queueId: queueRow?.id,
                     ref: user.id,
                     refInvoker: authData.user.id,
-                    timeoutMs: 25000,
-                    timeoutErrorMessage: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
+                    timeoutMs: 20000,
+                    timeoutErrorMessage: "Printeren har vært stuck i køen i 20s (Sjekk om printeren er koblet til PC)",
                     onCompleted: () => {
                       toast.success("Utskrift sendt til printer.", { id: toastId, duration: 10000 });
                     },
@@ -150,7 +150,7 @@ function buildColumns(onDelete: (id: string | number) => Promise<void>, isDeleti
                     onTimeout: () => {
                       toast.error("Utskrift tar lengre tid enn vanlig.", {
                         id: toastId,
-                        description: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
+                        description: "Printeren har vært stuck i køen i 20s (Sjekk om printeren er koblet til PC)",
                         duration: Infinity,
                       });
                     },
