@@ -114,20 +114,27 @@ function UserInfoDialog({
   currentUserId?: string | null;
   currentUserPrivilege?: number | null;
 }) {
-  if (!user) {
-    return null;
-  }
-  const fullName = `${user.firstname ?? ""} ${user.lastname ?? ""}`.trim();
-  const email = user.email ?? "";
+  const safeUser =
+    user ??
+    ({
+      id: "",
+      firstname: "",
+      lastname: "",
+      email: "",
+      privilege_type: null,
+      is_voluntary: null,
+      created_at: null,
+    } as UserRow);
+  const fullName = `${safeUser.firstname ?? ""} ${safeUser.lastname ?? ""}`.trim();
+  const email = safeUser.email ?? "";
   const memberLink = email ? `/dashboard/members?email=${encodeURIComponent(email)}` : null;
-  const hasIdentifier = Boolean(email || user.id);
+  const hasIdentifier = Boolean(email || safeUser.id);
   const [isSaving, setIsSaving] = React.useState(false);
-  const [privilegeType, setPrivilegeType] = React.useState<number>(typeof user.privilege_type === "number" ? user.privilege_type : 1);
+  const [privilegeType, setPrivilegeType] = React.useState<number>(typeof safeUser.privilege_type === "number" ? safeUser.privilege_type : 1);
   const [internalOpen, setInternalOpen] = React.useState(false);
-  const isOpen = typeof open === "boolean" ? open : internalOpen;
-  const isSelf = Boolean(currentUserId && user.id && String(user.id) === String(currentUserId));
+  const isSelf = Boolean(currentUserId && safeUser.id && String(safeUser.id) === String(currentUserId));
   const currentPrivilege = typeof currentUserPrivilege === "number" ? currentUserPrivilege : null;
-  const targetPrivilege = typeof user.privilege_type === "number" ? user.privilege_type : privilegeType;
+  const targetPrivilege = typeof safeUser.privilege_type === "number" ? safeUser.privilege_type : privilegeType;
   const canEditTarget =
     currentPrivilege !== null &&
     (currentPrivilege >= 4 || (currentPrivilege === 2 && targetPrivilege <= 2));
@@ -153,14 +160,14 @@ function UserInfoDialog({
     : [currentOption];
 
   React.useEffect(() => {
-    if (typeof user.privilege_type === "number") {
-      setPrivilegeType(user.privilege_type);
+    if (typeof safeUser.privilege_type === "number") {
+      setPrivilegeType(safeUser.privilege_type);
     }
-  }, [user.privilege_type]);
+  }, [safeUser.privilege_type]);
 
   const updatePrivilegeInTable = async (table: "profiles", next: number) => {
     const supabase = createClient();
-    const idValue = typeof user.id === "number" ? user.id : typeof user.id === "string" && user.id !== "" ? user.id : null;
+    const idValue = typeof safeUser.id === "number" ? safeUser.id : typeof safeUser.id === "string" && safeUser.id !== "" ? safeUser.id : null;
 
     let result = null;
     let error = null;
@@ -240,6 +247,10 @@ function UserInfoDialog({
     }
     setInternalOpen(nextOpen);
   };
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
@@ -339,11 +350,7 @@ function Glass({ className = "", children }: React.PropsWithChildren<{ className
 }
 
 // ----- Columns ---------------------------------------------------------------
-function buildColumns(
-  onPrivilegeUpdated: (user: UserRow, next: number) => void,
-  currentUserId?: string | null,
-  currentUserPrivilege?: number | null,
-): ColumnDef<UserRow, unknown>[] {
+function buildColumns(): ColumnDef<UserRow, unknown>[] {
   return [
     {
       id: "select",
@@ -443,13 +450,7 @@ function buildColumns(
     {
       id: "actions",
       header: () => <span className="sr-only">Actions</span>,
-      cell: ({ row }) => {
-        const user = row.original as UserRow;
-        return (
-          <div className="flex items-center gap-2 justify-end">
-          </div>
-        );
-      },
+      cell: () => <div className="flex items-center gap-2 justify-end" />,
       enableHiding: false,
     },
   ];
@@ -716,10 +717,7 @@ export default function UsersPage({ initialData, currentUserId }: { initialData:
     return typeof me?.privilege_type === "number" ? me.privilege_type : null;
   }, [rows, currentUserId]);
 
-  const columns = React.useMemo(
-    () => buildColumns(handlePrivilegeUpdated, currentUserId, currentUserPrivilege),
-    [handlePrivilegeUpdated, currentUserId, currentUserPrivilege],
-  );
+  const columns = React.useMemo(() => buildColumns(), []);
   const canEditPrivileges = (currentUserPrivilege ?? 0) >= 2;
   const allowedMax =
     currentUserPrivilege !== null && currentUserPrivilege >= 4 ? 5 : currentUserPrivilege === 2 ? 2 : null;
