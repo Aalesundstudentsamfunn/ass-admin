@@ -8,7 +8,7 @@ export default async function MembersPage() {
     const supabase = await createClient();
     const { data: rows, error } = await supabase
         .from('ass_members')
-        .select('*')
+        .select('*, profile:profiles!ass_members_profile_id_fkey ( privilege_type )')
         .order('id', { ascending: false })
     async function addNewMember(_: unknown, formData: FormData) {
         'use server';
@@ -78,7 +78,11 @@ export default async function MembersPage() {
     } else if (rows && rows.length > 0) {
         return (
             <ActionsProvider addNewMember={addNewMember}>
-                <DataTable initialData={rows}
+                <DataTable
+                    initialData={(rows as Array<Record<string, unknown>>).map((row) => ({
+                        ...row,
+                        privilege_type: (row as { profile?: { privilege_type?: number | null } }).profile?.privilege_type ?? null,
+                    }))}
                 />
             </ActionsProvider>
         )

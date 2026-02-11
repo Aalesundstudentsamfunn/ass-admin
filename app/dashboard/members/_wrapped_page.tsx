@@ -6,12 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowUpDown, Trash2, Filter, Printer, Heart } from "lucide-react";
+import { ArrowUpDown, Trash2, Filter, Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { enqueuePrinterQueue, watchPrinterQueueStatus } from "@/lib/printer-queue";
 import { MEMBER_PAGE_SIZES, useMemberPageSizeDefault } from "@/lib/table-settings";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useCurrentPrivilege } from "@/lib/use-current-privilege";
 import { ColumnDef, flexRender, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, SortingState, useReactTable, ColumnFiltersState, VisibilityState } from "@tanstack/react-table";
 import { CreateUserDialog } from "@/components/add-new-member";
@@ -36,7 +37,19 @@ export type UserRow = {
   added_by?: string | null;
   created_at?: string | null;
   profile_id?: string | null;
+  privilege_type?: number | null;
 };
+
+const PILL_CLASS = "rounded-full px-2.5 py-0.5 text-xs font-medium";
+
+async function copyToClipboard(value: string, label: string) {
+  try {
+    await navigator.clipboard.writeText(value);
+    toast.success(`${label} kopiert.`);
+  } catch {
+    toast.error(`Kunne ikke kopiere ${label.toLowerCase()}.`);
+  }
+}
 
 // ----- Liquid Glass primitives ----------------------------------------------
 function Glass({ className = "", children }: React.PropsWithChildren<{ className?: string }>) {
@@ -51,6 +64,28 @@ function buildColumns(
   canDelete: boolean,
 ) {
   return [
+    {
+      id: "select",
+      header: ({ table }) => (
+        <Checkbox
+          checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Velg alle"
+          onClick={(event) => event.stopPropagation()}
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Velg rad"
+          onClick={(event) => event.stopPropagation()}
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
+      size: 40,
+    },
     {
       id: "search",
       accessorFn: (row: UserRow) => `${row.firstname} ${row.lastname} ${row.email ?? ""}`.trim(),
@@ -72,7 +107,23 @@ function buildColumns(
           ID <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
-      cell: ({ row }) => <span className="font-medium">{row.getValue("id")}</span>,
+      cell: ({ row }) => (
+        <span className="relative inline-flex items-center group">
+          <button
+            type="button"
+            className="font-medium underline-offset-2 hover:underline"
+            onClick={(event) => {
+              event.stopPropagation();
+              copyToClipboard(String(row.getValue("id")), "ID");
+            }}
+          >
+            {row.getValue("id")}
+          </button>
+          <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground/90 px-2 py-1 text-[10px] text-background opacity-0 transition-opacity group-hover:opacity-100">
+            Kopier
+          </span>
+        </span>
+      ),
       enableHiding: false,
       size: 80,
     },
@@ -102,13 +153,21 @@ function buildColumns(
         </button>
       ),
       cell: ({ row }) => (
-        <a
-          href={`mailto:${row.getValue("email")}`}
-          className="underline-offset-2 hover:underline"
-          onClick={(event) => event.stopPropagation()}
-        >
-          {row.getValue("email")}
-        </a>
+        <span className="relative inline-flex items-center group">
+          <button
+            type="button"
+            className="underline-offset-2 hover:underline"
+            onClick={(event) => {
+              event.stopPropagation();
+              copyToClipboard(String(row.getValue("email") ?? ""), "E-post");
+            }}
+          >
+            {row.getValue("email")}
+          </button>
+          <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground/90 px-2 py-1 text-[10px] text-background opacity-0 transition-opacity group-hover:opacity-100">
+            Kopier
+          </span>
+        </span>
       ),
     },
     {
@@ -122,47 +181,49 @@ function buildColumns(
         const member = row.original as UserRow;
         const isVoluntary = Boolean(member.is_voluntary);
         return (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full"
-            onClick={async (event) => {
-              event.stopPropagation();
-              const supabase = createClient();
-              const next = !isVoluntary;
-              const toastId = toast.loading(next ? "Setter som frivillig..." : "Fjerner frivillig...", { duration: 10000 });
-              const { data, error } = await supabase.rpc("set_user_voluntary", {
-                p_user_id: null,
-                p_email: member.email ?? null,
-                p_voluntary: next,
-              });
-
-              if (error) {
-                toast.error("Kunne ikke oppdatere frivillig-status.", {
-                  id: toastId,
-                  description: error.message,
-                  duration: Infinity,
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              className={PILL_CLASS}
+              onClick={async (event) => {
+                event.stopPropagation();
+                const supabase = createClient();
+                const next = !isVoluntary;
+                const toastId = toast.loading(next ? "Setter som frivillig..." : "Fjerner frivillig...", { duration: 10000 });
+                const { data, error } = await supabase.rpc("set_user_voluntary", {
+                  p_user_id: null,
+                  p_email: member.email ?? null,
+                  p_voluntary: next,
                 });
-                return;
-              }
 
-              if (data?.members_updated === 0) {
-                toast.error("Kunne ikke oppdatere ass_members.", {
-                  id: toastId,
-                  description: "ass_members update affected 0 rows.",
-                  duration: 10000,
-                });
-              } else {
-                toast.success(next ? "Satt som frivillig." : "Fjernet som frivillig.", { id: toastId, duration: 6000 });
-              }
+                if (error) {
+                  toast.error("Kunne ikke oppdatere frivillig-status.", {
+                    id: toastId,
+                    description: error.message,
+                    duration: Infinity,
+                  });
+                  return;
+                }
 
-              onVoluntaryUpdated(member, next);
-            }}
-            aria-pressed={isVoluntary}
-            title={isVoluntary ? "Fjern frivillig" : "Gjør frivillig"}
-          >
-            <Heart className={cn("h-4 w-4", isVoluntary ? "fill-rose-500 text-rose-500" : "text-muted-foreground")} />
-          </Button>
+                if (data?.members_updated === 0) {
+                  toast.error("Kunne ikke oppdatere ass_members.", {
+                    id: toastId,
+                    description: "ass_members update affected 0 rows.",
+                    duration: 10000,
+                  });
+                } else {
+                  toast.success(next ? "Satt som frivillig." : "Fjernet som frivillig.", { id: toastId, duration: 6000 });
+                }
+
+                onVoluntaryUpdated(member, next);
+              }}
+              aria-pressed={isVoluntary}
+              title={isVoluntary ? "Fjern frivillig" : "Gjør frivillig"}
+            >
+              {isVoluntary ? "Frivillig" : "Medlem"}
+            </Button>
+          </div>
         );
       },
     },
@@ -263,30 +324,41 @@ function DataTable({
   data,
   defaultPageSize,
   onRowClick,
+  onBulkVoluntary,
+  onBulkPrint,
+  onBulkDelete,
+  canDelete,
 }: {
   columns: ColumnDef<UserRow, unknown>[];
   data: UserRow[];
   defaultPageSize: number;
   onRowClick?: (member: UserRow) => void;
+  onBulkVoluntary: (members: UserRow[], next: boolean) => Promise<void>;
+  onBulkPrint: (members: UserRow[]) => Promise<void>;
+  onBulkDelete: (members: UserRow[]) => Promise<void>;
+  canDelete: boolean;
 }) {
   const [sorting, setSorting] = React.useState<SortingState>([{ id: "id", desc: true }]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({ search: false });
   const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: defaultPageSize });
+  const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({});
   const pageSizeOptions = MEMBER_PAGE_SIZES;
 
   const table = useReactTable({
     data,
     columns,
-    state: { sorting, columnFilters, columnVisibility, pagination },
+    state: { sorting, columnFilters, columnVisibility, pagination, rowSelection },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange: setPagination,
+    onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    enableRowSelection: true,
   });
 
   const searchParams = useSearchParams();
@@ -306,6 +378,11 @@ function DataTable({
   React.useEffect(() => {
     setPagination((prev) => ({ ...prev, pageSize: defaultPageSize, pageIndex: 0 }));
   }, [defaultPageSize]);
+
+  const selectedRows = table.getSelectedRowModel().rows;
+  const selectedMembers = selectedRows.map((row) => row.original as UserRow);
+  const hasSelection = selectedMembers.length > 0;
+  const hasSearchFilter = Boolean(table.getColumn("search")?.getFilterValue());
 
   return (
     <div className="space-y-3">
@@ -328,6 +405,60 @@ function DataTable({
           <CreateUserDialog />
         </div>
       </div>
+      {hasSelection ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/60 bg-background/60 px-3 py-2 text-sm">
+          <span className="font-medium">{selectedMembers.length} valgt</span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-xl"
+            onClick={async () => {
+              await onBulkVoluntary(selectedMembers, true);
+              table.resetRowSelection();
+            }}
+          >
+            Sett som frivillig
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-xl"
+            onClick={async () => {
+              await onBulkVoluntary(selectedMembers, false);
+              table.resetRowSelection();
+            }}
+          >
+            Fjern frivillig
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-xl"
+            onClick={async () => {
+              await onBulkPrint(selectedMembers);
+              table.resetRowSelection();
+            }}
+          >
+            Print kort
+          </Button>
+          {canDelete ? (
+            <Button
+              size="sm"
+              variant="destructive"
+              className="rounded-xl"
+              onClick={async () => {
+                await onBulkDelete(selectedMembers);
+                table.resetRowSelection();
+              }}
+            >
+              Slett
+            </Button>
+          ) : null}
+          <Button size="sm" variant="ghost" className="rounded-xl" onClick={() => table.resetRowSelection()}>
+            Nullstill valg
+          </Button>
+        </div>
+      ) : null}
 
       {/* Table */}
       <Glass>
@@ -379,7 +510,19 @@ function DataTable({
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
-                    Ingen resultater.
+                    <div className="space-y-2">
+                      <div>Ingen resultater.</div>
+                      {hasSearchFilter ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-xl"
+                          onClick={() => table.getColumn("search")?.setFilterValue("")}
+                        >
+                          Nullstill filter
+                        </Button>
+                      ) : null}
+                    </div>
                   </TableCell>
                 </TableRow>
               )}
@@ -507,24 +650,54 @@ function MemberDetailsDialog({
         </DialogHeader>
         {member ? (
           <div className="grid gap-2 text-sm">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">ID</span>
-              <span className="font-medium">{member.id}</span>
-            </div>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-muted-foreground">ID</span>
+            <span className="font-medium">
+              <span className="relative inline-flex items-center group">
+                <button
+                  type="button"
+                  className="underline-offset-2 hover:underline"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    copyToClipboard(String(member.id), "ID");
+                  }}
+                >
+                  {member.id}
+                </button>
+                <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground/90 px-2 py-1 text-[10px] text-background opacity-0 transition-opacity group-hover:opacity-100">
+                  Kopier
+                </span>
+              </span>
+            </span>
+          </div>
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground">Navn</span>
               <span className="font-medium">{fullName || "—"}</span>
             </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">E-post</span>
-              {member.email ? (
-                <a href={`mailto:${member.email}`} className="font-medium underline-offset-2 hover:underline">
-                  {member.email}
-                </a>
-              ) : (
-                <span className="font-medium">—</span>
-              )}
-            </div>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-muted-foreground">E-post</span>
+            {member.email ? (
+              <span className="font-medium">
+                <span className="relative inline-flex items-center group">
+                  <button
+                    type="button"
+                    className="underline-offset-2 hover:underline"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      copyToClipboard(member.email ?? "", "E-post");
+                    }}
+                  >
+                    {member.email}
+                  </button>
+                  <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground/90 px-2 py-1 text-[10px] text-background opacity-0 transition-opacity group-hover:opacity-100">
+                    Kopier
+                  </span>
+                </span>
+              </span>
+            ) : (
+              <span className="font-medium">—</span>
+            )}
+          </div>
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground">Frivillig</span>
               <span className="font-medium">{member.is_voluntary ? "Ja" : "Nei"}</span>
@@ -571,6 +744,7 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
   const [detailsOpen, setDetailsOpen] = React.useState(false);
   const currentPrivilege = useCurrentPrivilege();
   const canDeleteMembers = (currentPrivilege ?? 0) >= 4;
+  const canManageVoluntary = (currentPrivilege ?? 0) >= 2;
 
   // Update rows when initialData changes (after router.refresh())
   React.useEffect(() => {
@@ -634,6 +808,125 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
     [supabase, isDeleting, router, initialData, selectedMember, canDeleteMembers],
   );
 
+  const handleBulkVoluntary = React.useCallback(
+    async (members: UserRow[], next: boolean) => {
+      if (!members.length) {
+        return;
+      }
+      if (!canManageVoluntary) {
+        toast.error("Du har ikke tilgang til å endre frivillig-status.");
+        return;
+      }
+      const toastId = toast.loading(next ? "Setter frivillige..." : "Fjerner frivillige...", { duration: 10000 });
+      const supabaseClient = createClient();
+      let successCount = 0;
+      let errorCount = 0;
+      for (const member of members) {
+        const { error } = await supabaseClient.rpc("set_user_voluntary", {
+          p_user_id: null,
+          p_email: member.email ?? null,
+          p_voluntary: next,
+        });
+        if (error) {
+          errorCount += 1;
+        } else {
+          successCount += 1;
+        }
+      }
+
+      if (successCount > 0) {
+        setRows((prev) =>
+          prev.map((row) =>
+            members.some((member) => String(member.id) === String(row.id)) ? { ...row, is_voluntary: next } : row,
+          ),
+        );
+        setSelectedMember((prev) =>
+          prev && members.some((member) => String(member.id) === String(prev.id)) ? { ...prev, is_voluntary: next } : prev,
+        );
+      }
+
+      if (errorCount > 0) {
+        toast.error("Kunne ikke oppdatere alle medlemmer.", { id: toastId, duration: Infinity });
+      } else {
+        toast.success("Frivillig-status oppdatert.", { id: toastId, duration: 6000 });
+      }
+    },
+    [canManageVoluntary],
+  );
+
+  const handleBulkPrint = React.useCallback(
+    async (members: UserRow[]) => {
+      if (!members.length) {
+        return;
+      }
+      const toastId = toast.loading("Sender til utskriftskø...", { duration: 10000 });
+      const supabaseClient = createClient();
+      const { data: authData, error: authError } = await supabaseClient.auth.getUser();
+      if (authError || !authData.user) {
+        toast.error("Kunne ikke legge til i utskriftskø.", { id: toastId, description: "Prøv å logge inn på nytt.", duration: Infinity });
+        return;
+      }
+      let successCount = 0;
+      let errorCount = 0;
+      for (const member of members) {
+        const { error } = await enqueuePrinterQueue(supabaseClient, {
+          firstname: member.firstname,
+          lastname: member.lastname,
+          email: member.email,
+          ref: member.id,
+          ref_invoker: authData.user.id,
+          is_voluntary: member.is_voluntary,
+        });
+        if (error) {
+          errorCount += 1;
+        } else {
+          successCount += 1;
+        }
+      }
+
+      if (errorCount > 0) {
+        toast.error("Kunne ikke sende alle til utskrift.", { id: toastId, duration: Infinity });
+      } else {
+        toast.success(`Sendt ${successCount} til utskriftskø.`, { id: toastId, duration: 6000 });
+      }
+    },
+    [],
+  );
+
+  const handleBulkDelete = React.useCallback(
+    async (members: UserRow[]) => {
+      if (!members.length) {
+        return;
+      }
+      if (!canDeleteMembers) {
+        toast.error("Du har ikke tilgang til å slette medlemmer.");
+        return;
+      }
+      const confirmed = window.confirm(`Er du sikker på at du vil slette ${members.length} medlemmer?`);
+      if (!confirmed) {
+        return;
+      }
+      const ids = members
+        .map((member) => (typeof member.id === "string" ? Number(member.id) : member.id))
+        .filter((id) => Number.isFinite(id)) as number[];
+      if (!ids.length) {
+        toast.error("Ingen gyldige medlemmer valgt.");
+        return;
+      }
+      const toastId = toast.loading("Sletter medlemmer...", { duration: 10000 });
+      const supabaseClient = createClient();
+      const { error } = await supabaseClient.from("ass_members").delete().in("id", ids);
+      if (error) {
+        toast.error("Kunne ikke slette medlemmer.", { id: toastId, description: error.message, duration: Infinity });
+        return;
+      }
+      setRows((prev) => prev.filter((row) => !ids.includes(Number(row.id))));
+      toast.success("Medlemmer slettet.", { id: toastId, duration: 6000 });
+      router.refresh();
+    },
+    [canDeleteMembers, router],
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -651,6 +944,10 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
             columns={columns}
             data={rows}
             defaultPageSize={defaultPageSize}
+            onBulkVoluntary={handleBulkVoluntary}
+            onBulkPrint={handleBulkPrint}
+            onBulkDelete={handleBulkDelete}
+            canDelete={canDeleteMembers}
             onRowClick={(member) => {
               setSelectedMember(member);
               setDetailsOpen(true);

@@ -4,10 +4,11 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { ArrowUpDown, Heart, Info, Filter } from "lucide-react";
+import { ArrowUpDown, Info, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MEMBER_PAGE_SIZES, useMemberPageSizeDefault } from "@/lib/table-settings";
 import { createClient } from "@/lib/supabase/client";
@@ -42,79 +43,23 @@ const PRIVILEGE_OPTIONS = [
   { value: 5, label: "IT" },
 ];
 
-function formatSupabaseError(error: { message?: string; details?: string | null; hint?: string | null; code?: string | null } | null) {
-  if (!error) {
-    return "Ukjent feil.";
+const PRIVILEGE_LABELS = new Map(PRIVILEGE_OPTIONS.map((option) => [option.value, option.label]));
+const PILL_CLASS = "rounded-full px-2.5 py-0.5 text-xs font-medium";
+
+function getPrivilegeLabel(value: number | null | undefined) {
+  if (typeof value !== "number") {
+    return "Ukjent";
   }
-  const parts = [error.message];
-  if (error.code) {
-    parts.push(`code=${error.code}`);
-  }
-  if (error.details) {
-    parts.push(`details=${error.details}`);
-  }
-  if (error.hint) {
-    parts.push(`hint=${error.hint}`);
-  }
-  return parts.filter(Boolean).join(" | ");
+  return PRIVILEGE_LABELS.get(value) ?? `Nivå ${value}`;
 }
 
-async function updateVoluntaryStatus(user: UserRow, next: boolean) {
-  const email = String(user.email ?? "").trim();
-  const supabase = createClient();
-  const idValue = typeof user.id === "string" && user.id !== "" ? user.id : null;
-
-  const { data, error } = await supabase.rpc("set_user_voluntary", {
-    p_user_id: idValue,
-    p_email: email || null,
-    p_voluntary: next,
-  });
-
-  if (error) {
-    return { ok: false, errorMessage: formatSupabaseError(error) };
+async function copyToClipboard(value: string, label: string) {
+  try {
+    await navigator.clipboard.writeText(value);
+    toast.success(`${label} kopiert.`);
+  } catch {
+    toast.error(`Kunne ikke kopiere ${label.toLowerCase()}.`);
   }
-
-  const membersUpdated = typeof data?.members_updated === "number" ? data.members_updated : null;
-  const warningMessage =
-    membersUpdated === 0 ? "ass_members update affected 0 rows." : null;
-
-  return { ok: true, warningMessage };
-}
-
-function VoluntaryHeartButton({ user, onVoluntaryUpdated }: { user: UserRow; onVoluntaryUpdated: (next: boolean) => void }) {
-  const isVoluntary = Boolean(user.is_voluntary);
-  const [isSaving, setIsSaving] = React.useState(false);
-  const canToggle = Boolean(user.email);
-
-  const handleToggle = async (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-    if (isSaving || !canToggle) {
-      return;
-    }
-    const next = !isVoluntary;
-    const toastId = toast.loading(next ? "Setter som frivillig..." : "Fjerner frivillig...", { duration: 10000 });
-    setIsSaving(true);
-
-    const result = await updateVoluntaryStatus(user, next);
-    if (!result.ok) {
-      toast.error("Kunne ikke oppdatere frivillig-status.", { id: toastId, description: result.errorMessage, duration: Infinity });
-      setIsSaving(false);
-      return;
-    }
-
-    onVoluntaryUpdated(next);
-    toast.success(next ? "Satt som frivillig." : "Fjernet som frivillig.", { id: toastId, duration: 6000 });
-    if (result.warningMessage) {
-      toast.error("Kunne ikke oppdatere ass_members.", { description: result.warningMessage, duration: 10000 });
-    }
-    setIsSaving(false);
-  };
-
-  return (
-    <Button variant="ghost" size="icon" className="rounded-full" onClick={handleToggle} disabled={isSaving || !canToggle} aria-pressed={isVoluntary} title={isVoluntary ? "Fjern frivillig" : "Gjør frivillig"}>
-      <Heart className={cn("h-4 w-4", isVoluntary ? "fill-rose-500 text-rose-500" : "text-muted-foreground")} />
-    </Button>
-  );
 }
 
 function UserInfoDialog({
@@ -278,7 +223,23 @@ function UserInfoDialog({
         <div className="grid gap-2 text-sm">
           <div className="flex items-center justify-between gap-4">
             <span className="text-muted-foreground">ID</span>
-            <span className="font-medium">{user.id}</span>
+            <span className="font-medium">
+              <span className="relative inline-flex items-center group">
+                <button
+                  type="button"
+                  className="underline-offset-2 hover:underline"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    copyToClipboard(String(user.id), "ID");
+                  }}
+                >
+                  {user.id}
+                </button>
+                <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground/90 px-2 py-1 text-[10px] text-background opacity-0 transition-opacity group-hover:opacity-100">
+                  Kopier
+                </span>
+              </span>
+            </span>
           </div>
           <div className="flex items-center justify-between gap-4">
             <span className="text-muted-foreground">Navn</span>
@@ -287,16 +248,26 @@ function UserInfoDialog({
           <div className="flex items-center justify-between gap-4">
             <span className="text-muted-foreground">E-post</span>
             {email ? (
-              <a href={`mailto:${email}`} className="font-medium underline-offset-2 hover:underline">
-                {email}
-              </a>
+              <span className="font-medium">
+                <span className="relative inline-flex items-center group">
+                  <button
+                    type="button"
+                    className="underline-offset-2 hover:underline"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      copyToClipboard(email, "E-post");
+                    }}
+                  >
+                    {email}
+                  </button>
+                  <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground/90 px-2 py-1 text-[10px] text-background opacity-0 transition-opacity group-hover:opacity-100">
+                    Kopier
+                  </span>
+                </span>
+              </span>
             ) : (
               <span className="font-medium">—</span>
             )}
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">Frivillig</span>
-            <span className="font-medium">{Boolean(user.is_voluntary) ? "Ja" : "Nei"}</span>
           </div>
           <div className="flex items-center justify-between gap-4">
             <span className="text-muted-foreground">Medlemskap</span>
@@ -341,7 +312,6 @@ function Glass({ className = "", children }: React.PropsWithChildren<{ className
 
 // ----- Columns ---------------------------------------------------------------
 function buildColumns(
-  onVoluntaryUpdated: (user: UserRow, next: boolean) => void,
   onPrivilegeUpdated: (user: UserRow, next: number) => void,
   currentUserId?: string | null,
   currentUserPrivilege?: number | null,
@@ -369,13 +339,21 @@ function buildColumns(
         </button>
       ),
     cell: ({ row }) => (
-      <a
-        href={`mailto:${row.getValue("email")}`}
-        className="underline-offset-2 hover:underline"
-        onClick={(event) => event.stopPropagation()}
-      >
-        {row.getValue("email")}
-      </a>
+      <span className="relative inline-flex items-center group">
+        <button
+          type="button"
+          className="underline-offset-2 hover:underline"
+          onClick={(event) => {
+            event.stopPropagation();
+            copyToClipboard(String(row.getValue("email") ?? ""), "E-post");
+          }}
+        >
+          {row.getValue("email")}
+        </button>
+        <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground/90 px-2 py-1 text-[10px] text-background opacity-0 transition-opacity group-hover:opacity-100">
+          Kopier
+        </span>
+      </span>
     ),
   },
     {
@@ -397,15 +375,19 @@ function buildColumns(
       cell: ({ row }) => <span>{row.getValue("lastname")}</span>,
     },
     {
-      accessorKey: "is_voluntary",
+      accessorKey: "privilege_type",
       header: ({ column }) => (
         <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Frivillig <ArrowUpDown className="h-3.5 w-3.5" />
+          Tilgang <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
       cell: ({ row }) => {
-        const user = row.original as UserRow;
-        return <VoluntaryHeartButton user={user} onVoluntaryUpdated={(next) => onVoluntaryUpdated(user, next)} />;
+        const label = getPrivilegeLabel(row.getValue("privilege_type") as number | null);
+        return (
+          <Badge variant="secondary" className={PILL_CLASS}>
+            {label}
+          </Badge>
+        );
       },
     },
     {
@@ -479,6 +461,8 @@ function DataTable({
     setPagination((prev) => ({ ...prev, pageSize: defaultPageSize, pageIndex: 0 }));
   }, [defaultPageSize]);
 
+  const hasSearchFilter = Boolean(table.getColumn("search")?.getFilterValue());
+
   return (
     <div className="space-y-3">
       {/* Toolbar */}
@@ -500,7 +484,6 @@ function DataTable({
           <span className="text-xs">For å legge til bruker, be dem registrere seg i app eller på side.</span>
         </div>
       </div>
-
       {/* Table */}
       <Glass>
         <div className="overflow-x-auto rounded-2xl">
@@ -551,7 +534,19 @@ function DataTable({
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
-                    Ingen resultater.
+                    <div className="space-y-2">
+                      <div>Ingen resultater.</div>
+                      {hasSearchFilter ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-xl"
+                          onClick={() => table.getColumn("search")?.setFilterValue("")}
+                        >
+                          Nullstill filter
+                        </Button>
+                      ) : null}
+                    </div>
                   </TableCell>
                 </TableRow>
               )}
@@ -622,10 +617,6 @@ export default function UsersPage({ initialData, currentUserId }: { initialData:
   const [rows, setRows] = React.useState<UserRow[]>(initialData);
   const [selectedUser, setSelectedUser] = React.useState<UserRow | null>(null);
   const [detailsOpen, setDetailsOpen] = React.useState(false);
-  const handleVoluntaryUpdated = React.useCallback((user: UserRow, next: boolean) => {
-    setRows((prev) => prev.map((row) => (String(row.id) === String(user.id) ? { ...row, is_voluntary: next } : row)));
-    setSelectedUser((prev) => (prev && String(prev.id) === String(user.id) ? { ...prev, is_voluntary: next } : prev));
-  }, []);
   const handlePrivilegeUpdated = React.useCallback((user: UserRow, next: number) => {
     setRows((prev) => prev.map((row) => (String(row.id) === String(user.id) ? { ...row, privilege_type: next } : row)));
     setSelectedUser((prev) => (prev && String(prev.id) === String(user.id) ? { ...prev, privilege_type: next } : prev));
@@ -639,8 +630,8 @@ export default function UsersPage({ initialData, currentUserId }: { initialData:
   }, [rows, currentUserId]);
 
   const columns = React.useMemo(
-    () => buildColumns(handleVoluntaryUpdated, handlePrivilegeUpdated, currentUserId, currentUserPrivilege),
-    [handleVoluntaryUpdated, handlePrivilegeUpdated, currentUserId, currentUserPrivilege],
+    () => buildColumns(handlePrivilegeUpdated, currentUserId, currentUserPrivilege),
+    [handlePrivilegeUpdated, currentUserId, currentUserPrivilege],
   );
 
   return (
