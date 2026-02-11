@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -359,28 +358,6 @@ function Glass({ className = "", children }: React.PropsWithChildren<{ className
 function buildColumns(): ColumnDef<UserRow, unknown>[] {
   return [
     {
-      id: "select",
-      header: ({ table }) => (
-        <Checkbox
-          checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label="Velg alle"
-          onClick={(event) => event.stopPropagation()}
-        />
-      ),
-      cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Velg rad"
-          onClick={(event) => event.stopPropagation()}
-        />
-      ),
-      enableSorting: false,
-      enableHiding: false,
-      size: 40,
-    },
-    {
       id: "search",
       accessorFn: (row: UserRow) => `${row.firstname ?? ""} ${row.lastname ?? ""} ${row.email ?? ""}`.trim(),
       filterFn: (row, columnId, value) => {
@@ -485,6 +462,7 @@ function DataTable({
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({ search: false });
   const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: defaultPageSize });
   const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({});
+  const [selectionMode, setSelectionMode] = React.useState(false);
   const pageSizeOptions = MEMBER_PAGE_SIZES;
 
   const table = useReactTable({
@@ -521,6 +499,12 @@ function DataTable({
     setPagination((prev) => ({ ...prev, pageSize: defaultPageSize, pageIndex: 0 }));
   }, [defaultPageSize]);
 
+  React.useEffect(() => {
+    if (!selectionMode) {
+      table.resetRowSelection();
+    }
+  }, [selectionMode, table]);
+
   const hasSearchFilter = Boolean(table.getColumn("search")?.getFilterValue());
   const selectedRows = table.getSelectedRowModel().rows;
   const selectedUsers = selectedRows.map((row) => row.original as UserRow);
@@ -544,6 +528,14 @@ function DataTable({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant={selectionMode ? "secondary" : "outline"}
+            className="rounded-xl"
+            onClick={() => setSelectionMode((prev) => !prev)}
+          >
+            {selectionMode ? "Avslutt valg" : "Velg rader"}
+          </Button>
           <span className="text-xs">For å legge til bruker, be dem registrere seg i app eller på side.</span>
         </div>
       </div>
@@ -601,20 +593,36 @@ function DataTable({
                     <TableRow
                       key={row.id}
                       data-state={row.getIsSelected() && "selected"}
-                      onClick={() => onRowClick?.(user)}
+                      onClick={() => {
+                        if (selectionMode) {
+                          row.toggleSelected();
+                          return;
+                        }
+                        onRowClick?.(user);
+                      }}
                       onKeyDown={(event) => {
-                        if (!onRowClick) {
+                        if (!selectionMode && !onRowClick) {
                           return;
                         }
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault();
-                          onRowClick(user);
+                          if (selectionMode) {
+                            row.toggleSelected();
+                          } else {
+                            onRowClick?.(user);
+                          }
                         }
                       }}
-                      tabIndex={onRowClick ? 0 : undefined}
-                      aria-label={onRowClick ? `Vis detaljer for ${user.firstname} ${user.lastname}` : undefined}
+                      tabIndex={selectionMode || onRowClick ? 0 : undefined}
+                      aria-label={
+                        selectionMode
+                          ? `Velg ${user.firstname} ${user.lastname}`
+                          : onRowClick
+                            ? `Vis detaljer for ${user.firstname} ${user.lastname}`
+                            : undefined
+                      }
                       className={cn(
-                        onRowClick && "cursor-pointer hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        (selectionMode || onRowClick) && "cursor-pointer hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       )}
                     >
                       {row.getVisibleCells().map((cell) => (

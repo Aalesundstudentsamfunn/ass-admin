@@ -12,7 +12,6 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { enqueuePrinterQueue, watchPrinterQueueStatus } from "@/lib/printer-queue";
 import { MEMBER_PAGE_SIZES, useMemberPageSizeDefault } from "@/lib/table-settings";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useCurrentPrivilege } from "@/lib/use-current-privilege";
 import { ColumnDef, flexRender, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, SortingState, useReactTable, ColumnFiltersState, VisibilityState } from "@tanstack/react-table";
 import { CreateUserDialog } from "@/components/add-new-member";
@@ -64,28 +63,6 @@ function buildColumns(
   canDelete: boolean,
 ) {
   return [
-    {
-      id: "select",
-      header: ({ table }) => (
-        <Checkbox
-          checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label="Velg alle"
-          onClick={(event) => event.stopPropagation()}
-        />
-      ),
-      cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Velg rad"
-          onClick={(event) => event.stopPropagation()}
-        />
-      ),
-      enableSorting: false,
-      enableHiding: false,
-      size: 40,
-    },
     {
       id: "search",
       accessorFn: (row: UserRow) => `${row.firstname} ${row.lastname} ${row.email ?? ""}`.trim(),
@@ -346,6 +323,7 @@ function DataTable({
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({ search: false });
   const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: defaultPageSize });
   const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({});
+  const [selectionMode, setSelectionMode] = React.useState(false);
   const pageSizeOptions = MEMBER_PAGE_SIZES;
 
   const table = useReactTable({
@@ -382,6 +360,12 @@ function DataTable({
     setPagination((prev) => ({ ...prev, pageSize: defaultPageSize, pageIndex: 0 }));
   }, [defaultPageSize]);
 
+  React.useEffect(() => {
+    if (!selectionMode) {
+      table.resetRowSelection();
+    }
+  }, [selectionMode, table]);
+
   const selectedRows = table.getSelectedRowModel().rows;
   const selectedMembers = selectedRows.map((row) => row.original as UserRow);
   const hasSelection = selectedMembers.length > 0;
@@ -405,6 +389,14 @@ function DataTable({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant={selectionMode ? "secondary" : "outline"}
+            className="rounded-xl"
+            onClick={() => setSelectionMode((prev) => !prev)}
+          >
+            {selectionMode ? "Avslutt valg" : "Velg rader"}
+          </Button>
           <CreateUserDialog />
         </div>
       </div>
@@ -486,20 +478,36 @@ function DataTable({
                     <TableRow
                       key={row.id}
                       data-state={row.getIsSelected() && "selected"}
-                      onClick={() => onRowClick?.(member)}
+                      onClick={() => {
+                        if (selectionMode) {
+                          row.toggleSelected();
+                          return;
+                        }
+                        onRowClick?.(member);
+                      }}
                       onKeyDown={(event) => {
-                        if (!onRowClick) {
+                        if (!selectionMode && !onRowClick) {
                           return;
                         }
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault();
-                          onRowClick(member);
+                          if (selectionMode) {
+                            row.toggleSelected();
+                          } else {
+                            onRowClick?.(member);
+                          }
                         }
                       }}
-                      tabIndex={onRowClick ? 0 : undefined}
-                      aria-label={onRowClick ? `Vis detaljer for ${member.firstname} ${member.lastname}` : undefined}
+                      tabIndex={selectionMode || onRowClick ? 0 : undefined}
+                      aria-label={
+                        selectionMode
+                          ? `Velg ${member.firstname} ${member.lastname}`
+                          : onRowClick
+                            ? `Vis detaljer for ${member.firstname} ${member.lastname}`
+                            : undefined
+                      }
                       className={cn(
-                        onRowClick && "cursor-pointer hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        (selectionMode || onRowClick) && "cursor-pointer hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       )}
                     >
                     {row.getVisibleCells().map((cell) => (
