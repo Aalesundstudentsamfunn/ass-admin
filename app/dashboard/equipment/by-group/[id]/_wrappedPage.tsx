@@ -38,10 +38,10 @@ export default function WrappedUtstyrPage({ items }: { items: ItemType[] }) {
                     <Card key={item.id.toString()} className="overflow-hidden">
 
                         <CardHeader>
-                            {item.img_url ? (
+                            {item.img_path ? (
                                 // request image through our proxy API so the server includes the Authorization header
                                 <div className="relative w-full h-48 rounded-md overflow-hidden">
-                                    <Image src={process.env.NEXT_PUBLIC_SUPABASE_URL + "/storage/v1/object/public/items/types/" + item.img_url + "." + item.img_type} alt="certificate" fill style={{ objectFit: "cover" }} sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw" />
+                                    <Image src={process.env.NEXT_PUBLIC_SUPABASE_URL + "/storage/v1/object/public/items/types/" + item.img_path + "." + item.img_type} alt="certificate" fill style={{ objectFit: "cover" }} sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw" />
                                 </div>
                             ) : (
                                 <div className="h-48 w-full rounded-md bg-muted-foreground/10 flex items-center justify-center text-sm">Ingen bilde</div>

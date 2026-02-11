@@ -18,7 +18,7 @@ export default function WrappedUtstyrPage({ items }: { items: ItemType[] }) {
         return items?.filter((x) => (x.itemname ?? "").toLowerCase().includes(q));
     }, [query, items]);
 
-
+    console.log(`img: ${process.env.NEXT_PUBLIC_SUPABASE_URL + "/storage/v1/object/public/items/" + items[0]?.img_path + "." + items[0]?.img_type} + " id: " + ${items[0]?.id.toString()})`);
 
     return (
         <main className="mx-auto w-full max-w-6xl p-4 md:p-8">
@@ -39,10 +39,9 @@ export default function WrappedUtstyrPage({ items }: { items: ItemType[] }) {
                     <Card key={item.id.toString()} className="overflow-hidden">
 
                         <CardHeader>
-                            {item.img_url ? (
-                                // request image through our proxy API so the server includes the Authorization header
+                            {item.img_path ? (
                                 <div className="relative w-full h-48 rounded-md overflow-hidden">
-                                    <Image src={process.env.NEXT_PUBLIC_SUPABASE_URL + "/storage/v1/object/public/items/" + item.img_url + "." + item.img_type} alt="certificate" fill style={{ objectFit: "cover" }} sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw" />
+                                    <Image src={process.env.NEXT_PUBLIC_SUPABASE_URL + "/storage/v1/object/public/items/" + item.img_path + "." + item.img_type} alt="certificate" fill style={{ objectFit: "cover" }} sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw" />
                                 </div>
                             ) : (
                                 <div className="h-48 w-full rounded-md bg-muted-foreground/10 flex items-center justify-center text-sm">Ingen bilde</div>

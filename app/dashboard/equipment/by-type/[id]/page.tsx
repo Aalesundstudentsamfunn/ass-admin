@@ -5,7 +5,7 @@ import WrappedItemPage from "./_wrappedPage";
 export type ItemType = {
     id: string; // bigint → string (tryggest i frontend)
     created_at: string; // timestamptz → ISO string
-    img_url: string | null;
+    img_path: string | null;
     img_type: string | null;
     parent_type: string | null; // FK → item_schema.item_type.id
     is_active: boolean;

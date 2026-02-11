@@ -11,7 +11,7 @@ export type ItemType = {
     responsible_activity_group: number | null;
     variants: number | null;
     certification_type: number | null;
-    img_url: string | null;
+    img_path: string | null;
     img_type: string | null;
     img_full_url?: string | null;
 };
