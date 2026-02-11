@@ -139,6 +139,7 @@ function UserInfoDialog({
   }
   const fullName = `${user.firstname ?? ""} ${user.lastname ?? ""}`.trim();
   const email = user.email ?? "";
+  const memberLink = email ? `/dashboard/members?email=${encodeURIComponent(email)}` : null;
   const hasIdentifier = Boolean(email || user.id);
   const [isSaving, setIsSaving] = React.useState(false);
   const [privilegeType, setPrivilegeType] = React.useState<number>(typeof user.privilege_type === "number" ? user.privilege_type : 1);
@@ -296,6 +297,18 @@ function UserInfoDialog({
           <div className="flex items-center justify-between gap-4">
             <span className="text-muted-foreground">Frivillig</span>
             <span className="font-medium">{Boolean(user.is_voluntary) ? "Ja" : "Nei"}</span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-muted-foreground">Medlemskap</span>
+            <span className="font-medium">
+              {memberLink ? (
+                <a href={memberLink} className="underline-offset-2 hover:underline">
+                  Vis
+                </a>
+              ) : (
+                "—"
+              )}
+            </span>
           </div>
           <div className="flex items-center justify-between gap-4">
             <Label className="text-muted-foreground" htmlFor={`privilege-${user.id}`}>

@@ -94,8 +94,7 @@ function UserInfoDialog({
     : ""
   const addedByLabel = addedByName || addedByProfile?.email || user.added_by || "—"
   const createdAtLabel = user.created_at ? new Date(user.created_at).toLocaleString() : "—"
-  const linkedProfile = user.profile_id ? "Koblet" : "Ikke koblet"
-  const profileLink = email ? `/dashboard/users?email=${encodeURIComponent(email)}` : null
+  const profileLink = user.profile_id && email ? `/dashboard/users?email=${encodeURIComponent(email)}` : null
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -137,14 +136,15 @@ function UserInfoDialog({
             </span>
           </div>
           <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">Profilkobling</span>
+            <span className="text-muted-foreground">Registrert</span>
             <span className="font-medium">
-              {linkedProfile}
               {profileLink ? (
-                <a href={profileLink} className="ml-2 text-xs underline-offset-2 hover:underline">
+                <a href={profileLink} className="text-xs underline-offset-2 hover:underline">
                   Se profil
                 </a>
-              ) : null}
+              ) : (
+                "Nei"
+              )}
             </span>
           </div>
           <div className="flex items-center justify-between gap-4">
@@ -207,8 +207,7 @@ function MemberDetailsDialog({
     : ""
   const addedByLabel = addedByName || addedByProfile?.email || member?.added_by || "—"
   const createdAtLabel = member?.created_at ? new Date(member.created_at).toLocaleString() : "—"
-  const linkedProfile = member?.profile_id ? "Koblet" : "Ikke koblet"
-  const profileLink = member?.email ? `/dashboard/users?email=${encodeURIComponent(member.email)}` : null
+  const profileLink = member?.profile_id && member?.email ? `/dashboard/users?email=${encodeURIComponent(member.email)}` : null
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -242,14 +241,15 @@ function MemberDetailsDialog({
               <span className="font-medium">{member.is_voluntary ? "Ja" : "Nei"}</span>
             </div>
             <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Profilkobling</span>
+              <span className="text-muted-foreground">Registrert</span>
               <span className="font-medium">
-                {linkedProfile}
                 {profileLink ? (
-                  <a href={profileLink} className="ml-2 text-xs underline-offset-2 hover:underline">
+                  <a href={profileLink} className="text-xs underline-offset-2 hover:underline">
                     Se profil
                   </a>
-                ) : null}
+                ) : (
+                  "Nei"
+                )}
               </span>
             </div>
             <div className="flex items-center justify-between gap-4">

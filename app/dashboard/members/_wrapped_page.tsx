@@ -16,6 +16,7 @@ import { useCurrentPrivilege } from "@/lib/use-current-privilege";
 import { ColumnDef, flexRender, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, SortingState, useReactTable, ColumnFiltersState, VisibilityState } from "@tanstack/react-table";
 import { CreateUserDialog } from "@/components/add-new-member";
 import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 /**
  * Liquid Glass Users Page
@@ -288,6 +289,20 @@ function DataTable({
     getPaginationRowModel: getPaginationRowModel(),
   });
 
+  const searchParams = useSearchParams();
+  const initializedFilter = React.useRef(false);
+
+  React.useEffect(() => {
+    if (initializedFilter.current) {
+      return;
+    }
+    const emailParam = searchParams.get("email");
+    if (emailParam) {
+      table.getColumn("search")?.setFilterValue(emailParam);
+    }
+    initializedFilter.current = true;
+  }, [searchParams, table]);
+
   React.useEffect(() => {
     setPagination((prev) => ({ ...prev, pageSize: defaultPageSize, pageIndex: 0 }));
   }, [defaultPageSize]);
@@ -481,8 +496,7 @@ function MemberDetailsDialog({
 
   const addedByLabel = addedByName || addedByProfile?.email || member?.added_by || "—";
   const createdAtLabel = member?.created_at ? new Date(member.created_at).toLocaleString() : "—";
-  const linkedProfile = member?.profile_id ? "Koblet" : "Ikke koblet";
-  const profileLink = member?.email ? `/dashboard/users?email=${encodeURIComponent(member.email)}` : null;
+  const profileLink = member?.profile_id && member?.email ? `/dashboard/users?email=${encodeURIComponent(member.email)}` : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -516,14 +530,15 @@ function MemberDetailsDialog({
               <span className="font-medium">{member.is_voluntary ? "Ja" : "Nei"}</span>
             </div>
             <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Profilkobling</span>
+              <span className="text-muted-foreground">Registrert</span>
               <span className="font-medium">
-                {linkedProfile}
                 {profileLink ? (
-                  <a href={profileLink} className="ml-2 text-xs underline-offset-2 hover:underline">
+                  <a href={profileLink} className="text-xs underline-offset-2 hover:underline">
                     Se profil
                   </a>
-                ) : null}
+                ) : (
+                  "Nei"
+                )}
               </span>
             </div>
             <div className="flex items-center justify-between gap-4">
