@@ -1,7 +1,9 @@
 "use client"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, Package, Building2, TrendingUp, UserCheck2 } from "lucide-react"
+import { Users, Package, TrendingUp, UserCheck2 } from "lucide-react"
+import Link from "next/link";
+import { useState, useEffect } from "react";
 
 interface Stats {
     title: string;
@@ -10,46 +12,41 @@ interface Stats {
     icon: React.ElementType;
     trend: string;
 }
-/*
-const stats = [
-  {
-    title: "Total Members",
-    value: "248",
-    description: "Active volunteer members",
-    icon: Users,
-    trend: "+12%",
-  },
-  {
-    title: "Registered Users",
-    value: "1,429",
-    description: "Platform users",
-    icon: UserCheck,
-    trend: "+8%",
-  },
-  {
-    title: "Active Workers",
-    value: "89",
-    description: "Currently working",
-    icon: HardHat,
-    trend: "+3%",
-  },
-  {
-    title: "Equipment Items",
-    value: "156",
-    description: "Available for rent",
-    icon: Package,
-    trend: "+15%",
-  },
-  {
-    title: "Groups",
-    value: "12",
-    description: "Volunteer groups",
-    icon: Building2,
-    trend: "+2%",
-  },
-]*/
+
+
+const base = "https://api.github.com";
+
+
+
+export async function getLatestCommitsFetch(owner: string, repo: string) {
+    const url = `${base}/repos/${owner}/${repo}/commits?per_page=5`;
+
+    const res = await fetch(url)
+    if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`GitHub API error ${res.status}: ${txt}`);
+    }
+
+    const data = await res.json();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return data.map((c: any) => ({
+        sha: c.sha,
+        message: c.commit.message,
+        author: c.commit.author?.name ?? c.author?.login ?? "unknown",
+        date: c.commit.author?.date,
+        url: c.html_url,
+    }));
+}
 
 export default function DashboardPage({ initialData }: { initialData: Stats[] }) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [commits, setCommits] = useState<any[]>([]);
+
+    useEffect(() => {
+        getLatestCommitsFetch("Aalesundstudentsamfunn", "ass-admin").then((data) => {
+            setCommits(data);
+        });
+    }, []);
 
     return (
         <div className="space-y-6">
@@ -82,25 +79,22 @@ export default function DashboardPage({ initialData }: { initialData: Stats[] })
             <div className="grid gap-6 md:grid-cols-2">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Recent Activity</CardTitle>
-                        <CardDescription>Latest equipment rentals and returns</CardDescription>
+                        <CardTitle>Nylig aktivitet</CardTitle>
+                        <CardDescription>Siste commits fra gutta i IT</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-4">
-                            {[
-                                { action: "Test", item: "Power Drill Set", user: "John Smith", time: "2 hours ago" },
-                            ].map((activity, index) => (
+                            {commits.map((activity, index) => (
                                 <div
                                     key={index}
                                     className="flex items-center justify-between py-2 border-b border-border last:border-0"
                                 >
                                     <div>
-                                        <p className="text-sm font-medium text-foreground">{activity.action}</p>
+                                        <p className="text-sm font-medium text-foreground">{activity.message}</p>
                                         <p className="text-xs text-muted-foreground">
-                                            {activity.item} - {activity.user}
+                                            {activity.author} - {activity.date ? new Date(activity.date).toLocaleString() : "Ukjent dato"}
                                         </p>
                                     </div>
-                                    <span className="text-xs text-muted-foreground">{activity.time}</span>
                                 </div>
                             ))}
                         </div>
@@ -114,27 +108,24 @@ export default function DashboardPage({ initialData }: { initialData: Stats[] })
                     </CardHeader>
                     <CardContent>
                         <div className="grid gap-3">
-                            <button className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/10 transition-colors text-left">
-                                <Users className="h-5 w-5 text-accent" />
-                                <div>
-                                    <p className="font-medium text-foreground">Add New Member</p>
-                                    <p className="text-xs text-muted-foreground">Register a new volunteer</p>
-                                </div>
-                            </button>
-                            <button className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/10 transition-colors text-left">
-                                <Package className="h-5 w-5 text-accent" />
-                                <div>
-                                    <p className="font-medium text-foreground">Add Equipment</p>
-                                    <p className="text-xs text-muted-foreground">Register new equipment item</p>
-                                </div>
-                            </button>
-                            <button className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/10 transition-colors text-left">
-                                <Building2 className="h-5 w-5 text-accent" />
-                                <div>
-                                    <p className="font-medium text-foreground">Create Group</p>
-                                    <p className="text-xs text-muted-foreground">Set up new volunteer group</p>
-                                </div>
-                            </button>
+                            <Link href={"/dashboard/members"}>
+                                <button className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/10 transition-colors text-left">
+                                    <Users className="h-5 w-5 text-accent" />
+                                    <div>
+                                        <p className="font-medium text-foreground">Legg til nytt Åss medlem</p>
+                                        <p className="text-xs text-muted-foreground">Legg til nye medlemmer og print kort</p>
+                                    </div>
+                                </button>
+                            </Link>
+                            <Link href={"/dashboard/equipment"}>
+                                <button className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/10 transition-colors text-left">
+                                    <Package className="h-5 w-5 text-accent" />
+                                    <div>
+                                        <p className="font-medium text-foreground">Legg til nytt utstyr</p>
+                                        <p className="text-xs text-muted-foreground">Registrer nytt utstyrsobjekt</p>
+                                    </div>
+                                </button>
+                            </Link>
                         </div>
                     </CardContent>
                 </Card>
