@@ -18,7 +18,7 @@ export default async function DashboardLayout({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("voluntary")
+    .select("voluntary, firstname, lastname")
     .eq("id", user.id)
     .single()
 
@@ -26,5 +26,17 @@ export default async function DashboardLayout({
     redirect("/not-volunteer")
   }
 
-  return <DashboardShell>{children}</DashboardShell>
+  const fullName = `${profile?.firstname ?? ""} ${profile?.lastname ?? ""}`.trim()
+  const metaName = (user.user_metadata?.full_name ?? user.user_metadata?.name ?? "").trim()
+
+  return (
+    <DashboardShell
+      currentUser={{
+        name: fullName || metaName || null,
+        email: user.email,
+      }}
+    >
+      {children}
+    </DashboardShell>
+  )
 }

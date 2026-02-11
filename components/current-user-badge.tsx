@@ -6,19 +6,20 @@ import { cn } from "@/lib/utils";
 export function CurrentUserBadge({ compact = false, prominent = false, name, email, className }: { compact?: boolean; prominent?: boolean; name?: string | null; email?: string | null; className?: string }) {
   const safeName = (name ?? "").trim();
   const safeEmail = (email ?? "").trim();
-  const label = safeName || safeEmail || "Problem med henting";
+  const hasName = Boolean(safeName);
+  const label = hasName ? safeName : safeEmail || "Problem med henting";
   const initialSource = (safeName || safeEmail || "?").trim();
   const initial = initialSource.charAt(0).toUpperCase();
 
   return (
     <div
       className={cn(
-        "flex items-center gap-2 rounded-xl border border-white/40 px-3 py-2 text-xs text-foreground/80 dark:border-white/10",
-        compact && "px-2 py-1 text-[11px] justify-center",
+        "flex w-full items-center gap-2 rounded-xl border border-white/40 px-3 py-2 text-xs text-foreground/80 dark:border-white/10",
+        compact && "w-auto px-2 py-1 text-[11px] justify-center",
         prominent && "flex-col items-start gap-1 px-3 py-3 text-sm",
         className,
       )}
-      title={safeEmail || undefined}
+      title={undefined}
     >
       {prominent ? (
         <>
