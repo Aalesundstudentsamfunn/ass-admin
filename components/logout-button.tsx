@@ -3,8 +3,16 @@
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
+import { LogOut } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-export function LogoutButton() {
+export function LogoutButton({
+  compact = false,
+  className,
+}: {
+  compact?: boolean;
+  className?: string;
+}) {
   const router = useRouter();
 
   const logout = async () => {
@@ -13,5 +21,24 @@ export function LogoutButton() {
     router.push("/auth/login");
   };
 
-  return <Button onClick={logout}>Logout</Button>;
+  if (compact) {
+    return (
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={logout}
+        title="Logout"
+        aria-label="Logout"
+        className={cn("h-9 w-9", className)}
+      >
+        <LogOut className="h-4 w-4" />
+      </Button>
+    );
+  }
+
+  return (
+    <Button onClick={logout} className={className}>
+      Logout
+    </Button>
+  );
 }

@@ -8,7 +8,7 @@ const defaultUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` 
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "ÅSS | ADMIN SIDE",
+  title: "Admin – Ålesund Studentsamfunn",
   description: "Portal for frivillige i ÅSS. Kort, utstyr og medlemskap samlet på en side.",
 };
 

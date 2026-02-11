@@ -7,7 +7,23 @@ import CertificationCard, { AppShape } from "./certification-card"
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fix later
 type ActionsRenderer = (app: any) => React.ReactNode
 
-export default function CertificationTabs({ processed, unprocessed, actions, onAccept, onReject, onDelete }: { processed: AppShape[]; unprocessed: AppShape[]; actions?: ActionsRenderer, onAccept?: (id: number) => void, onReject?: (id: number) => void, onDelete?: (id: number) => void }) {
+export default function CertificationTabs({
+  processed,
+  unprocessed,
+  actions,
+  onAccept,
+  onReject,
+  onDelete,
+  canManage = true,
+}: {
+  processed: AppShape[];
+  unprocessed: AppShape[];
+  actions?: ActionsRenderer;
+  onAccept?: (id: number) => void;
+  onReject?: (id: number) => void;
+  onDelete?: (id: number) => void;
+  canManage?: boolean;
+}) {
   const [tab, setTab] = useState<"unprocessed" | "processed">("unprocessed")
 
   // If the page is loaded with a hash like #app-123, switch to the correct tab and scroll the element into view
@@ -46,7 +62,13 @@ export default function CertificationTabs({ processed, unprocessed, actions, onA
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {list.map((app) => (
           <div key={app.id} id={`app-${app.id}`} className="flex flex-col gap-2">
-            <CertificationCard app={app} onAccept={onAccept} onReject={onReject} onDelete={onDelete} />
+            <CertificationCard
+              app={app}
+              onAccept={canManage ? onAccept : undefined}
+              onReject={canManage ? onReject : undefined}
+              onDelete={canManage ? onDelete : undefined}
+              canManage={canManage}
+            />
             {actions ? <div className="px-1">{actions(app)}</div> : null}
           </div>
         ))}

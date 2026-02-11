@@ -1,5 +1,6 @@
 "use client"
 import { createClient } from "@/lib/supabase/client"
+import { useCurrentPrivilege } from "@/lib/use-current-privilege"
 import CertificationTabs from "@/components/certification/certification-tabs"
 import { SupabaseClient } from "@supabase/supabase-js"
 import { useEffect, useState } from "react"
@@ -69,6 +70,8 @@ async function getApplications(client: SupabaseClient) {
 export default function CertificationPage() {
   const supabase = createClient()
   const [apps, setApps] = useState<Application[]>([])
+  const currentPrivilege = useCurrentPrivilege()
+  const canManageCertificates = (currentPrivilege ?? 0) >= 3
   useEffect(() => {
     const fetchData = async () => {
       const data = await getApplications(supabase)
@@ -134,7 +137,14 @@ export default function CertificationPage() {
       <h1 className="text-2xl font-semibold mb-4">Sertifisering</h1>
       <p className="text-sm text-muted-foreground mb-4">Merk: Søkere kan kun ha én aktiv søknad om gangen, og alle brukere må søke gjennom appen. For å søke på nytt etter et avslag må den tidligere søknaden slettes.</p>
 
-      <CertificationTabs processed={processed} unprocessed={unprocessed} onAccept={handleAccept} onReject={handleReject} onDelete={handleDelete} />
+      <CertificationTabs
+        processed={processed}
+        unprocessed={unprocessed}
+        onAccept={handleAccept}
+        onReject={handleReject}
+        onDelete={handleDelete}
+        canManage={canManageCertificates}
+      />
     </div>
   )
 }
