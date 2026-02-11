@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import DataTable from "./_wrapped_page";
+import type { UserRow } from "./_wrapped_page";
 import { ActionsProvider } from "./providers";
 import { revalidatePath } from 'next/cache';
 import { enqueuePrinterQueue } from "@/lib/printer-queue";
@@ -10,6 +11,18 @@ export default async function MembersPage() {
         .from('ass_members')
         .select('*, profile:profiles!ass_members_profile_id_fkey ( privilege_type )')
         .order('id', { ascending: false })
+
+    type MemberRow = {
+        id: string | number;
+        firstname: string;
+        lastname: string;
+        email: string;
+        is_voluntary: boolean;
+        added_by?: string | null;
+        created_at?: string | null;
+        profile_id?: string | null;
+        profile?: { privilege_type?: number | null } | null;
+    };
     async function addNewMember(_: unknown, formData: FormData) {
         'use server';
         console.log(formData)
@@ -79,9 +92,16 @@ export default async function MembersPage() {
         return (
             <ActionsProvider addNewMember={addNewMember}>
                 <DataTable
-                    initialData={(rows as Array<Record<string, unknown>>).map((row) => ({
-                        ...row,
-                        privilege_type: (row as { profile?: { privilege_type?: number | null } }).profile?.privilege_type ?? null,
+                    initialData={(rows as MemberRow[]).map((row): UserRow => ({
+                        id: row.id,
+                        firstname: row.firstname,
+                        lastname: row.lastname,
+                        email: row.email,
+                        is_voluntary: row.is_voluntary,
+                        added_by: row.added_by ?? null,
+                        created_at: row.created_at ?? null,
+                        profile_id: row.profile_id ?? null,
+                        privilege_type: row.profile?.privilege_type ?? null,
                     }))}
                 />
             </ActionsProvider>
