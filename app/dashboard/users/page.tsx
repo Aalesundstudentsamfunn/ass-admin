@@ -3,6 +3,8 @@ import DataTable from "./_wrapped_page";
 
 export default async function MembersPage() {
   const supabase = await createClient();
+  const { data: authData } = await supabase.auth.getUser();
+  const currentUserId = authData.user?.id ?? null;
   const { data: rows, error } = await supabase.rpc('admin_list_profiles')
   const { data: voluntaryMembers } = await supabase.from("ass_members").select("email").eq("is_voluntary", true)
   //print the first 5 rows
@@ -23,7 +25,7 @@ export default async function MembersPage() {
           typeof rowVoluntary === "boolean" ? rowVoluntary : email ? voluntaryEmails.has(email) : false,
       }
     })
-    return <DataTable initialData={hydratedRows} />
+    return <DataTable initialData={hydratedRows} currentUserId={currentUserId} />
   } else {
     return <div>Ingen data</div>
   }

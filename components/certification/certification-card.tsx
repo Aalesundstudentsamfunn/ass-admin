@@ -34,9 +34,22 @@ export type AppShape = {
   verified_by_profile?: Verified_by_profile | null
 }
 
-export default function CertificationCard({ app, onAccept, onReject, onDelete }: { app: AppShape, onAccept?: (id: number) => void, onReject?: (id: number) => void, onDelete?: (id: number) => void }) {
+export default function CertificationCard({
+  app,
+  onAccept,
+  onReject,
+  onDelete,
+  canManage = true,
+}: {
+  app: AppShape;
+  onAccept?: (id: number) => void;
+  onReject?: (id: number) => void;
+  onDelete?: (id: number) => void;
+  canManage?: boolean;
+}) {
   const [open, setOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const allowActions = canManage;
 
   function handleAccept() {
     if (onAccept) onAccept(app.id)
@@ -86,9 +99,9 @@ export default function CertificationCard({ app, onAccept, onReject, onDelete }:
       </CardContent>
       <CardFooter>
         <div className="flex items-center gap-2">
-          {!app.verified ? <Button variant="default" size="sm" onClick={handleAccept}>Bekreft</Button> : null}
-          {!app.rejected && !app.verified ? <Button variant="destructive" size="sm" onClick={handleReject}>Avslå</Button> : null}
-          {!app.verified ? <Button variant="ghost" size="sm" onClick={() => setDeleteOpen(true)}>Slett</Button> : null}
+          {allowActions && !app.verified ? <Button variant="default" size="sm" onClick={handleAccept}>Bekreft</Button> : null}
+          {allowActions && !app.rejected && !app.verified ? <Button variant="destructive" size="sm" onClick={handleReject}>Avslå</Button> : null}
+          {allowActions && !app.verified ? <Button variant="ghost" size="sm" onClick={() => setDeleteOpen(true)}>Slett</Button> : null}
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm">Detaljer</Button>
@@ -136,18 +149,20 @@ export default function CertificationCard({ app, onAccept, onReject, onDelete }:
               </div>
             </DialogContent>
           </Dialog>
-          <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Slett søknad #{app.id}?</DialogTitle>
-                <DialogDescription>Dette kan ikke angres. Er du sikker på at du vil slette denne søknaden?</DialogDescription>
-              </DialogHeader>
-              <div className="mt-4 flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={() => setDeleteOpen(false)}>Avbryt</Button>
-                <Button variant="destructive" size="sm" onClick={handleDeleteConfirm}>Slett</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          {allowActions ? (
+            <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Slett søknad #{app.id}?</DialogTitle>
+                  <DialogDescription>Dette kan ikke angres. Er du sikker på at du vil slette denne søknaden?</DialogDescription>
+                </DialogHeader>
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setDeleteOpen(false)}>Avbryt</Button>
+                  <Button variant="destructive" size="sm" onClick={handleDeleteConfirm}>Slett</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          ) : null}
         </div>
       </CardFooter>
     </Card>

@@ -123,6 +123,7 @@ function UserInfoDialog({
   onOpenChange,
   showTrigger = true,
   currentUserId,
+  currentUserPrivilege,
 }: {
   user: UserRow | null;
   onPrivilegeUpdated: (next: number) => void;
@@ -130,6 +131,7 @@ function UserInfoDialog({
   onOpenChange?: (open: boolean) => void;
   showTrigger?: boolean;
   currentUserId?: string | null;
+  currentUserPrivilege?: number | null;
 }) {
   if (!user) {
     return null;
@@ -142,6 +144,31 @@ function UserInfoDialog({
   const [internalOpen, setInternalOpen] = React.useState(false);
   const isOpen = typeof open === "boolean" ? open : internalOpen;
   const isSelf = Boolean(currentUserId && user.id && String(user.id) === String(currentUserId));
+  const currentPrivilege = typeof currentUserPrivilege === "number" ? currentUserPrivilege : null;
+  const targetPrivilege = typeof user.privilege_type === "number" ? user.privilege_type : privilegeType;
+  const canEditTarget =
+    currentPrivilege !== null &&
+    (currentPrivilege >= 4 || (currentPrivilege === 2 && targetPrivilege <= 2));
+  const allowedMax =
+    currentPrivilege !== null && currentPrivilege >= 4 ? 5 : currentPrivilege === 2 ? 2 : null;
+  const selectDisabled = isSaving || !hasIdentifier || !canEditTarget;
+
+  const allowedOptions = React.useMemo(() => {
+    if (allowedMax === null) {
+      return [];
+    }
+    return PRIVILEGE_OPTIONS.filter((option) => option.value <= allowedMax);
+  }, [allowedMax]);
+
+  const currentOption =
+    PRIVILEGE_OPTIONS.find((option) => option.value === targetPrivilege) ??
+    ({ value: targetPrivilege, label: `Nivå ${targetPrivilege}` } as const);
+
+  const selectOptions = canEditTarget
+    ? allowedOptions.some((option) => option.value === currentOption.value)
+      ? allowedOptions
+      : [currentOption, ...allowedOptions]
+    : [currentOption];
 
   React.useEffect(() => {
     if (typeof user.privilege_type === "number") {
@@ -273,9 +300,9 @@ function UserInfoDialog({
             <Label className="text-muted-foreground" htmlFor={`privilege-${user.id}`}>
               Tilgangsnivå
             </Label>
-            <select id={`privilege-${user.id}`} value={privilegeType} disabled={isSaving || !hasIdentifier} onChange={(event) => handlePrivilegeChange(event.target.value)} className="h-8 w-40 rounded-xl border border-border/60 bg-background/60 px-2 text-xs" style={{ fontVariantNumeric: "tabular-nums" }}>
-              {PRIVILEGE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
+            <select id={`privilege-${user.id}`} value={privilegeType} disabled={selectDisabled} onChange={(event) => handlePrivilegeChange(event.target.value)} className="h-8 w-40 rounded-xl border border-border/60 bg-background/60 px-2 text-xs" style={{ fontVariantNumeric: "tabular-nums" }}>
+              {selectOptions.map((option) => (
+                <option key={option.value} value={option.value} disabled={!canEditTarget && option.value !== privilegeType}>
                   {option.label}
                 </option>
               ))}
@@ -299,7 +326,12 @@ function Glass({ className = "", children }: React.PropsWithChildren<{ className
 }
 
 // ----- Columns ---------------------------------------------------------------
-function buildColumns(onVoluntaryUpdated: (user: UserRow, next: boolean) => void, onPrivilegeUpdated: (user: UserRow, next: number) => void): ColumnDef<UserRow, unknown>[] {
+function buildColumns(
+  onVoluntaryUpdated: (user: UserRow, next: boolean) => void,
+  onPrivilegeUpdated: (user: UserRow, next: number) => void,
+  currentUserId?: string | null,
+  currentUserPrivilege?: number | null,
+): ColumnDef<UserRow, unknown>[] {
   return [
     {
       accessorKey: "email",
@@ -355,7 +387,12 @@ function buildColumns(onVoluntaryUpdated: (user: UserRow, next: boolean) => void
         const user = row.original as UserRow;
         return (
           <div className="flex items-center gap-2 justify-end">
-            <UserInfoDialog user={user} onPrivilegeUpdated={(next) => onPrivilegeUpdated(user, next)} />
+            <UserInfoDialog
+              user={user}
+              onPrivilegeUpdated={(next) => onPrivilegeUpdated(user, next)}
+              currentUserId={currentUserId}
+              currentUserPrivilege={currentUserPrivilege}
+            />
           </div>
         );
       },
@@ -531,31 +568,13 @@ function DataTable({
 }
 
 // ----- Page ------------------------------------------------------------------
-export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
+export default function UsersPage({ initialData, currentUserId }: { initialData: UserRow[]; currentUserId?: string | null }) {
   // If no data is provided, show a tiny demo set for layout/dev
   //get data from supabase
   const defaultPageSize = useMemberPageSizeDefault();
   const [rows, setRows] = React.useState<UserRow[]>(initialData);
   const [selectedUser, setSelectedUser] = React.useState<UserRow | null>(null);
   const [detailsOpen, setDetailsOpen] = React.useState(false);
-  const [currentUserId, setCurrentUserId] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    let isMounted = true;
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data, error }) => {
-      if (!isMounted) {
-        return;
-      }
-      if (error) {
-        return;
-      }
-      setCurrentUserId(data.user?.id ?? null);
-    });
-    return () => {
-      isMounted = false;
-    };
-  }, []);
   const handleVoluntaryUpdated = React.useCallback((user: UserRow, next: boolean) => {
     setRows((prev) => prev.map((row) => (String(row.id) === String(user.id) ? { ...row, is_voluntary: next } : row)));
     setSelectedUser((prev) => (prev && String(prev.id) === String(user.id) ? { ...prev, is_voluntary: next } : prev));
@@ -564,7 +583,18 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
     setRows((prev) => prev.map((row) => (String(row.id) === String(user.id) ? { ...row, privilege_type: next } : row)));
     setSelectedUser((prev) => (prev && String(prev.id) === String(user.id) ? { ...prev, privilege_type: next } : prev));
   }, []);
-  const columns = React.useMemo(() => buildColumns(handleVoluntaryUpdated, handlePrivilegeUpdated), [handleVoluntaryUpdated, handlePrivilegeUpdated]);
+  const currentUserPrivilege = React.useMemo(() => {
+    if (!currentUserId) {
+      return null;
+    }
+    const me = rows.find((row) => String(row.id) === String(currentUserId));
+    return typeof me?.privilege_type === "number" ? me.privilege_type : null;
+  }, [rows, currentUserId]);
+
+  const columns = React.useMemo(
+    () => buildColumns(handleVoluntaryUpdated, handlePrivilegeUpdated, currentUserId, currentUserPrivilege),
+    [handleVoluntaryUpdated, handlePrivilegeUpdated, currentUserId, currentUserPrivilege],
+  );
 
   return (
     <div className="space-y-6">
@@ -593,6 +623,7 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
       <UserInfoDialog
         user={selectedUser}
         currentUserId={currentUserId}
+        currentUserPrivilege={currentUserPrivilege}
         open={detailsOpen}
         onOpenChange={(open) => {
           setDetailsOpen(open);

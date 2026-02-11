@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { enqueuePrinterQueue, watchPrinterQueueStatus } from "@/lib/printer-queue";
 import { MEMBER_PAGE_SIZES, useMemberPageSizeDefault } from "@/lib/table-settings";
+import { useCurrentPrivilege } from "@/lib/use-current-privilege";
 import { ColumnDef, flexRender, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, SortingState, useReactTable, ColumnFiltersState, VisibilityState } from "@tanstack/react-table";
 import { CreateUserDialog } from "@/components/add-new-member";
 import { useRouter } from "next/navigation";
@@ -45,6 +46,7 @@ function buildColumns(
   onDelete: (id: string | number) => Promise<void>,
   isDeleting: boolean,
   onVoluntaryUpdated: (member: UserRow, next: boolean) => void,
+  canDelete: boolean,
 ) {
   return [
     {
@@ -232,17 +234,19 @@ function buildColumns(
               }}>
               <Printer className="mr-1 h-4 w-4" /> Print kort
             </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              className="rounded-lg"
-              disabled={isDeleting}
-              onClick={async (event) => {
-                event.stopPropagation();
-                onDelete(user.id);
-              }}>
-              <Trash2 className="mr-1 h-4 w-4" /> {isDeleting ? "Sletter..." : "Delete"}
-            </Button>
+            {canDelete ? (
+              <Button
+                variant="destructive"
+                size="sm"
+                className="rounded-lg"
+                disabled={isDeleting}
+                onClick={async (event) => {
+                  event.stopPropagation();
+                  onDelete(user.id);
+                }}>
+                <Trash2 className="mr-1 h-4 w-4" /> {isDeleting ? "Sletter..." : "Delete"}
+              </Button>
+            ) : null}
           </div>
         );
       },
@@ -536,6 +540,8 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [selectedMember, setSelectedMember] = React.useState<UserRow | null>(null);
   const [detailsOpen, setDetailsOpen] = React.useState(false);
+  const currentPrivilege = useCurrentPrivilege();
+  const canDeleteMembers = (currentPrivilege ?? 0) >= 4;
 
   // Update rows when initialData changes (after router.refresh())
   React.useEffect(() => {
@@ -594,8 +600,9 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
             setSelectedMember((prev) => (prev ? { ...prev, is_voluntary: next } : prev));
           }
         },
+        canDeleteMembers,
       ),
-    [supabase, isDeleting, router, initialData, selectedMember],
+    [supabase, isDeleting, router, initialData, selectedMember, canDeleteMembers],
   );
 
   return (

@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { createClient } from "@/lib/supabase/client"
+import { useCurrentPrivilege } from "@/lib/use-current-privilege"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -112,60 +113,67 @@ function ActionsCell({ cert, table }: { cert: CertificateRow; table: unknown }) 
   )
 }
 
-const Columns: ColumnDef<CertificateRow>[] = [
-  {
-    accessorKey: "id",
-    header: () => <span>ID</span>,
-    cell: ({ row }) => <span className="font-medium">{row.getValue("id")}</span>,
-    enableHiding: false,
-    size: 80,
-  },
-  {
-    accessorKey: "profiles",
-    header: () => <span>Holder</span>,
-    cell: ({ row }) => {
-      const p = row.getValue("profiles") as CertificateRow["profiles"]
-      if (!p) return <span>—</span>
-      return <span>{p.firstname} {p.lastname}</span>
-    }
-  },
-  {
-    accessorKey: "profiles",
-    id: "email",
-    header: () => <span>Email</span>,
-    cell: ({ row }) => {
-      const p = row.getValue("profiles") as CertificateRow["profiles"]
-      if (!p || !p.email) return <span>—</span>
-      return <a className="underline-offset-2 hover:underline" href={`mailto:${p.email}`}>{p.email}</a>
-    }
-  },
-  {
-    accessorKey: "type",
-    header: () => <span>Type</span>,
-    cell: ({ row }) => {
-      const t = row.getValue("type") as CertificateRow["type"]
-      return <span>{t?.type ?? "—"}</span>
-    }
-  },
-  {
-    accessorKey: "application_id",
-    header: () => <span>Application</span>,
-    cell: ({ row }) => {
-      const appId = row.getValue("application_id") as number | null
-      if (!appId) return <span>—</span>
-      return (
-        <a href={`/dashboard/certification-application#app-${appId}`} className="underline text-primary">
-          {appId}
-        </a>
-      )
-    }
-  },
-  {
-    id: "actions",
-    header: () => <span className="sr-only">Actions</span>,
-    cell: ({ row, table }) => <ActionsCell cert={row.original} table={table} />
+function buildColumns(canManage: boolean): ColumnDef<CertificateRow>[] {
+  const columns: ColumnDef<CertificateRow>[] = [
+    {
+      accessorKey: "id",
+      header: () => <span>ID</span>,
+      cell: ({ row }) => <span className="font-medium">{row.getValue("id")}</span>,
+      enableHiding: false,
+      size: 80,
+    },
+    {
+      accessorKey: "profiles",
+      header: () => <span>Holder</span>,
+      cell: ({ row }) => {
+        const p = row.getValue("profiles") as CertificateRow["profiles"]
+        if (!p) return <span>—</span>
+        return <span>{p.firstname} {p.lastname}</span>
+      }
+    },
+    {
+      accessorKey: "profiles",
+      id: "email",
+      header: () => <span>Email</span>,
+      cell: ({ row }) => {
+        const p = row.getValue("profiles") as CertificateRow["profiles"]
+        if (!p || !p.email) return <span>—</span>
+        return <a className="underline-offset-2 hover:underline" href={`mailto:${p.email}`}>{p.email}</a>
+      }
+    },
+    {
+      accessorKey: "type",
+      header: () => <span>Type</span>,
+      cell: ({ row }) => {
+        const t = row.getValue("type") as CertificateRow["type"]
+        return <span>{t?.type ?? "—"}</span>
+      }
+    },
+    {
+      accessorKey: "application_id",
+      header: () => <span>Application</span>,
+      cell: ({ row }) => {
+        const appId = row.getValue("application_id") as number | null
+        if (!appId) return <span>—</span>
+        return (
+          <a href={`/dashboard/certification-application#app-${appId}`} className="underline text-primary">
+            {appId}
+          </a>
+        )
+      }
+    },
+  ]
+
+  if (canManage) {
+    columns.push({
+      id: "actions",
+      header: () => <span className="sr-only">Actions</span>,
+      cell: ({ row, table }) => <ActionsCell cert={row.original} table={table} />
+    })
   }
-]
+
+  return columns
+}
 
 function DataTable({ columns, data, onDelete }: { columns: ColumnDef<CertificateRow, CertificateRow>[]; data: CertificateRow[]; onDelete?: (id: number) => Promise<void> }) {
   const [sorting, setSorting] = React.useState<SortingState>([])
@@ -274,6 +282,8 @@ export default function CertificationPage() {
   const supabase = createClient()
   const [rows, setRows] = useState<CertificateRow[]>([])
   const [search, setSearch] = useState<string>("")
+  const currentPrivilege = useCurrentPrivilege()
+  const canManageCertificates = (currentPrivilege ?? 0) >= 3
 
   useEffect(() => {
     let mounted = true
@@ -330,6 +340,8 @@ export default function CertificationPage() {
     setRows(prev => prev.filter(r => r.id !== id))
   }
 
+  const columns = React.useMemo(() => buildColumns(canManageCertificates), [canManageCertificates])
+
   return (
     <div>
       <h1 className="text-2xl font-semibold mb-4">Sertifikater</h1>
@@ -343,7 +355,7 @@ export default function CertificationPage() {
           </div>
         </CardHeader>
         <CardContent className="px-0">
-          <DataTable columns={Columns} data={filtered} onDelete={handleDelete} />
+          <DataTable columns={columns} data={filtered} onDelete={canManageCertificates ? handleDelete : undefined} />
         </CardContent>
       </Card>
     </div>
