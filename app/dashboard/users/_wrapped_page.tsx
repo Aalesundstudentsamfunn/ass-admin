@@ -36,6 +36,12 @@ export type UserRow = {
   created_at?: string | null;
 };
 
+type UpdateResult = {
+  ok: boolean;
+  error?: { message?: string } | null;
+  details?: string;
+};
+
 const PRIVILEGE_OPTIONS = [
   { value: 1, label: "Medlem" },
   { value: 2, label: "Frivillig" },
@@ -63,19 +69,19 @@ async function copyToClipboard(value: string, label: string) {
   }
 }
 
-async function updateUserPrivilege(user: UserRow, next: number) {
+async function updateUserPrivilege(user: UserRow, next: number): Promise<UpdateResult> {
   const supabase = createClient();
   const idValue = typeof user.id === "number" ? user.id : typeof user.id === "string" && user.id !== "" ? user.id : null;
   const email = String(user.email ?? "").trim();
 
   let result = null;
-  let error = null;
+  let error: { message?: string } | null = null;
   const details: string[] = [];
 
   if (idValue !== null) {
     result = await supabase.from("profiles").update({ privilege_type: next }).eq("id", idValue).select("id, privilege_type");
     if (result.error) {
-      error = result.error;
+      error = result.error as { message?: string };
       details.push(`id update failed (id=${idValue}): ${result.error.message}`);
     } else if (result.data && result.data.length > 0) {
       return { ok: true };
@@ -87,7 +93,7 @@ async function updateUserPrivilege(user: UserRow, next: number) {
   if (email) {
     result = await supabase.from("profiles").update({ privilege_type: next }).eq("email", email).select("id, privilege_type");
     if (result.error) {
-      error = result.error;
+      error = result.error as { message?: string };
       details.push(`email update failed (email=${email}): ${result.error.message}`);
     } else if (result.data && result.data.length > 0) {
       return { ok: true };
@@ -165,18 +171,18 @@ function UserInfoDialog({
     }
   }, [safeUser.privilege_type]);
 
-  const updatePrivilegeInTable = async (table: "profiles", next: number) => {
+  const updatePrivilegeInTable = async (table: "profiles", next: number): Promise<UpdateResult> => {
     const supabase = createClient();
     const idValue = typeof safeUser.id === "number" ? safeUser.id : typeof safeUser.id === "string" && safeUser.id !== "" ? safeUser.id : null;
 
     let result = null;
-    let error = null;
+    let error: { message?: string } | null = null;
     const details: string[] = [];
 
     if (idValue !== null) {
       result = await supabase.from(table).update({ privilege_type: next }).eq("id", idValue).select("id, privilege_type");
       if (result.error) {
-        error = result.error;
+        error = result.error as { message?: string };
         details.push(`id update failed (id=${idValue}): ${result.error.message}`);
       } else if (result.data && result.data.length > 0) {
         return { ok: true };
@@ -188,7 +194,7 @@ function UserInfoDialog({
     if (email) {
       result = await supabase.from(table).update({ privilege_type: next }).eq("email", email).select("id, privilege_type");
       if (result.error) {
-        error = result.error;
+        error = result.error as { message?: string };
         details.push(`email update failed (email=${email}): ${result.error.message}`);
       } else if (result.data && result.data.length > 0) {
         return { ok: true };
