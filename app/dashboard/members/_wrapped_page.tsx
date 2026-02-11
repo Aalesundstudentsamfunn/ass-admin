@@ -34,6 +34,7 @@ export type UserRow = {
   is_voluntary: boolean;
   added_by?: string | null;
   created_at?: string | null;
+  profile_id?: string | null;
 };
 
 // ----- Liquid Glass primitives ----------------------------------------------
@@ -480,6 +481,8 @@ function MemberDetailsDialog({
 
   const addedByLabel = addedByName || addedByProfile?.email || member?.added_by || "—";
   const createdAtLabel = member?.created_at ? new Date(member.created_at).toLocaleString() : "—";
+  const linkedProfile = member?.profile_id ? "Koblet" : "Ikke koblet";
+  const profileLink = member?.email ? `/dashboard/users?email=${encodeURIComponent(member.email)}` : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -511,6 +514,17 @@ function MemberDetailsDialog({
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground">Frivillig</span>
               <span className="font-medium">{member.is_voluntary ? "Ja" : "Nei"}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Profilkobling</span>
+              <span className="font-medium">
+                {linkedProfile}
+                {profileLink ? (
+                  <a href={profileLink} className="ml-2 text-xs underline-offset-2 hover:underline">
+                    Se profil
+                  </a>
+                ) : null}
+              </span>
             </div>
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground">Lagt til av</span>
