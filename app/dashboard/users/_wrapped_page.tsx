@@ -13,6 +13,7 @@ import { MEMBER_PAGE_SIZES, useMemberPageSizeDefault } from "@/lib/table-setting
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { ColumnDef, flexRender, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, SortingState, useReactTable, ColumnFiltersState, VisibilityState } from "@tanstack/react-table";
+import { useSearchParams } from "next/navigation";
 
 /**
  * Liquid Glass Users Page
@@ -432,6 +433,20 @@ function DataTable({
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
   });
+
+  const searchParams = useSearchParams();
+  const initializedFilter = React.useRef(false);
+
+  React.useEffect(() => {
+    if (initializedFilter.current) {
+      return;
+    }
+    const emailParam = searchParams.get("email");
+    if (emailParam) {
+      table.getColumn("email")?.setFilterValue(emailParam);
+    }
+    initializedFilter.current = true;
+  }, [searchParams, table]);
 
   React.useEffect(() => {
     setPagination((prev) => ({ ...prev, pageSize: defaultPageSize, pageIndex: 0 }));
