@@ -30,7 +30,7 @@ type CurrentUser = {
 const navigation = [
   { name: "Medlemmer", href: "/dashboard/members", icon: Users },
   { name: "Brukere", href: "/dashboard/users", icon: UserCheck },
-  { name: "Frivillige", href: "/dashboard/workers", icon: Heart },
+  { name: "Frivillige", href: "/dashboard/voluntary", icon: Heart },
   { name: "Utstyr", href: "/dashboard/equipment", icon: Package },
   { name: "Grupper", href: "/dashboard/groups", icon: Building2 },
   { name: "Sertifisering", href: "/dashboard/certification", icon: Award },
