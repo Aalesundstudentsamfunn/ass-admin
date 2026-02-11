@@ -5,7 +5,9 @@ import type React from "react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Users, UserCheck, Heart, Package, Building2, Menu, Shield, Settings, Award, FileText } from "lucide-react"
+import { Users, UserCheck, Heart, Package, Building2, Menu, Settings, Award, FileText, ChevronLeft, ChevronRight } from "lucide-react"
+import Image from "next/image"
+import Logo from "@/app/logo.png"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -75,7 +77,17 @@ function GlassPanel({ className, children }: React.PropsWithChildren<{ className
   )
 }
 
-function NavItem({ item, active, onClick }: { item: (typeof navigation)[number]; active: boolean; onClick?: () => void }) {
+function NavItem({
+  item,
+  active,
+  onClick,
+  collapsed,
+}: {
+  item: (typeof navigation)[number];
+  active: boolean;
+  onClick?: () => void;
+  collapsed?: boolean;
+}) {
   const Icon = item.icon
   return (
     <li>
@@ -83,8 +95,11 @@ function NavItem({ item, active, onClick }: { item: (typeof navigation)[number];
         href={item.href}
         onClick={onClick}
         aria-current={active ? "page" : undefined}
+        aria-label={collapsed ? item.name : undefined}
+        title={collapsed ? item.name : undefined}
         className={cn(
           "group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium outline-none transition",
+          collapsed && "justify-center",
           active
             ? "text-foreground"
             : "text-foreground/80 hover:text-foreground",
@@ -99,9 +114,16 @@ function NavItem({ item, active, onClick }: { item: (typeof navigation)[number];
             active ? "opacity-100" : "group-hover:opacity-100",
           )}
         />
-        <span className="relative z-10 flex items-center gap-3">
+        <span className={cn("relative z-10 flex items-center", collapsed ? "gap-0" : "gap-3")}>
           <Icon className="h-5 w-5" />
-          {item.name}
+          <span
+            className={cn(
+              "overflow-hidden whitespace-nowrap text-left transition-[max-width,opacity,transform] duration-300",
+              collapsed ? "max-w-0 opacity-0 translate-x-1" : "max-w-[200px] opacity-100 translate-x-0",
+            )}
+          >
+            {item.name}
+          </span>
         </span>
       </Link>
     </li>
@@ -120,30 +142,50 @@ export default function DashboardShell({
   const pathname = usePathname()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   const Sidebar = ({ mobile = false }: { mobile?: boolean }) => (
-    <div className={cn("flex h-full flex-col gap-4", mobile ? "w-full" : "w-72 p-3")}>
-      <GlassPanel className="p-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400/70 to-violet-500/70 text-white shadow-inner dark:from-sky-500/50 dark:to-fuchsia-600/50">
-            <Shield className="h-5 w-5" />
-          </div>
+    <div className={cn("flex h-full flex-col gap-4", mobile ? "w-full" : "w-full p-3")}>
+      <GlassPanel className={cn("p-4", !mobile && sidebarCollapsed && "px-3 py-3")}>
+        <div className={cn("flex items-center gap-3", !mobile && sidebarCollapsed && "justify-center")}>
           <button
             onClick={() => {
               router.push("/dashboard")
               if (mobile) setSidebarOpen(false)
             }}
-            className="text-left"
+            className={cn(
+              "flex items-center text-left transition-all",
+              !mobile && sidebarCollapsed ? "w-full justify-center gap-0" : "gap-3",
+            )}
           >
-            <div className="text-base font-semibold tracking-tight">Admin Panel</div>
-            <div className="text-xs text-foreground/70">Overview</div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 shadow-inner ring-1 ring-white/10">
+              <Image src={Logo} alt="ASS logo" className="h-7 w-7 object-contain" priority />
+            </div>
+            <div
+              className={cn(
+                "overflow-hidden whitespace-nowrap transition-[max-width,opacity,transform] duration-300",
+                mobile || !sidebarCollapsed ? "max-w-[180px] opacity-100 translate-x-0" : "max-w-0 opacity-0 translate-x-1",
+              )}
+            >
+              <div className="text-base font-semibold tracking-tight">Admin Panel</div>
+              <div className="text-xs text-foreground/70">Overview</div>
+            </div>
           </button>
         </div>
       </GlassPanel>
 
       <GlassPanel className="flex-1 p-3">
-        <div className="mb-3 hidden lg:block">
-          <CurrentUserBadge prominent name={currentUser?.name} email={currentUser?.email} />
+        <div
+          className={cn(
+            "mb-3 hidden lg:flex",
+            sidebarCollapsed ? "min-h-[72px] items-center justify-center" : "items-start",
+          )}
+        >
+          {sidebarCollapsed ? (
+            <CurrentUserBadge compact name={currentUser?.name} email={currentUser?.email} className="justify-center px-2 py-1" />
+          ) : (
+            <CurrentUserBadge prominent name={currentUser?.name} email={currentUser?.email} className="px-2 py-1.5" />
+          )}
         </div>
         <nav aria-label="Primary">
           <ul className="space-y-1">
@@ -153,14 +195,51 @@ export default function DashboardShell({
                 item={item}
                 active={pathname === item.href}
                 onClick={() => mobile && setSidebarOpen(false)}
+                collapsed={!mobile && sidebarCollapsed}
               />
             ))}
           </ul>
         </nav>
 
-        <div className="mt-4 flex items-center justify-between gap-2 rounded-xl border border-white/40 p-2 dark:border-white/10">
-          <LogoutButton />
-          <ThemeSwitcher />
+        <div className="mt-4 rounded-xl border border-white/40 p-4 dark:border-white/10">
+          <div
+            className={cn(
+              "flex items-center gap-2",
+              !mobile && sidebarCollapsed ? "flex-col justify-center items-center" : "justify-between",
+            )}
+          >
+            <LogoutButton
+              compact={!mobile && sidebarCollapsed}
+              className="rounded-lg transition-colors hover:bg-white/60 dark:hover:bg-white/15"
+            />
+            <ThemeSwitcher
+              compact={!mobile && sidebarCollapsed}
+              className="rounded-lg transition-colors hover:bg-white/60 dark:hover:bg-white/15"
+            />
+          </div>
+          {!mobile ? (
+            <div
+              className={cn(
+                "mt-2 border-t border-white/40 pt-2 dark:border-white/10",
+                sidebarCollapsed ? "flex justify-center" : "flex",
+              )}
+            >
+              <Button
+                variant="ghost"
+                size={sidebarCollapsed ? "icon" : "sm"}
+                className={cn(
+                  "h-9 rounded-lg hover:bg-white/50 dark:hover:bg-white/10",
+                  sidebarCollapsed ? "w-9" : "w-full justify-center gap-2",
+                )}
+                onClick={() => setSidebarCollapsed((prev) => !prev)}
+                aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              >
+                {sidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+                {sidebarCollapsed ? null : <span>Collapse menu</span>}
+              </Button>
+            </div>
+          ) : null}
         </div>
       </GlassPanel>
     </div>
@@ -196,7 +275,12 @@ export default function DashboardShell({
 
       <div className="mx-auto flex w-full max-w-[1400px] flex-1 gap-3 px-3 pb-6 lg:pt-6">
         {/* Desktop sidebar */}
-        <aside className="relative hidden shrink-0 lg:block">
+        <aside
+          className={cn(
+            "relative hidden shrink-0 transition-[width] duration-300 lg:block",
+            sidebarCollapsed ? "w-20" : "w-72",
+          )}
+        >
           <Sidebar />
         </aside>
 
