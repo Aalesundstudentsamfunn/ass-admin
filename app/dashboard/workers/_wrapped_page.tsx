@@ -364,6 +364,7 @@ function Glass({ className = "", children }: React.PropsWithChildren<{ className
 
 // ----- Columns ---------------------------------------------------------------
 function buildColumns(
+  onVoluntaryUpdated: (member: UserRow, next: boolean) => void,
 ): ColumnDef<UserRow, unknown>[] {
   return [
   {
@@ -464,11 +465,55 @@ function buildColumns(
         Frivillig <ArrowUpDown className="h-3.5 w-3.5" />
       </button>
     ),
-    cell: ({ row }) => (
-      <Badge variant="secondary" className={PILL_CLASS}>
-        {row.getValue("is_voluntary") ? "Frivillig" : "Medlem"}
-      </Badge>
-    ),
+    cell: ({ row }) => {
+      const member = row.original as UserRow
+      const isVoluntary = Boolean(member.is_voluntary)
+      return (
+        <button
+          type="button"
+          className="group inline-flex items-center"
+          onClick={async (event) => {
+            event.stopPropagation()
+            const supabase = createClient()
+            const next = !isVoluntary
+            const toastId = toast.loading(next ? "Setter som frivillig..." : "Fjerner frivillig...", { duration: 10000 })
+            const { data, error } = await supabase.rpc("set_user_voluntary", {
+              p_user_id: null,
+              p_email: member.email ?? null,
+              p_voluntary: next,
+            })
+
+            if (error) {
+              toast.error("Kunne ikke oppdatere frivillig-status.", {
+                id: toastId,
+                description: error.message,
+                duration: Infinity,
+              })
+              return
+            }
+
+            if (data?.members_updated === 0) {
+              toast.error("Kunne ikke oppdatere ass_members.", {
+                id: toastId,
+                description: "ass_members update affected 0 rows.",
+                duration: 10000,
+              })
+            } else {
+              toast.success(next ? "Satt som frivillig." : "Fjernet som frivillig.", { id: toastId, duration: 6000 })
+            }
+
+            onVoluntaryUpdated(member, next)
+          }}
+        >
+          <Badge
+            variant="secondary"
+            className={`${PILL_CLASS} transition-colors group-hover:bg-muted/60 group-hover:text-foreground group-hover:ring-1 group-hover:ring-foreground/15`}
+          >
+            {isVoluntary ? "Frivillig" : "Medlem"}
+          </Badge>
+        </button>
+      )
+    },
   },
   {
     id: "actions",
@@ -717,18 +762,30 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
   // If no data is provided, show a tiny demo set for layout/dev
   //get data from supabase
   const defaultPageSize = useMemberPageSizeDefault()
-  const [rows] = React.useState<UserRow[]>(initialData)
+  const [rows, setRows] = React.useState<UserRow[]>(initialData)
   const [selectedMember, setSelectedMember] = React.useState<UserRow | null>(null)
   const [detailsOpen, setDetailsOpen] = React.useState(false)
   const currentPrivilege = useCurrentPrivilege()
   const canManageVoluntary = (currentPrivilege ?? 0) >= 2
   const columns = React.useMemo(
-    () => buildColumns(),
+    () =>
+      buildColumns((member, next) => {
+        setRows((prev) =>
+          prev.map((row) => (String(row.id) === String(member.id) ? { ...row, is_voluntary: next } : row)),
+        )
+        setSelectedMember((prev) =>
+          prev && String(prev.id) === String(member.id) ? { ...prev, is_voluntary: next } : prev,
+        )
+      }),
     [],
   )
   const handleBulkVoluntary = React.useCallback(
     async (members: UserRow[], next: boolean) => {
       if (!members.length) {
+        return
+      }
+      const confirmed = window.confirm(`Fjern frivillig for ${members.length} personer?`)
+      if (!confirmed) {
         return
       }
       if (!canManageVoluntary) {

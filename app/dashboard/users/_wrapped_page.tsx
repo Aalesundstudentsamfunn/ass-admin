@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -60,6 +61,42 @@ async function copyToClipboard(value: string, label: string) {
   } catch {
     toast.error(`Kunne ikke kopiere ${label.toLowerCase()}.`);
   }
+}
+
+async function updateUserPrivilege(user: UserRow, next: number) {
+  const supabase = createClient();
+  const idValue = typeof user.id === "number" ? user.id : typeof user.id === "string" && user.id !== "" ? user.id : null;
+  const email = String(user.email ?? "").trim();
+
+  let result = null;
+  let error = null;
+  const details: string[] = [];
+
+  if (idValue !== null) {
+    result = await supabase.from("profiles").update({ privilege_type: next }).eq("id", idValue).select("id, privilege_type");
+    if (result.error) {
+      error = result.error;
+      details.push(`id update failed (id=${idValue}): ${result.error.message}`);
+    } else if (result.data && result.data.length > 0) {
+      return { ok: true };
+    } else {
+      details.push(`id update affected 0 rows (id=${idValue})`);
+    }
+  }
+
+  if (email) {
+    result = await supabase.from("profiles").update({ privilege_type: next }).eq("email", email).select("id, privilege_type");
+    if (result.error) {
+      error = result.error;
+      details.push(`email update failed (email=${email}): ${result.error.message}`);
+    } else if (result.data && result.data.length > 0) {
+      return { ok: true };
+    } else {
+      details.push(`email update affected 0 rows (email=${email})`);
+    }
+  }
+
+  return { ok: false, error, details: details.join("; ") };
 }
 
 function UserInfoDialog({
@@ -318,6 +355,28 @@ function buildColumns(
 ): ColumnDef<UserRow, unknown>[] {
   return [
     {
+      id: "select",
+      header: ({ table }) => (
+        <Checkbox
+          checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Velg alle"
+          onClick={(event) => event.stopPropagation()}
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Velg rad"
+          onClick={(event) => event.stopPropagation()}
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
+      size: 40,
+    },
+    {
       id: "search",
       accessorFn: (row: UserRow) => `${row.firstname ?? ""} ${row.lastname ?? ""} ${row.email ?? ""}`.trim(),
       filterFn: (row, columnId, value) => {
@@ -417,30 +476,39 @@ function DataTable({
   data,
   defaultPageSize,
   onRowClick,
+  onBulkPrivilege,
+  canEditPrivileges,
+  bulkOptions,
 }: {
   columns: ColumnDef<UserRow, unknown>[];
   data: UserRow[];
   defaultPageSize: number;
   onRowClick?: (user: UserRow) => void;
+  onBulkPrivilege: (users: UserRow[], next: number) => Promise<void>;
+  canEditPrivileges: boolean;
+  bulkOptions: { value: number; label: string }[];
 }) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({ search: false });
   const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: defaultPageSize });
+  const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({});
   const pageSizeOptions = MEMBER_PAGE_SIZES;
 
   const table = useReactTable({
     data,
     columns,
-    state: { sorting, columnFilters, columnVisibility, pagination },
+    state: { sorting, columnFilters, columnVisibility, pagination, rowSelection },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange: setPagination,
+    onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    enableRowSelection: true,
   });
 
   const searchParams = useSearchParams();
@@ -462,6 +530,9 @@ function DataTable({
   }, [defaultPageSize]);
 
   const hasSearchFilter = Boolean(table.getColumn("search")?.getFilterValue());
+  const selectedRows = table.getSelectedRowModel().rows;
+  const selectedUsers = selectedRows.map((row) => row.original as UserRow);
+  const hasSelection = selectedUsers.length > 0;
 
   return (
     <div className="space-y-3">
@@ -484,6 +555,37 @@ function DataTable({
           <span className="text-xs">For å legge til bruker, be dem registrere seg i app eller på side.</span>
         </div>
       </div>
+      {hasSelection ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/60 bg-background/60 px-3 py-2 text-sm">
+          <span className="font-medium">{selectedUsers.length} valgt</span>
+          <select
+            className="h-8 rounded-xl border border-border/60 bg-background/60 px-2 text-xs"
+            disabled={!canEditPrivileges || bulkOptions.length === 0}
+            onChange={async (event) => {
+              const next = Number(event.target.value);
+              if (!Number.isFinite(next)) {
+                return;
+              }
+              await onBulkPrivilege(selectedUsers, next);
+              table.resetRowSelection();
+              event.currentTarget.value = "";
+            }}
+            defaultValue=""
+          >
+            <option value="" disabled>
+              Sett tilgangsnivå
+            </option>
+            {bulkOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <Button size="sm" variant="ghost" className="rounded-xl" onClick={() => table.resetRowSelection()}>
+            Nullstill valg
+          </Button>
+        </div>
+      ) : null}
       {/* Table */}
       <Glass>
         <div className="overflow-x-auto rounded-2xl">
@@ -633,6 +735,63 @@ export default function UsersPage({ initialData, currentUserId }: { initialData:
     () => buildColumns(handlePrivilegeUpdated, currentUserId, currentUserPrivilege),
     [handlePrivilegeUpdated, currentUserId, currentUserPrivilege],
   );
+  const canEditPrivileges = (currentUserPrivilege ?? 0) >= 2;
+  const allowedMax =
+    currentUserPrivilege !== null && currentUserPrivilege >= 4 ? 5 : currentUserPrivilege === 2 ? 2 : null;
+  const bulkOptions =
+    allowedMax === null ? [] : PRIVILEGE_OPTIONS.filter((option) => option.value <= allowedMax);
+
+  const handleBulkPrivilege = React.useCallback(
+    async (users: UserRow[], next: number) => {
+      if (!users.length) {
+        return;
+      }
+      const confirmed = window.confirm(`Endre tilgangsnivå for ${users.length} brukere?`);
+      if (!confirmed) {
+        return;
+      }
+      if (allowedMax === null || next > allowedMax) {
+        toast.error("Du har ikke tilgang til å sette dette nivået.");
+        return;
+      }
+      const toastId = toast.loading("Oppdaterer tilgangsnivå...", { duration: 10000 });
+      let successCount = 0;
+      let errorCount = 0;
+      const updatedIds = new Set<string>();
+      for (const user of users) {
+        const userId = String(user.id);
+        const targetPrivilege = typeof user.privilege_type === "number" ? user.privilege_type : null;
+        const isSelf = currentUserId && userId === String(currentUserId);
+        if (isSelf && currentUserPrivilege !== null && next > currentUserPrivilege) {
+          errorCount += 1;
+          continue;
+        }
+        if (currentUserPrivilege === 2 && targetPrivilege !== null && targetPrivilege > 2) {
+          errorCount += 1;
+          continue;
+        }
+        const profileUpdate = await updateUserPrivilege(user, next);
+        if (profileUpdate.ok) {
+          successCount += 1;
+          updatedIds.add(userId);
+        } else {
+          errorCount += 1;
+        }
+      }
+      if (successCount > 0) {
+        setRows((prev) =>
+          prev.map((row) => (updatedIds.has(String(row.id)) ? { ...row, privilege_type: next } : row)),
+        );
+        setSelectedUser((prev) => (prev && updatedIds.has(String(prev.id)) ? { ...prev, privilege_type: next } : prev));
+      }
+      if (errorCount > 0) {
+        toast.error("Kunne ikke oppdatere alle brukere.", { id: toastId, duration: Infinity });
+      } else {
+        toast.success("Tilgangsnivå oppdatert.", { id: toastId, duration: 6000 });
+      }
+    },
+    [allowedMax, currentUserId, currentUserPrivilege],
+  );
 
   return (
     <div className="space-y-6">
@@ -651,6 +810,9 @@ export default function UsersPage({ initialData, currentUserId }: { initialData:
             columns={columns}
             data={rows}
             defaultPageSize={defaultPageSize}
+            onBulkPrivilege={handleBulkPrivilege}
+            canEditPrivileges={canEditPrivileges}
+            bulkOptions={bulkOptions}
             onRowClick={(user) => {
               setSelectedUser(user);
               setDetailsOpen(true);

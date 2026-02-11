@@ -185,7 +185,7 @@ function buildColumns(
             <Button
               variant="secondary"
               size="sm"
-              className={PILL_CLASS}
+              className={`${PILL_CLASS} transition-colors hover:bg-muted/60 hover:text-foreground hover:ring-1 hover:ring-foreground/15`}
               onClick={async (event) => {
                 event.stopPropagation();
                 const supabase = createClient();
@@ -813,6 +813,12 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
       if (!members.length) {
         return;
       }
+      const confirmed = window.confirm(
+        `${next ? "Sett" : "Fjern"} frivillig for ${members.length} medlemmer?`,
+      );
+      if (!confirmed) {
+        return;
+      }
       if (!canManageVoluntary) {
         toast.error("Du har ikke tilgang til å endre frivillig-status.");
         return;
@@ -857,6 +863,10 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
   const handleBulkPrint = React.useCallback(
     async (members: UserRow[]) => {
       if (!members.length) {
+        return;
+      }
+      const confirmed = window.confirm(`Sende ${members.length} til utskriftskø?`);
+      if (!confirmed) {
         return;
       }
       const toastId = toast.loading("Sender til utskriftskø...", { duration: 10000 });
