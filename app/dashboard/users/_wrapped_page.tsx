@@ -8,8 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { ArrowUpDown, Info, Filter } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ArrowUpDown, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MEMBER_PAGE_SIZES, useMemberPageSizeDefault } from "@/lib/table-settings";
 import { createClient } from "@/lib/supabase/client";
@@ -104,7 +104,6 @@ function UserInfoDialog({
   onPrivilegeUpdated,
   open,
   onOpenChange,
-  showTrigger = true,
   currentUserId,
   currentUserPrivilege,
 }: {
@@ -112,7 +111,6 @@ function UserInfoDialog({
   onPrivilegeUpdated: (next: number) => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  showTrigger?: boolean;
   currentUserId?: string | null;
   currentUserPrivilege?: number | null;
 }) {
@@ -245,13 +243,6 @@ function UserInfoDialog({
 
   return (
     <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
-      {showTrigger ? (
-        <DialogTrigger asChild>
-          <Button variant="secondary" size="sm" className="rounded-lg" onClick={(event) => event.stopPropagation()}>
-            <Info className="mr-1 h-4 w-4" /> Mer info
-          </Button>
-        </DialogTrigger>
-      ) : null}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Medlemsdetaljer</DialogTitle>
@@ -456,12 +447,6 @@ function buildColumns(
         const user = row.original as UserRow;
         return (
           <div className="flex items-center gap-2 justify-end">
-            <UserInfoDialog
-              user={user}
-              onPrivilegeUpdated={(next) => onPrivilegeUpdated(user, next)}
-              currentUserId={currentUserId}
-              currentUserPrivilege={currentUserPrivilege}
-            />
           </div>
         );
       },
@@ -831,7 +816,6 @@ export default function UsersPage({ initialData, currentUserId }: { initialData:
             setSelectedUser(null);
           }
         }}
-        showTrigger={false}
         onPrivilegeUpdated={(next) => {
           if (selectedUser) {
             handlePrivilegeUpdated(selectedUser, next);

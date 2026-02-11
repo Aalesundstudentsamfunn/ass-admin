@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { ArrowUpDown, Info, Filter } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ArrowUpDown, Filter } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { MEMBER_PAGE_SIZES, useMemberPageSizeDefault } from "@/lib/table-settings"
 import { createClient } from "@/lib/supabase/client"
@@ -65,146 +65,6 @@ type AddedByProfile = {
   email?: string | null
 }
 
-function UserInfoDialog({
-  user,
-}: {
-  user: UserRow
-}) {
-  const fullName = `${user.firstname ?? ""} ${user.lastname ?? ""}`.trim()
-  const email = user.email ?? ""
-  const [open, setOpen] = React.useState(false)
-  const [addedByProfile, setAddedByProfile] = React.useState<AddedByProfile | null>(null)
-  const [loadingAddedBy, setLoadingAddedBy] = React.useState(false)
-
-  React.useEffect(() => {
-    let active = true
-    const load = async () => {
-      if (!open || !user.added_by) {
-        setAddedByProfile(null)
-        return
-      }
-      setLoadingAddedBy(true)
-      const supabase = createClient()
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("firstname, lastname, email")
-        .eq("id", user.added_by)
-        .single<AddedByProfile>()
-      if (!active) {
-        return
-      }
-      setAddedByProfile(profile ?? null)
-      setLoadingAddedBy(false)
-    }
-
-    load()
-
-    return () => {
-      active = false
-    }
-  }, [open, user.added_by])
-
-  const addedByName = addedByProfile
-    ? [addedByProfile.firstname ?? "", addedByProfile.lastname ?? ""].join(" ").trim()
-    : ""
-  const addedByLabel = addedByName || addedByProfile?.email || user.added_by || "—"
-  const createdAtLabel = user.created_at ? new Date(user.created_at).toLocaleString() : "—"
-  const profileLink = user.profile_id && email ? `/dashboard/users?email=${encodeURIComponent(email)}` : null
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="secondary" size="sm" className="rounded-lg" onClick={(event) => event.stopPropagation()}>
-          <Info className="mr-1 h-4 w-4" /> Mer info
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Detaljer</DialogTitle>
-          <DialogDescription>Informasjon om frivillig.</DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-2 text-sm">
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">ID</span>
-            <span className="font-medium">
-              <span className="relative inline-flex items-center group">
-                <button
-                  type="button"
-                  className="underline-offset-2 hover:underline"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    copyToClipboard(String(user.id), "ID")
-                  }}
-                >
-                  {user.id}
-                </button>
-                <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground/90 px-2 py-1 text-[10px] text-background opacity-0 transition-opacity group-hover:opacity-100">
-                  Kopier
-                </span>
-              </span>
-            </span>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">Navn</span>
-            <span className="font-medium">{fullName || "—"}</span>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">E-post</span>
-            {email ? (
-              <span className="font-medium">
-                <span className="relative inline-flex items-center group">
-                  <button
-                    type="button"
-                    className="underline-offset-2 hover:underline"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      copyToClipboard(email, "E-post")
-                    }}
-                  >
-                    {email}
-                  </button>
-                  <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground/90 px-2 py-1 text-[10px] text-background opacity-0 transition-opacity group-hover:opacity-100">
-                    Kopier
-                  </span>
-                </span>
-              </span>
-            ) : (
-              <span className="font-medium">—</span>
-            )}
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">Lagt til av</span>
-            <span className="font-medium">
-              {loadingAddedBy
-                ? "Laster..."
-                : addedByLabel}
-            </span>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">Registrert</span>
-            <span className="font-medium">
-              {profileLink ? (
-                <a href={profileLink} className="text-xs underline-offset-2 hover:underline">
-                  Se profil
-                </a>
-              ) : (
-                "Nei"
-              )}
-            </span>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">Frivillig</span>
-            <span className="font-medium">{user.is_voluntary ? "Ja" : "Nei"}</span>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">Opprettet</span>
-            <span className="font-medium">{createdAtLabel}</span>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
 
 function MemberDetailsDialog({
   open,
@@ -471,7 +331,7 @@ function buildColumns(
       return (
         <button
           type="button"
-          className="group inline-flex items-center"
+          className="group relative inline-flex items-center"
           onClick={async (event) => {
             event.stopPropagation()
             const supabase = createClient()
@@ -511,6 +371,9 @@ function buildColumns(
           >
             {isVoluntary ? "Frivillig" : "Medlem"}
           </Badge>
+          <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground/90 px-2 py-1 text-[10px] text-background opacity-0 transition-opacity group-hover:opacity-100">
+            {isVoluntary ? "Fjern frivillig" : "Gjør frivillig"}
+          </span>
         </button>
       )
     },
@@ -518,14 +381,7 @@ function buildColumns(
   {
     id: "actions",
     header: () => <span className="sr-only">Actions</span>,
-    cell: ({ row }) => {
-      const user = row.original as UserRow
-      return (
-        <div className="flex items-center gap-2 justify-end">
-          <UserInfoDialog user={user} />
-        </div>
-      )
-    },
+    cell: () => null,
     enableHiding: false,
   },
   ]

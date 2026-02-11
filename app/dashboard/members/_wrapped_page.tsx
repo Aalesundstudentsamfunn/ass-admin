@@ -185,7 +185,7 @@ function buildColumns(
             <Button
               variant="secondary"
               size="sm"
-              className={`${PILL_CLASS} transition-colors hover:bg-muted/60 hover:text-foreground hover:ring-1 hover:ring-foreground/15`}
+              className={`${PILL_CLASS} relative transition-colors hover:bg-muted/60 hover:text-foreground hover:ring-1 hover:ring-foreground/15 group`}
               onClick={async (event) => {
                 event.stopPropagation();
                 const supabase = createClient();
@@ -222,6 +222,9 @@ function buildColumns(
               title={isVoluntary ? "Fjern frivillig" : "Gjør frivillig"}
             >
               {isVoluntary ? "Frivillig" : "Medlem"}
+              <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground/90 px-2 py-1 text-[10px] text-background opacity-0 transition-opacity group-hover:opacity-100">
+                {isVoluntary ? "Fjern frivillig" : "Gjør frivillig"}
+              </span>
             </Button>
           </div>
         );
