@@ -43,6 +43,9 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
     const canSubmit = Boolean(range?.from && range?.to && emailStatus === "valid");
     const router = useRouter();
 
+    const disabledFrom = new Date()// do not disable today, as same-day rental might be desired. just disable past dates.
+    disabledFrom.setDate(disabledFrom.getDate() - 1);
+
     // Debounced “does email exist in public.profiles?”
     React.useEffect(() => {
         const trimmed = email.trim();
@@ -330,7 +333,7 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
                                                     selected={range}
                                                     onSelect={setRange}
                                                     numberOfMonths={2}
-                                                    disabled={(date) => date < new Date()}
+                                                    disabled={(date) => date < disabledFrom /* disable past dates */}
                                                 />
                                             </PopoverContent>
                                         </Popover>
@@ -375,7 +378,7 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
                                             disabled={!canSubmit}
                                             className="min-w-[140px]"
                                         >
-                                            Send forespørsel
+                                            Registrer lån
                                         </Button>
                                     </DialogFooter>
                                 </DialogContent>
