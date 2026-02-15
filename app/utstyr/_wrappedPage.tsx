@@ -286,7 +286,7 @@ function ReturnDialog({
                             {required}
                             {"\""}
                         </span>{" "}
-                        for å bekrefte at du tar ansvar.
+                        for å bekrefte at du har levert utstyret tilbake i tilsvarende eller bedre stand, og at utstyret er levert tilbake til enten; naustet, aktivitetansvarlig, eller kontoret. Er du usikker ikke klikk lever, men oppsøk kontoret.
                     </DialogDescription>
                 </DialogHeader>
 
