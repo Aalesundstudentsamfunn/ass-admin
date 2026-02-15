@@ -156,7 +156,7 @@ export default function UtstyrClient({
                                         </div>
 
                                         {/* Handlinger */}
-                                        <ReturnDialog reservationId={res.id} itemName={res.item?.itemname ?? "utstyr"} itemId={res.item?.id!} />
+                                        <ReturnDialog reservationId={res.id} itemName={res.item?.itemname ?? "utstyr"} />
 
                                         <div
                                             className={cn(
@@ -237,12 +237,10 @@ export default function UtstyrClient({
 
 function ReturnDialog({
     reservationId,
-    itemName,
-    itemId
+    itemName
 }: {
     reservationId: number;
     itemName: string;
-    itemId: number;
 }) {
     const [open, setOpen] = React.useState(false);
     const [confirmText, setConfirmText] = React.useState("");
@@ -282,7 +280,13 @@ function ReturnDialog({
                     <DialogDescription>
                         Du er i ferd med å levere tilbake: <span className="font-medium">{itemName}</span>.
                         <br />
-                        Skriv <span className="font-medium">"{required}"</span> for å bekrefte at du tar ansvar.
+                        Skriv{" "}
+                        <span className="font-medium">
+                            {"\""}
+                            {required}
+                            {"\""}
+                        </span>{" "}
+                        for å bekrefte at du tar ansvar.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -290,7 +294,7 @@ function ReturnDialog({
                     <Input
                         value={confirmText}
                         onChange={(e) => setConfirmText(e.target.value)}
-                        placeholder={`Skriv "${required}" for å bekrefte`}
+                        placeholder={`Skriv \"${required}\" for å bekrefte`}
                     />
                     {!ok && confirmText.length > 0 && (
                         <p className="text-sm text-red-600">

@@ -56,7 +56,7 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
     if (error) throw error;
 
     if (data.item_type.certification_type) {
-        const { data: certData, error: certError } = await supabase.from("certificate_type").select("*").eq("id", data.item_type.certification_type).single();
+        const { data: certData } = await supabase.from("certificate_type").select("*").eq("id", data.item_type.certification_type).single();
         if (data) {
             data.certification_type = data.item_type.certification_type;
             data.certification_type_name = certData?.type ?? null;
@@ -64,7 +64,6 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
             data.certification_type_description = certData?.description ?? null;
         }
     }
-    console.log("data: ", data);
     const item = data;
 
 

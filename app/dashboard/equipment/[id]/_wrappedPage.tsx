@@ -143,7 +143,7 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
             toast.error("Kunne ikke verifisere utleier.");
             return;
         }
-        const { data, error } = await supabase.schema("item_schema").from("item_reservation").insert({
+        const { error } = await supabase.schema("item_schema").from("item_reservation").insert({
             item_id: item.id,
             start_time: range?.from,
             end_time: range?.to,
@@ -157,7 +157,7 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
             return;
         }
 
-        const { data: UpdateItem, error: UpdateItemError } = await supabase.schema("item_schema").from("item").update({ is_rented: true }).eq("id", item.id);
+        const { error: UpdateItemError } = await supabase.schema("item_schema").from("item").update({ is_rented: true }).eq("id", item.id);
 
         if (UpdateItemError) {
             toast.error("Feil ved oppdatering av utstyr. kontakt it. feil: " + UpdateItemError.message);

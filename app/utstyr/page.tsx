@@ -56,8 +56,8 @@ export default async function UtstyrPage() {
     return (
         <UtstyrClient
             firstname={userData?.firstname ?? "bruker"}
-            reservations={(reservations ?? []) as any}
-            oldReservations={(oldReservations ?? []) as any}
+            reservations={(reservations ?? [])}
+            oldReservations={(oldReservations ?? [])}
         />
     );
 }
