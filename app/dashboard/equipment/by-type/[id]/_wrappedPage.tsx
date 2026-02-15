@@ -18,7 +18,6 @@ export default function WrappedUtstyrPage({ items }: { items: ItemType[] }) {
         return items?.filter((x) => (x.itemname ?? "").toLowerCase().includes(q));
     }, [query, items]);
 
-    console.log(`img: ${process.env.NEXT_PUBLIC_SUPABASE_URL + "/storage/v1/object/public/items/" + items[0]?.img_path + "." + items[0]?.img_type} + " id: " + ${items[0]?.id.toString()})`);
 
     return (
         <main className="mx-auto w-full max-w-6xl p-4 md:p-8">
@@ -64,7 +63,7 @@ export default function WrappedUtstyrPage({ items }: { items: ItemType[] }) {
                                 <div>img_type: {item.img_type ?? "-"}</div>
                             </div>
                         </CardContent>
-                        <CardFooter><Link href={`/dashboard/equipment/${item.id}`}><Button>Rediger {item.itemname}</Button></Link></CardFooter>
+                        <CardFooter><Link href={`/dashboard/equipment/${item.id}`}><Button>Gå til {item.itemname}</Button></Link></CardFooter>
                     </Card>
                 ))}
             </div>
