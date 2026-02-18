@@ -16,6 +16,7 @@ type MemberLookup = {
     lastname: string;
     email: string;
     privilege_type: number | null;
+    is_banned?: boolean | null;
 };
 
 type CheckMemberResult = {
@@ -23,6 +24,7 @@ type CheckMemberResult = {
     error?: string;
     exists?: boolean;
     active?: boolean;
+    banned?: boolean;
     email?: string;
     member?: MemberLookup;
 };

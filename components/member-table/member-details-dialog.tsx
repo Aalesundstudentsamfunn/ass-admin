@@ -431,8 +431,20 @@ export function MemberDetailsDialog({
               </span>
             </DetailRow>
             {canViewBanControls ? (
-              <DetailRow label="Bannlyst">
-                <YesNoStatus value={banned} />
+              <DetailRow label="Konto status">
+                <span className="inline-flex items-center gap-2 font-medium">
+                  {!banned ? (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-hidden="true" />
+                      <span>OK</span>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="h-4 w-4 text-red-500" aria-hidden="true" />
+                      <span>Bannlyst</span>
+                    </>
+                  )}
+                </span>
               </DetailRow>
             ) : null}
             <DetailRow label="Lagt til av">
@@ -482,32 +494,37 @@ export function MemberDetailsDialog({
               <div className="flex justify-end pt-2">
                 <Button
                   size="sm"
-                  variant="destructive"
+                  variant={banned ? "outline" : "destructive"}
                   className="rounded-xl"
-                  disabled={isSaving || banned || isSelf}
+                  disabled={isSaving || isSelf}
                   onClick={async () => {
                     if (isSelf) {
                       toast.error("Du kan ikke banne deg selv.");
                       return;
                     }
-                    if (banned) {
-                      return;
-                    }
-                    const confirmed = window.confirm("Er du sikker på at du vil banne denne brukeren?");
+                    const nextBanned = !banned;
+                    const confirmed = window.confirm(
+                      nextBanned
+                        ? "Er du sikker på at du vil banne denne brukeren?"
+                        : "Er du sikker på at du vil oppheve bannlysning for denne brukeren?",
+                    );
                     if (!confirmed) {
                       return;
                     }
-                    const toastId = toast.loading("Banner bruker...", { duration: 10000 });
+                    const toastId = toast.loading(
+                      nextBanned ? "Banner bruker..." : "Opphever bannlysning...",
+                      { duration: 10000 },
+                    );
                     setIsSaving(true);
                     try {
                       const res = await fetch("/api/admin/members/ban", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ member_id: member.id }),
+                        body: JSON.stringify({ member_id: member.id, is_banned: nextBanned }),
                       });
                       const payload = await res.json().catch(() => ({}));
                       if (!res.ok) {
-                        toast.error("Kunne ikke banne bruker.", {
+                        toast.error(nextBanned ? "Kunne ikke banne bruker." : "Kunne ikke oppheve bannlysning.", {
                           id: toastId,
                           description: payload?.error ?? "Ukjent feil.",
                           duration: Infinity,
@@ -515,11 +532,16 @@ export function MemberDetailsDialog({
                         setIsSaving(false);
                         return;
                       }
-                      toast.success("Bruker ble bannlyst.", { id: toastId, duration: 6000 });
-                      onMembershipStatusUpdated(false);
-                      onBanUpdated(true);
+                      toast.success(
+                        nextBanned ? "Bruker ble bannlyst." : "Bannlysning opphevet.",
+                        { id: toastId, duration: 6000 },
+                      );
+                      if (nextBanned) {
+                        onMembershipStatusUpdated(false);
+                      }
+                      onBanUpdated(nextBanned);
                     } catch (error: unknown) {
-                      toast.error("Kunne ikke banne bruker.", {
+                      toast.error(nextBanned ? "Kunne ikke banne bruker." : "Kunne ikke oppheve bannlysning.", {
                         id: toastId,
                         description: error instanceof Error ? error.message : "Ukjent feil.",
                         duration: Infinity,
@@ -528,7 +550,7 @@ export function MemberDetailsDialog({
                     setIsSaving(false);
                   }}
                 >
-                  {banned ? "Bruker er bannlyst" : "Ban bruker"}
+                  {banned ? "Opphev bannlysning" : "Ban bruker"}
                 </Button>
               </div>
             ) : null}
