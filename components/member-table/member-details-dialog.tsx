@@ -1,14 +1,18 @@
 "use client";
 
 import * as React from "react";
+import { CheckCircle2, Pencil, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
   canAssignPrivilege,
+  canEditPrivilegeForTarget,
   canEditMemberPrivileges,
   canManageMembers,
+  canManageMembershipStatus,
   canSetOwnPrivilege,
   getMaxAssignablePrivilege,
 } from "@/lib/privilege-checks";
@@ -20,6 +24,28 @@ type AddedByProfile = {
   email?: string | null;
 };
 
+function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[9rem_minmax(0,1fr)] items-center gap-4">
+      <span className="text-muted-foreground">{label}</span>
+      <div className="flex min-w-0 justify-end text-right">{children}</div>
+    </div>
+  );
+}
+
+function YesNoStatus({ value }: { value: boolean }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 font-medium">
+      {value ? (
+        <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-hidden="true" />
+      ) : (
+        <XCircle className="h-4 w-4 text-red-500" aria-hidden="true" />
+      )}
+      {value ? "Ja" : "Nei"}
+    </span>
+  );
+}
+
 export function MemberDetailsDialog({
   open,
   onOpenChange,
@@ -28,6 +54,7 @@ export function MemberDetailsDialog({
   currentUserPrivilege,
   onPrivilegeUpdated,
   onMembershipStatusUpdated,
+  onNameUpdated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -36,10 +63,14 @@ export function MemberDetailsDialog({
   currentUserPrivilege?: number | null;
   onPrivilegeUpdated: (next: number) => void;
   onMembershipStatusUpdated: (next: boolean) => void;
+  onNameUpdated: (firstname: string, lastname: string) => void;
 }) {
   const [addedByProfile, setAddedByProfile] = React.useState<AddedByProfile | null>(null);
   const [loadingAddedBy, setLoadingAddedBy] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
+  const [isEditingName, setIsEditingName] = React.useState(false);
+  const [firstnameDraft, setFirstnameDraft] = React.useState("");
+  const [lastnameDraft, setLastnameDraft] = React.useState("");
 
   React.useEffect(() => {
     let active = true;
@@ -69,6 +100,12 @@ export function MemberDetailsDialog({
     };
   }, [open, member?.added_by]);
 
+  React.useEffect(() => {
+    setFirstnameDraft(member?.firstname ?? "");
+    setLastnameDraft(member?.lastname ?? "");
+    setIsEditingName(false);
+  }, [member?.id, member?.firstname, member?.lastname]);
+
   const fullName = member ? `${member.firstname ?? ""} ${member.lastname ?? ""}`.trim() : "";
   const addedByName = addedByProfile
     ? [addedByProfile.firstname ?? "", addedByProfile.lastname ?? ""].join(" ").trim()
@@ -77,20 +114,36 @@ export function MemberDetailsDialog({
   const addedByLabel = addedByName || addedByProfile?.email || member?.added_by || "—";
   const createdAtLabel = member?.created_at ? new Date(member.created_at).toLocaleString() : "—";
   const passwordSetLabel = member?.password_set_at ? new Date(member.password_set_at).toLocaleString() : null;
+  const passwordIsSet = Boolean(member?.password_set_at);
   const currentPrivilege = typeof currentUserPrivilege === "number" ? currentUserPrivilege : null;
   const targetPrivilege = typeof member?.privilege_type === "number" ? member?.privilege_type : 1;
   const isSelf = Boolean(currentUserId && member?.id && String(currentUserId) === String(member.id));
+  const canEditName = canManageMembers(currentPrivilege);
   const canEditTarget = canEditMemberPrivileges(currentPrivilege);
-  const canEditMembership = canManageMembers(currentPrivilege);
+  const canEditThisTarget = canEditPrivilegeForTarget(currentPrivilege, targetPrivilege);
+  const canEditMembershipStatus = canManageMembershipStatus(currentPrivilege);
   const allowedMax = getMaxAssignablePrivilege(currentPrivilege);
-  const selectDisabled = !canEditTarget || isSaving || !member?.id;
+  const selectDisabled = !canEditTarget || !canEditThisTarget || isSaving || !member?.id;
   const membershipActive =
     typeof member?.is_membership_active === "boolean"
       ? member.is_membership_active
       : (member?.privilege_type ?? 0) >= 1;
-  const membershipDisabled = !canEditMembership || isSaving || !member?.id;
+  const membershipDisabled = !canEditMembershipStatus || isSaving || !member?.id;
   const allowedOptions =
-    allowedMax === null ? [] : PRIVILEGE_OPTIONS.filter((option) => option.value <= allowedMax);
+    allowedMax === null
+      ? []
+      : PRIVILEGE_OPTIONS.filter((option) => option.value <= allowedMax).filter((option) =>
+          canAssignPrivilege(currentPrivilege, option.value, targetPrivilege),
+        );
+  const currentPrivilegeOption =
+    PRIVILEGE_OPTIONS.find((option) => option.value === targetPrivilege) ?? {
+      value: targetPrivilege,
+      label: `Nivå ${targetPrivilege}`,
+    };
+  const privilegeSelectOptions =
+    allowedOptions.some((option) => option.value === targetPrivilege)
+      ? allowedOptions
+      : [currentPrivilegeOption, ...allowedOptions];
 
   const handlePrivilegeChange = async (value: string) => {
     if (!member) {
@@ -104,7 +157,7 @@ export function MemberDetailsDialog({
       toast.error("Du kan ikke gi deg selv høyere tilgangsnivå.");
       return;
     }
-    if (!canAssignPrivilege(currentPrivilege, next)) {
+    if (!canAssignPrivilege(currentPrivilege, next, targetPrivilege)) {
       toast.error("Ugyldig tilgangsnivå for din rolle.");
       return;
     }
@@ -134,19 +187,23 @@ export function MemberDetailsDialog({
     if (next === membershipActive) {
       return;
     }
-    if (!canEditMembership) {
+    if (!canEditMembershipStatus) {
       toast.error("Du har ikke tilgang til å endre medlemsstatus.");
       return;
     }
 
-    const supabase = createClient();
     const toastId = toast.loading("Oppdaterer medlemsstatus...", { duration: 10000 });
     setIsSaving(true);
-    const { error } = await supabase.from("members").update({ is_membership_active: next }).eq("id", member.id);
-    if (error) {
+    const response = await fetch("/api/admin/members/membership-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ member_id: member.id, is_active: next }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
       toast.error("Kunne ikke oppdatere medlemsstatus.", {
         id: toastId,
-        description: error.message,
+        description: payload?.error ?? "Ukjent feil.",
         duration: Infinity,
       });
       setIsSaving(false);
@@ -154,6 +211,54 @@ export function MemberDetailsDialog({
     }
     onMembershipStatusUpdated(next);
     toast.success("Medlemsstatus oppdatert.", { id: toastId, duration: 6000 });
+    setIsSaving(false);
+  };
+
+  const handleNameSave = async () => {
+    if (!member) {
+      return;
+    }
+    if (!canEditName) {
+      toast.error("Du har ikke tilgang til å oppdatere navn.");
+      return;
+    }
+    const firstname = firstnameDraft.trim();
+    const lastname = lastnameDraft.trim();
+    if (!firstname || !lastname) {
+      toast.error("Fornavn og etternavn er påkrevd.");
+      return;
+    }
+    if (firstname === (member.firstname ?? "") && lastname === (member.lastname ?? "")) {
+      return;
+    }
+
+    const toastId = toast.loading("Oppdaterer navn...", { duration: 10000 });
+    setIsSaving(true);
+    try {
+      const response = await fetch("/api/admin/members/update-name", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: member.id, firstname, lastname }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        toast.error("Kunne ikke oppdatere navn.", {
+          id: toastId,
+          description: payload?.error ?? "Ukjent feil.",
+          duration: Infinity,
+        });
+        setIsSaving(false);
+        return;
+      }
+      onNameUpdated(firstname, lastname);
+      toast.success("Navn oppdatert.", { id: toastId, duration: 6000 });
+    } catch (error: unknown) {
+      toast.error("Kunne ikke oppdatere navn.", {
+        id: toastId,
+        description: error instanceof Error ? error.message : "Ukjent feil.",
+        duration: Infinity,
+      });
+    }
     setIsSaving(false);
   };
 
@@ -166,8 +271,7 @@ export function MemberDetailsDialog({
         </DialogHeader>
         {member ? (
           <div className="grid gap-2 text-sm">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">UUID</span>
+            <DetailRow label="UUID">
               <span className="font-medium">
                 <span className="relative inline-flex items-center group">
                   <button
@@ -185,13 +289,64 @@ export function MemberDetailsDialog({
                   </span>
                 </span>
               </span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Navn</span>
-              <span className="font-medium">{fullName || "—"}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">E-post</span>
+            </DetailRow>
+            {canEditName ? (
+              <div className="grid gap-2">
+                <DetailRow label="Navn">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 font-medium hover:opacity-80 ml-auto"
+                    onClick={() => setIsEditingName((prev) => !prev)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                    <span>{fullName || "—"}</span>
+                  </button>
+                </DetailRow>
+                {isEditingName ? (
+                  <div className="grid gap-2 pl-[9rem]">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <Input
+                        value={firstnameDraft}
+                        onChange={(event) => setFirstnameDraft(event.target.value)}
+                        placeholder="Fornavn"
+                        className="h-8"
+                        disabled={isSaving}
+                      />
+                      <Input
+                        value={lastnameDraft}
+                        onChange={(event) => setLastnameDraft(event.target.value)}
+                        placeholder="Etternavn"
+                        className="h-8"
+                        disabled={isSaving}
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="outline" className="rounded-xl" onClick={handleNameSave} disabled={isSaving}>
+                        Lagre
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="rounded-xl"
+                        disabled={isSaving}
+                        onClick={() => {
+                          setFirstnameDraft(member?.firstname ?? "");
+                          setLastnameDraft(member?.lastname ?? "");
+                          setIsEditingName(false);
+                        }}
+                      >
+                        Avbryt
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <DetailRow label="Navn">
+                <span className="font-medium">{fullName || "—"}</span>
+              </DetailRow>
+            )}
+            <DetailRow label="E-post">
               {member.email ? (
                 <span className="font-medium">
                   <span className="relative inline-flex items-center group">
@@ -213,48 +368,63 @@ export function MemberDetailsDialog({
               ) : (
                 <span className="font-medium">—</span>
               )}
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Tilgangsnivå</span>
-              <select
-                value={targetPrivilege}
-                disabled={selectDisabled}
-                onChange={(event) => handlePrivilegeChange(event.target.value)}
-                className="h-8 w-40 rounded-xl border border-border/60 bg-background/60 px-2 text-xs"
-                style={{ fontVariantNumeric: "tabular-nums" }}
-              >
-                {(allowedOptions.length ? allowedOptions : PRIVILEGE_OPTIONS).map((option) => (
-                  <option key={option.value} value={option.value} disabled={!canEditTarget && option.value !== targetPrivilege}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Aktivt medlemskap</span>
-              <select
-                value={String(membershipActive)}
-                disabled={membershipDisabled}
-                onChange={(event) => handleMembershipStatusChange(event.target.value)}
-                className="h-8 w-24 rounded-xl border border-border/60 bg-background/60 px-2 text-xs"
-                style={{ fontVariantNumeric: "tabular-nums" }}
-              >
-                <option value="true">Ja</option>
-                <option value="false">Nei</option>
-              </select>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Passord</span>
-              <span className="font-medium">{passwordSetLabel ? `Satt (${passwordSetLabel})` : "Ikke satt"}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Lagt til av</span>
+            </DetailRow>
+            <DetailRow label="Tilgangsnivå">
+              {canEditTarget && canEditThisTarget ? (
+                <select
+                  value={targetPrivilege}
+                  disabled={selectDisabled}
+                  onChange={(event) => handlePrivilegeChange(event.target.value)}
+                  className="h-8 w-40 rounded-xl border border-border/60 bg-background/60 px-2 text-xs"
+                  style={{ fontVariantNumeric: "tabular-nums" }}
+                >
+                  {privilegeSelectOptions.map((option) => (
+                    <option
+                      key={option.value}
+                      value={option.value}
+                      disabled={option.value === targetPrivilege}
+                    >
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="font-medium">{PRIVILEGE_OPTIONS.find((option) => option.value === targetPrivilege)?.label ?? `Nivå ${targetPrivilege}`}</span>
+              )}
+            </DetailRow>
+            {canEditMembershipStatus ? (
+              <DetailRow label="Aktivt medlemskap">
+                <span className="inline-flex items-center gap-2">
+                  <YesNoStatus value={membershipActive} />
+                  <select
+                    value={String(membershipActive)}
+                    disabled={membershipDisabled}
+                    onChange={(event) => handleMembershipStatusChange(event.target.value)}
+                    className="h-8 w-24 rounded-xl border border-border/60 bg-background/60 px-2 text-xs"
+                    style={{ fontVariantNumeric: "tabular-nums" }}
+                  >
+                    <option value="true">Ja</option>
+                    <option value="false">Nei</option>
+                  </select>
+                </span>
+              </DetailRow>
+            ) : (
+              <DetailRow label="Aktivt medlemskap">
+                <YesNoStatus value={membershipActive} />
+              </DetailRow>
+            )}
+            <DetailRow label="Passord satt">
+              <span className="inline-flex items-center gap-2 font-medium">
+                <YesNoStatus value={passwordIsSet} />
+                {passwordSetLabel ? <span className="text-muted-foreground">({passwordSetLabel})</span> : null}
+              </span>
+            </DetailRow>
+            <DetailRow label="Lagt til av">
               <span className="font-medium">{loadingAddedBy ? "Laster..." : addedByLabel}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Opprettet</span>
+            </DetailRow>
+            <DetailRow label="Opprettet">
               <span className="font-medium">{createdAtLabel}</span>
-            </div>
+            </DetailRow>
             {!member.password_set_at && member.email ? (
               <div className="flex justify-end pt-2">
                 <Button
