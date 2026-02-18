@@ -18,6 +18,7 @@ import { useCurrentPrivilege } from "@/lib/use-current-privilege";
 import { useMemberPageSizeDefault } from "@/lib/table-settings";
 import {
   canAssignPrivilege,
+  canEditPrivilegeForTarget,
   canDeleteMembers as canDeleteMembersByPrivilege,
   canEditMemberPrivileges,
   canManageMembershipStatus,
@@ -37,6 +38,7 @@ function buildColumns({
   bulkOptions,
   onPrivilegeChange,
   canDelete,
+  currentPrivilege,
 }: {
   onDelete: (id: string | number) => Promise<void>;
   onPrint: (member: UserRow) => Promise<void>;
@@ -45,6 +47,7 @@ function buildColumns({
   bulkOptions: { value: number; label: string }[];
   onPrivilegeChange: (member: UserRow, next: number) => void;
   canDelete: boolean;
+  currentPrivilege: number | null | undefined;
 }): ColumnDef<UserRow, unknown>[] {
   return [
     {
@@ -126,14 +129,24 @@ function buildColumns({
       cell: ({ row }) => {
         const member = row.original as UserRow;
         const label = getPrivilegeLabel(row.getValue("privilege_type") as number | null);
-        if (!canEditPrivileges) {
+        const targetPrivilege = typeof member.privilege_type === "number" ? member.privilege_type : 1;
+        if (!canEditPrivileges || !canEditPrivilegeForTarget(currentPrivilege, targetPrivilege)) {
           return (
             <Badge variant="secondary" className={PILL_CLASS}>
               {label}
             </Badge>
           );
         }
-        const options = bulkOptions.length ? bulkOptions : PRIVILEGE_OPTIONS;
+        const options = (bulkOptions.length ? bulkOptions : PRIVILEGE_OPTIONS).filter((option) =>
+          canAssignPrivilege(currentPrivilege, option.value, targetPrivilege),
+        );
+        if (!options.length) {
+          return (
+            <Badge variant="secondary" className={PILL_CLASS}>
+              {label}
+            </Badge>
+          );
+        }
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -221,7 +234,15 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
   const canEditPrivileges = canEditMemberPrivileges(currentPrivilege);
   const allowedMax = getMaxAssignablePrivilege(currentPrivilege);
   const bulkOptions = React.useMemo(
-    () => (allowedMax === null ? [] : PRIVILEGE_OPTIONS.filter((option) => option.value <= allowedMax)),
+    () => {
+      if (allowedMax === null) {
+        return [];
+      }
+      if (allowedMax === 2) {
+        return PRIVILEGE_OPTIONS.filter((option) => option.value === 2);
+      }
+      return PRIVILEGE_OPTIONS.filter((option) => option.value <= allowedMax);
+    },
     [allowedMax],
   );
 
@@ -310,7 +331,7 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
         toast.error("Du har ikke tilgang til å endre tilgangsnivå.");
         return;
       }
-      if (!canAssignPrivilege(currentPrivilege, next)) {
+      if (!canAssignPrivilege(currentPrivilege, next, currentValue)) {
         toast.error("Ugyldig tilgangsnivå for din rolle.");
         return;
       }
@@ -383,15 +404,27 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
         toast.error("Ugyldig tilgangsnivå for din rolle.");
         return;
       }
+      const eligibleIds = members
+        .filter((member) =>
+          canAssignPrivilege(
+            currentPrivilege,
+            next,
+            typeof member.privilege_type === "number" ? member.privilege_type : 1,
+          ),
+        )
+        .map((member) => String(member.id));
+      if (!eligibleIds.length) {
+        toast.error("Ingen valgte medlemmer kan oppdateres med dette nivået.");
+        return;
+      }
       const label = getPrivilegeLabel(next);
-      const confirmed = window.confirm(`Oppdatere ${members.length} medlemmer til ${label}?`);
+      const confirmed = window.confirm(`Oppdatere ${eligibleIds.length} medlemmer til ${label}?`);
       if (!confirmed) {
         return;
       }
       const toastId = toast.loading("Oppdaterer tilgangsnivå...", { duration: 10000 });
-      const ids = members.map((member) => String(member.id));
       const supabaseClient = createClient();
-      const { error } = await supabaseClient.from("members").update({ privilege_type: next }).in("id", ids);
+      const { error } = await supabaseClient.from("members").update({ privilege_type: next }).in("id", eligibleIds);
 
       if (error) {
         toast.error("Kunne ikke oppdatere tilgangsnivå.", {
@@ -402,8 +435,8 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
         return;
       }
 
-      setRows((prev) => prev.map((row) => (ids.includes(String(row.id)) ? { ...row, privilege_type: next } : row)));
-      setSelectedMember((prev) => (prev && ids.includes(String(prev.id)) ? { ...prev, privilege_type: next } : prev));
+      setRows((prev) => prev.map((row) => (eligibleIds.includes(String(row.id)) ? { ...row, privilege_type: next } : row)));
+      setSelectedMember((prev) => (prev && eligibleIds.includes(String(prev.id)) ? { ...prev, privilege_type: next } : prev));
       toast.success("Tilgangsnivå oppdatert.", { id: toastId, duration: 6000 });
     },
     [canEditPrivileges, currentPrivilege],
@@ -588,8 +621,9 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
         bulkOptions,
         onPrivilegeChange: handleRowPrivilegeChange,
         canDelete: canDeleteMembers,
+        currentPrivilege,
       }),
-    [handleDeleteMember, handlePrint, isDeleting, canEditPrivileges, bulkOptions, handleRowPrivilegeChange, canDeleteMembers],
+    [handleDeleteMember, handlePrint, isDeleting, canEditPrivileges, bulkOptions, handleRowPrivilegeChange, canDeleteMembers, currentPrivilege],
   );
 
   return (

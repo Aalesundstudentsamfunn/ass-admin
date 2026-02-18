@@ -14,6 +14,7 @@ import { useCurrentPrivilege } from "@/lib/use-current-privilege";
 import { useMemberPageSizeDefault } from "@/lib/table-settings";
 import {
   canAssignPrivilege,
+  canEditPrivilegeForTarget,
   canEditMemberPrivileges,
   canSetOwnPrivilege,
   getMaxAssignablePrivilege,
@@ -26,6 +27,7 @@ function buildColumns(
   onPrivilegeChange: (member: UserRow, next: number) => void,
   canEditPrivileges: boolean,
   bulkOptions: { value: number; label: string }[],
+  currentPrivilege: number | null | undefined,
 ): ColumnDef<UserRow, unknown>[] {
   return [
     {
@@ -119,14 +121,24 @@ function buildColumns(
       cell: ({ row }) => {
         const member = row.original as UserRow;
         const label = getPrivilegeLabel(row.getValue("privilege_type") as number | null);
-        if (!canEditPrivileges) {
+        const targetPrivilege = typeof member.privilege_type === "number" ? member.privilege_type : 1;
+        if (!canEditPrivileges || !canEditPrivilegeForTarget(currentPrivilege, targetPrivilege)) {
           return (
             <Badge variant="secondary" className={PILL_CLASS}>
               {label}
             </Badge>
           );
         }
-        const options = bulkOptions.length ? bulkOptions : PRIVILEGE_OPTIONS;
+        const options = (bulkOptions.length ? bulkOptions : PRIVILEGE_OPTIONS).filter((option) =>
+          canAssignPrivilege(currentPrivilege, option.value, targetPrivilege),
+        );
+        if (!options.length) {
+          return (
+            <Badge variant="secondary" className={PILL_CLASS}>
+              {label}
+            </Badge>
+          );
+        }
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -178,7 +190,15 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
   const canEditPrivileges = canEditMemberPrivileges(currentPrivilege);
   const allowedMax = getMaxAssignablePrivilege(currentPrivilege);
   const bulkOptions = React.useMemo(
-    () => (allowedMax === null ? [] : PRIVILEGE_OPTIONS.filter((option) => option.value <= allowedMax)),
+    () => {
+      if (allowedMax === null) {
+        return [];
+      }
+      if (allowedMax === 2) {
+        return PRIVILEGE_OPTIONS.filter((option) => option.value === 2);
+      }
+      return PRIVILEGE_OPTIONS.filter((option) => option.value <= allowedMax);
+    },
     [allowedMax],
   );
 
@@ -246,7 +266,7 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
         toast.error("Du har ikke tilgang til å endre tilgangsnivå.");
         return;
       }
-      if (!canAssignPrivilege(currentPrivilege, next)) {
+      if (!canAssignPrivilege(currentPrivilege, next, currentValue)) {
         toast.error("Ugyldig tilgangsnivå for din rolle.");
         return;
       }
@@ -282,31 +302,43 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
         toast.error("Ugyldig tilgangsnivå for din rolle.");
         return;
       }
+      const eligibleIds = members
+        .filter((member) =>
+          canAssignPrivilege(
+            currentPrivilege,
+            next,
+            typeof member.privilege_type === "number" ? member.privilege_type : 1,
+          ),
+        )
+        .map((member) => String(member.id));
+      if (!eligibleIds.length) {
+        toast.error("Ingen valgte medlemmer kan oppdateres med dette nivået.");
+        return;
+      }
 
       const label = getPrivilegeLabel(next);
-      const confirmed = window.confirm(`Oppdatere ${members.length} frivillige til ${label}?`);
+      const confirmed = window.confirm(`Oppdatere ${eligibleIds.length} frivillige til ${label}?`);
       if (!confirmed) {
         return;
       }
 
-      const ids = members.map((member) => String(member.id));
       const toastId = toast.loading("Oppdaterer tilgangsnivå...", { duration: 10000 });
       const supabaseClient = createClient();
-      const { error } = await supabaseClient.from("members").update({ privilege_type: next }).in("id", ids);
+      const { error } = await supabaseClient.from("members").update({ privilege_type: next }).in("id", eligibleIds);
       if (error) {
         toast.error("Kunne ikke oppdatere tilgangsnivå.", { id: toastId, description: error.message, duration: Infinity });
         return;
       }
 
-      applyPrivilegeToRows(ids, next);
+      applyPrivilegeToRows(eligibleIds, next);
       toast.success("Tilgangsnivå oppdatert.", { id: toastId, duration: 6000 });
     },
     [applyPrivilegeToRows, canEditPrivileges, currentPrivilege],
   );
 
   const columns = React.useMemo(
-    () => buildColumns(handleRowPrivilegeChange, canEditPrivileges, bulkOptions),
-    [handleRowPrivilegeChange, canEditPrivileges, bulkOptions],
+    () => buildColumns(handleRowPrivilegeChange, canEditPrivileges, bulkOptions, currentPrivilege),
+    [handleRowPrivilegeChange, canEditPrivileges, bulkOptions, currentPrivilege],
   );
 
   return (
