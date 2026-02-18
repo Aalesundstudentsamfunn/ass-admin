@@ -3,6 +3,9 @@
  * Returns the logged-in member's privilege_type from public.members.
  * Used by client-side permission gating in the dashboard.
  */
+
+//TODO: Remove duplicate calls to this api
+
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
