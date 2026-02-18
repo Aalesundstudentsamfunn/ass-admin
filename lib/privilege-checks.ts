@@ -47,11 +47,18 @@ export function canDeleteMembers(value: number | null | undefined) {
 }
 
 /**
- * Membership is considered active when privilege is set to 1+.
- * (0/null means registered row exists but membership is inactive.)
+ * Membership status helper.
+ * - Prefers explicit boolean flag when available (`is_membership_active`).
+ * - Falls back to legacy privilege-based check (1+ => active).
  */
-export function isMembershipActive(value: number | null | undefined) {
-  return normalizePrivilege(value) >= 1;
+export function isMembershipActive(
+  activeFlag: boolean | null | undefined,
+  privilegeValue?: number | null | undefined,
+) {
+  if (typeof activeFlag === "boolean") {
+    return activeFlag;
+  }
+  return normalizePrivilege(privilegeValue) >= 1;
 }
 
 /**
