@@ -13,6 +13,28 @@ interface Stats {
     trend: string;
 }
 
+type GitHubCommit = {
+    sha: string;
+    message: string;
+    author: string;
+    date?: string;
+    url: string;
+};
+
+type GitHubApiCommit = {
+    sha: string;
+    html_url: string;
+    commit: {
+        message: string;
+        author?: {
+            name?: string;
+            date?: string;
+        };
+    };
+    author?: {
+        login?: string;
+    };
+};
 
 const base = "https://api.github.com";
 
@@ -27,20 +49,18 @@ export async function getLatestCommitsFetch(owner: string, repo: string) {
         throw new Error(`GitHub API error ${res.status}: ${txt}`);
     }
 
-    const data = await res.json();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return data.map((c: any) => ({
+    const data = (await res.json()) as GitHubApiCommit[];
+    return data.map((c) => ({
         sha: c.sha,
         message: c.commit.message,
         author: c.commit.author?.name ?? c.author?.login ?? "unknown",
         date: c.commit.author?.date,
         url: c.html_url,
-    }));
+    })) as GitHubCommit[];
 }
 
 export default function DashboardPage({ initialData }: { initialData: Stats[] }) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [commits, setCommits] = useState<any[]>([]);
+    const [commits, setCommits] = useState<GitHubCommit[]>([]);
 
     useEffect(() => {
         getLatestCommitsFetch("Aalesundstudentsamfunn", "ass-admin").then((data) => {
