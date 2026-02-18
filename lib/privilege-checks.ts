@@ -49,6 +49,13 @@ export function canDeleteMembers(value: number | null | undefined) {
 }
 
 /**
+ * Membership active/inactive toggle is admin-only (4+).
+ */
+export function canManageMembershipStatus(value: number | null | undefined) {
+  return normalizePrivilege(value) >= 4;
+}
+
+/**
  * Membership status helper.
  * - Prefers explicit boolean flag when available (`is_membership_active`).
  * - Falls back to legacy privilege-based check (1+ => active).
