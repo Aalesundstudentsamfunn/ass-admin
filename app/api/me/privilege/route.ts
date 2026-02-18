@@ -1,3 +1,8 @@
+/**
+ * GET /api/me/privilege
+ * Returns the logged-in member's privilege_type from public.members.
+ * Used by client-side permission gating in the dashboard.
+ */
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -9,15 +14,15 @@ export async function GET() {
     return NextResponse.json({ error: "not_authenticated" }, { status: 401 });
   }
 
-  const { data: profileData, error: profileError } = await supabase
-    .from("profiles")
+  const { data: memberData, error: memberError } = await supabase
+    .from("members")
     .select("privilege_type")
     .eq("id", authData.user.id)
-    .single();
+    .maybeSingle();
 
-  if (profileError) {
-    return NextResponse.json({ error: profileError.message }, { status: 500 });
+  if (memberError) {
+    return NextResponse.json({ error: memberError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ privilege_type: profileData?.privilege_type ?? null });
+  return NextResponse.json({ privilege_type: memberData?.privilege_type ?? null });
 }
