@@ -95,14 +95,41 @@ export function canEditMemberPrivileges(value: number | null | undefined) {
 }
 
 /**
+ * Per-target edit check:
+ * - 4+ can edit anyone
+ * - 2 can only promote users below 2 up to 2
+ */
+export function canEditPrivilegeForTarget(
+  currentPrivilege: number | null | undefined,
+  targetPrivilege: number | null | undefined,
+) {
+  const current = normalizePrivilege(currentPrivilege);
+  if (current >= 4) {
+    return true;
+  }
+  if (current === 2) {
+    return normalizePrivilege(targetPrivilege) < 2;
+  }
+  return false;
+}
+
+/**
  * Checks whether a specific target privilege can be assigned by current user.
  */
 export function canAssignPrivilege(
   currentPrivilege: number | null | undefined,
   nextPrivilege: number,
+  targetPrivilege?: number | null | undefined,
 ) {
+  const current = normalizePrivilege(currentPrivilege);
   const maxAllowed = getMaxAssignablePrivilege(currentPrivilege);
-  return maxAllowed !== null && nextPrivilege <= maxAllowed;
+  if (maxAllowed === null || nextPrivilege > maxAllowed) {
+    return false;
+  }
+  if (current === 2) {
+    return normalizePrivilege(targetPrivilege) < 2 && nextPrivilege === 2;
+  }
+  return true;
 }
 
 /**
