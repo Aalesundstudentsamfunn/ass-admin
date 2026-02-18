@@ -344,6 +344,7 @@ export default async function MembersPage() {
     created_at: row.created_at ?? null,
     password_set_at: row.password_set_at ?? null,
     is_membership_active: row.is_membership_active ?? null,
+    is_banned: row.is_banned ?? null,
     profile_id: null,
     privilege_type: row.privilege_type ?? null,
   }));
