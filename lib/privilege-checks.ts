@@ -3,6 +3,8 @@
  * Note: DB RLS policies are still the source of truth, this is just UX feedback.
  */
 
+// TODO: Add RLS policies to the new member table.
+
 /**
  * Normalizes nullable/invalid privilege values to a safe integer baseline (0).
  */
