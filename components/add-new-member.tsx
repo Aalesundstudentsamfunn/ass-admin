@@ -189,18 +189,13 @@ export function CreateUserDialog() {
 
     if (checkState.active) {
       setStage("exists-active");
-      toast.message("E-posten har allerede aktivt medlemskap.", {
-        id: toastIdRef.current ?? undefined,
-        duration: 6000,
-      });
     } else {
       setStage("exists-inactive");
-      toast.message("E-posten finnes, men medlemskapet er inaktivt.", {
-        id: toastIdRef.current ?? undefined,
-        duration: 6000,
-      });
     }
 
+    if (toastIdRef.current) {
+      toast.dismiss(toastIdRef.current);
+    }
     toastIdRef.current = null;
     checkSubmittedRef.current = false;
   }, [checkPending, checkState, email]);
