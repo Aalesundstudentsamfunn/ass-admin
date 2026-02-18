@@ -264,7 +264,7 @@ export function MemberDetailsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Medlemsdetaljer</DialogTitle>
           <DialogDescription>Informasjon om valgt medlem.</DialogDescription>
@@ -303,24 +303,22 @@ export function MemberDetailsDialog({
                   </button>
                 </DetailRow>
                 {isEditingName ? (
-                  <div className="grid gap-2 pl-[9rem]">
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <Input
-                        value={firstnameDraft}
-                        onChange={(event) => setFirstnameDraft(event.target.value)}
-                        placeholder="Fornavn"
-                        className="h-8"
-                        disabled={isSaving}
-                      />
-                      <Input
-                        value={lastnameDraft}
-                        onChange={(event) => setLastnameDraft(event.target.value)}
-                        placeholder="Etternavn"
-                        className="h-8"
-                        disabled={isSaving}
-                      />
-                    </div>
-                    <div className="flex justify-end gap-2">
+                  <div className="flex w-full flex-wrap items-center gap-2">
+                    <Input
+                      value={firstnameDraft}
+                      onChange={(event) => setFirstnameDraft(event.target.value)}
+                      placeholder="Fornavn"
+                      className="h-8 min-w-[9rem] flex-1"
+                      disabled={isSaving}
+                    />
+                    <Input
+                      value={lastnameDraft}
+                      onChange={(event) => setLastnameDraft(event.target.value)}
+                      placeholder="Etternavn"
+                      className="h-8 min-w-[9rem] flex-1"
+                      disabled={isSaving}
+                    />
+                    <div className="ml-auto flex items-center gap-2">
                       <Button size="sm" variant="outline" className="rounded-xl" onClick={handleNameSave} disabled={isSaving}>
                         Lagre
                       </Button>
