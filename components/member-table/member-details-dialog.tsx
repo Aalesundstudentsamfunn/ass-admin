@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
   canAssignPrivilege,
+  canBanMembers,
   canEditPrivilegeForTarget,
   canEditMemberPrivileges,
   canManageMembers,
@@ -46,6 +47,14 @@ function YesNoStatus({ value }: { value: boolean }) {
   );
 }
 
+function StatusIcon({ value }: { value: boolean }) {
+  return value ? (
+    <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-hidden="true" />
+  ) : (
+    <XCircle className="h-4 w-4 text-red-500" aria-hidden="true" />
+  );
+}
+
 export function MemberDetailsDialog({
   open,
   onOpenChange,
@@ -55,6 +64,7 @@ export function MemberDetailsDialog({
   onPrivilegeUpdated,
   onMembershipStatusUpdated,
   onNameUpdated,
+  onBanUpdated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -64,6 +74,7 @@ export function MemberDetailsDialog({
   onPrivilegeUpdated: (next: number) => void;
   onMembershipStatusUpdated: (next: boolean) => void;
   onNameUpdated: (firstname: string, lastname: string) => void;
+  onBanUpdated: (next: boolean) => void;
 }) {
   const [addedByProfile, setAddedByProfile] = React.useState<AddedByProfile | null>(null);
   const [loadingAddedBy, setLoadingAddedBy] = React.useState(false);
@@ -122,12 +133,14 @@ export function MemberDetailsDialog({
   const canEditTarget = canEditMemberPrivileges(currentPrivilege);
   const canEditThisTarget = canEditPrivilegeForTarget(currentPrivilege, targetPrivilege);
   const canEditMembershipStatus = canManageMembershipStatus(currentPrivilege);
+  const canViewBanControls = canBanMembers(currentPrivilege);
   const allowedMax = getMaxAssignablePrivilege(currentPrivilege);
   const selectDisabled = !canEditTarget || !canEditThisTarget || isSaving || !member?.id;
   const membershipActive =
     typeof member?.is_membership_active === "boolean"
       ? member.is_membership_active
       : (member?.privilege_type ?? 0) >= 1;
+  const banned = member?.is_banned === true;
   const membershipDisabled = !canEditMembershipStatus || isSaving || !member?.id;
   const allowedOptions =
     allowedMax === null
@@ -393,7 +406,7 @@ export function MemberDetailsDialog({
             {canEditMembershipStatus ? (
               <DetailRow label="Aktivt medlemskap">
                 <span className="inline-flex items-center gap-2">
-                  <YesNoStatus value={membershipActive} />
+                  <StatusIcon value={membershipActive} />
                   <select
                     value={String(membershipActive)}
                     disabled={membershipDisabled}
@@ -417,6 +430,11 @@ export function MemberDetailsDialog({
                 {passwordSetLabel ? <span className="text-muted-foreground">({passwordSetLabel})</span> : null}
               </span>
             </DetailRow>
+            {canViewBanControls ? (
+              <DetailRow label="Bannlyst">
+                <YesNoStatus value={banned} />
+              </DetailRow>
+            ) : null}
             <DetailRow label="Lagt til av">
               <span className="font-medium">{loadingAddedBy ? "Laster..." : addedByLabel}</span>
             </DetailRow>
@@ -457,6 +475,60 @@ export function MemberDetailsDialog({
                   }}
                 >
                   Send passordlenke
+                </Button>
+              </div>
+            ) : null}
+            {canViewBanControls ? (
+              <div className="flex justify-end pt-2">
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="rounded-xl"
+                  disabled={isSaving || banned || isSelf}
+                  onClick={async () => {
+                    if (isSelf) {
+                      toast.error("Du kan ikke banne deg selv.");
+                      return;
+                    }
+                    if (banned) {
+                      return;
+                    }
+                    const confirmed = window.confirm("Er du sikker på at du vil banne denne brukeren?");
+                    if (!confirmed) {
+                      return;
+                    }
+                    const toastId = toast.loading("Banner bruker...", { duration: 10000 });
+                    setIsSaving(true);
+                    try {
+                      const res = await fetch("/api/admin/members/ban", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ member_id: member.id }),
+                      });
+                      const payload = await res.json().catch(() => ({}));
+                      if (!res.ok) {
+                        toast.error("Kunne ikke banne bruker.", {
+                          id: toastId,
+                          description: payload?.error ?? "Ukjent feil.",
+                          duration: Infinity,
+                        });
+                        setIsSaving(false);
+                        return;
+                      }
+                      toast.success("Bruker ble bannlyst.", { id: toastId, duration: 6000 });
+                      onMembershipStatusUpdated(false);
+                      onBanUpdated(true);
+                    } catch (error: unknown) {
+                      toast.error("Kunne ikke banne bruker.", {
+                        id: toastId,
+                        description: error instanceof Error ? error.message : "Ukjent feil.",
+                        duration: Infinity,
+                      });
+                    }
+                    setIsSaving(false);
+                  }}
+                >
+                  {banned ? "Bruker er bannlyst" : "Ban bruker"}
                 </Button>
               </div>
             ) : null}
