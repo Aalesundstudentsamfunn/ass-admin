@@ -358,6 +358,17 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
             applyMembershipStatusToRows([String(selectedMember.id)], next);
           }
         }}
+        onNameUpdated={(firstname, lastname) => {
+          if (!selectedMember) {
+            return;
+          }
+          setRows((prev) =>
+            prev.map((row) =>
+              String(row.id) === String(selectedMember.id) ? { ...row, firstname, lastname } : row,
+            ),
+          );
+          setSelectedMember((prev) => (prev ? { ...prev, firstname, lastname } : prev));
+        }}
       />
     </div>
   );

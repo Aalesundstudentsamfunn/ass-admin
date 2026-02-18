@@ -20,7 +20,7 @@ import {
   canAssignPrivilege,
   canDeleteMembers as canDeleteMembersByPrivilege,
   canEditMemberPrivileges,
-  canManageMembers,
+  canManageMembershipStatus,
   canResetPasswords as canResetPasswordsByPrivilege,
   canSetOwnPrivilege,
   getMaxAssignablePrivilege,
@@ -216,7 +216,7 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
 
   const currentPrivilege = useCurrentPrivilege();
   const canDeleteMembers = canDeleteMembersByPrivilege(currentPrivilege);
-  const canManageMembership = canManageMembers(currentPrivilege);
+  const canManageMembership = canManageMembershipStatus(currentPrivilege);
   const canResetPasswords = canResetPasswordsByPrivilege(currentPrivilege);
   const canEditPrivileges = canEditMemberPrivileges(currentPrivilege);
   const allowedMax = getMaxAssignablePrivilege(currentPrivilege);
@@ -426,13 +426,17 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
 
       const ids = members.map((member) => String(member.id));
       const toastId = toast.loading("Oppdaterer medlemsstatus...", { duration: 10000 });
-      const supabaseClient = createClient();
-      const { error } = await supabaseClient.from("members").update({ is_membership_active: isActive }).in("id", ids);
+      const response = await fetch("/api/admin/members/membership-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ member_ids: ids, is_active: isActive }),
+      });
+      const payload = await response.json().catch(() => ({}));
 
-      if (error) {
+      if (!response.ok) {
         toast.error("Kunne ikke oppdatere medlemsstatus.", {
           id: toastId,
-          description: error.message,
+          description: payload?.error ?? "Ukjent feil.",
           duration: Infinity,
         });
         return;
@@ -659,6 +663,17 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
             ),
           );
           setSelectedMember((prev) => (prev ? { ...prev, is_membership_active: next } : prev));
+        }}
+        onNameUpdated={(firstname, lastname) => {
+          if (!selectedMember) {
+            return;
+          }
+          setRows((prev) =>
+            prev.map((row) =>
+              String(row.id) === String(selectedMember.id) ? { ...row, firstname, lastname } : row,
+            ),
+          );
+          setSelectedMember((prev) => (prev ? { ...prev, firstname, lastname } : prev));
         }}
       />
     </div>
