@@ -4,6 +4,7 @@ import { useCurrentPrivilege } from "@/lib/use-current-privilege"
 import CertificationTabs from "@/components/certification/certification-tabs"
 import { SupabaseClient } from "@supabase/supabase-js"
 import { useEffect, useState } from "react"
+import { canManageCertificates as hasCertificateAccess } from "@/lib/privilege-checks"
 
 type Application = {
   id: number
@@ -47,7 +48,6 @@ async function getApplications(client: SupabaseClient) {
 
   const data = as_data as Application[];
   await Promise.all(data.map(async d => {
-    //get public url:
     if (!d.cert_image_id) {
       d.cert_image_id = null;
       return;
@@ -56,9 +56,7 @@ async function getApplications(client: SupabaseClient) {
       .from("certificates")
       .createSignedUrl(d.cert_image_id, 60); // gyldig i 60 sek
     d.cert_image_id = data?.signedUrl || null;
-    console.log("Processed cert_image_id for application", process.env.NEXT_PUBLIC_SUPABASE_PROJECT_ID, d.cert_image_id);
   }));
-  console.log("Fetched data:", data);
   if (error) {
     console.error("Supabase error:", error)
     return []
@@ -71,7 +69,7 @@ export default function CertificationPage() {
   const supabase = createClient()
   const [apps, setApps] = useState<Application[]>([])
   const currentPrivilege = useCurrentPrivilege()
-  const canManageCertificates = (currentPrivilege ?? 0) >= 3
+  const canManageCertificates = hasCertificateAccess(currentPrivilege)
   useEffect(() => {
     const fetchData = async () => {
       const data = await getApplications(supabase)

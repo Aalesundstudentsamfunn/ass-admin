@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
+import { canManageCertificates as hasCertificateAccess } from "@/lib/privilege-checks"
 import {
   ColumnDef,
   flexRender,
@@ -283,7 +284,7 @@ export default function CertificationPage() {
   const [rows, setRows] = useState<CertificateRow[]>([])
   const [search, setSearch] = useState<string>("")
   const currentPrivilege = useCurrentPrivilege()
-  const canManageCertificates = (currentPrivilege ?? 0) >= 3
+  const canManageCertificates = hasCertificateAccess(currentPrivilege)
 
   useEffect(() => {
     let mounted = true
