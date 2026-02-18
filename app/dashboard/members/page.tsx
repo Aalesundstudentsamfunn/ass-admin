@@ -42,11 +42,31 @@ const generateTemporaryPassword = () => {
   return password;
 };
 
+const isAuthUserBanned = (user: { app_metadata?: Record<string, unknown> | null; banned_until?: string | null } | null | undefined) => {
+  if (!user) {
+    return false;
+  }
+  const appBanned = user.app_metadata?.is_banned;
+  if (appBanned === true) {
+    return true;
+  }
+  if (typeof user.banned_until === "string" && user.banned_until.length > 0) {
+    const until = Date.parse(user.banned_until);
+    if (Number.isFinite(until) && until > Date.now()) {
+      return true;
+    }
+  }
+  return false;
+};
+
 const ensureAuthUser = async (email: string, firstname: string, lastname: string) => {
   const admin = createAdminClient();
   const normalizedEmail = email.trim().toLowerCase();
   const existing = await findAuthUserByEmail(normalizedEmail);
   if (existing) {
+    if (isAuthUserBanned(existing)) {
+      throw new Error("Kontoen er utestengt. Oppretting ble ikke sendt.");
+    }
     return { user: existing, temporaryPassword: null };
   }
 
@@ -124,7 +144,7 @@ async function checkMemberEmail(_: unknown, formData: FormData) {
 
     const { data: existingMember, error: lookupError } = await sb
       .from("members")
-      .select("id, firstname, lastname, email, privilege_type, is_membership_active")
+      .select("id, firstname, lastname, email, privilege_type, is_membership_active, is_banned")
       .ilike("email", normalizedEmail)
       .maybeSingle();
 
@@ -138,6 +158,7 @@ async function checkMemberEmail(_: unknown, formData: FormData) {
         email: normalizedEmail,
         exists: false,
         active: false,
+        banned: false,
       };
     }
 
@@ -146,12 +167,14 @@ async function checkMemberEmail(_: unknown, formData: FormData) {
       email: normalizedEmail,
       exists: true,
       active: isMembershipActive(existingMember.is_membership_active, existingMember.privilege_type),
+      banned: existingMember.is_banned === true,
       member: {
         id: existingMember.id,
         firstname: existingMember.firstname,
         lastname: existingMember.lastname,
         email: existingMember.email,
         privilege_type: existingMember.privilege_type,
+        is_banned: existingMember.is_banned,
       },
     };
   } catch (error: unknown) {
@@ -181,7 +204,7 @@ async function activateMember(_: unknown, formData: FormData) {
 
     const { data: existingMember, error: lookupError } = await sb
       .from("members")
-      .select("id, firstname, lastname, email, privilege_type, is_membership_active")
+      .select("id, firstname, lastname, email, privilege_type, is_membership_active, is_banned")
       .ilike("email", normalizedEmail)
       .maybeSingle();
 
@@ -190,6 +213,9 @@ async function activateMember(_: unknown, formData: FormData) {
     }
     if (!existingMember) {
       return { ok: false, error: "Fant ikke medlem med denne e-posten." };
+    }
+    if (existingMember.is_banned === true) {
+      return { ok: false, error: "Kontoen er utestengt. Aktivering ble ikke sendt." };
     }
     if (isMembershipActive(existingMember.is_membership_active, existingMember.privilege_type)) {
       return { ok: false, error: "Dette medlemskapet er allerede aktivt." };
@@ -258,7 +284,7 @@ async function addNewMember(_: unknown, formData: FormData) {
 
     const { data: existingMember, error: lookupError } = await sb
       .from("members")
-      .select("id, privilege_type, is_membership_active")
+      .select("id, privilege_type, is_membership_active, is_banned")
       .ilike("email", normalizedEmail)
       .maybeSingle();
 
@@ -266,6 +292,9 @@ async function addNewMember(_: unknown, formData: FormData) {
       return { ok: false, error: lookupError.message };
     }
     if (existingMember) {
+      if (existingMember.is_banned === true) {
+        return { ok: false, error: "Kontoen er utestengt. Oppretting ble ikke sendt." };
+      }
       if (isMembershipActive(existingMember.is_membership_active, existingMember.privilege_type)) {
         return { ok: false, error: "E-posten finnes allerede med aktivt medlemskap." };
       }

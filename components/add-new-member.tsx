@@ -28,6 +28,7 @@ type CheckResult = {
   error?: string;
   exists?: boolean;
   active?: boolean;
+  banned?: boolean;
   email?: string;
   member?: {
     id: string;
@@ -35,10 +36,11 @@ type CheckResult = {
     lastname: string;
     email: string;
     privilege_type: number | null;
+    is_banned?: boolean | null;
   };
 };
 
-type Stage = "email" | "create" | "exists-active" | "exists-inactive";
+type Stage = "email" | "create" | "exists-active" | "exists-inactive" | "exists-banned";
 
 function Glass({ className = "", children }: React.PropsWithChildren<{ className?: string }>) {
   return <div className={`relative rounded-2xl border backdrop-blur-xl ` + `bg-white/65 border-white/50 shadow-[0_1px_0_rgba(255,255,255,0.6),0_10px_30px_-10px_rgba(16,24,40,0.25)] ` + `dark:bg-white/5 dark:border-white/10 dark:shadow-[0_1px_0_rgba(255,255,255,0.07),0_20px_60px_-20px_rgba(0,0,0,0.6)] ` + className}>{children}</div>;
@@ -187,7 +189,9 @@ export function CreateUserDialog() {
       setLastname(existing.lastname ?? "");
     }
 
-    if (checkState.active) {
+    if (checkState.banned) {
+      setStage("exists-banned");
+    } else if (checkState.active) {
       setStage("exists-active");
     } else {
       setStage("exists-inactive");
@@ -453,6 +457,25 @@ export function CreateUserDialog() {
                 <div className="rounded-xl border border-border/60 bg-background/50 p-3 text-sm">
                   <p className="font-medium">E-posten har allerede aktivt medlemskap.</p>
                   <p className="text-muted-foreground">Ny bruker kan ikke opprettes på denne e-posten.</p>
+                  {existingMember ? (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {existingMember.firstname} {existingMember.lastname} · {existingMember.email}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button type="button" variant="secondary" onClick={() => setOpen(false)} className="rounded-xl" disabled={isBusy}>
+                    Lukk
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
+            {stage === "exists-banned" ? (
+              <div className="mt-4 space-y-4">
+                <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-sm">
+                  <p className="font-medium">Kontoen er utestengt.</p>
+                  <p className="text-muted-foreground">Oppretting/aktivering ble ikke sendt for denne e-posten.</p>
                   {existingMember ? (
                     <p className="mt-2 text-xs text-muted-foreground">
                       {existingMember.firstname} {existingMember.lastname} · {existingMember.email}

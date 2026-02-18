@@ -266,6 +266,10 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
   }, [supabase]);
 
   const handlePrint = React.useCallback(async (member: UserRow) => {
+    if (member.is_banned === true) {
+      toast.error("Kontoen er utestengt. Utskrift ble ikke sendt.");
+      return;
+    }
     const supabaseClient = createClient();
     const toastId = toast.loading("Sender til utskriftskø...", { duration: 10000 });
     const { data: authData, error: authError } = await supabaseClient.auth.getUser();
@@ -542,7 +546,13 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
     if (!members.length) {
       return;
     }
-    const confirmed = window.confirm(`Sende ${members.length} til utskriftskø?`);
+    const bannedCount = members.filter((member) => member.is_banned === true).length;
+    const printableMembers = members.filter((member) => member.is_banned !== true);
+    if (!printableMembers.length) {
+      toast.error("Ingen utskrifter sendt. Valgte kontoer er utestengt.");
+      return;
+    }
+    const confirmed = window.confirm(`Sende ${printableMembers.length} til utskriftskø?`);
     if (!confirmed) {
       return;
     }
@@ -556,7 +566,7 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
 
     let successCount = 0;
     let errorCount = 0;
-    for (const member of members) {
+    for (const member of printableMembers) {
       const { error } = await enqueuePrinterQueue(supabaseClient, {
         firstname: member.firstname,
         lastname: member.lastname,
@@ -572,8 +582,22 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
       }
     }
 
-    if (errorCount > 0) {
-      toast.error("Kunne ikke sende alle til utskrift.", { id: toastId, duration: Infinity });
+    if (errorCount > 0 || bannedCount > 0) {
+      const parts = [];
+      if (successCount > 0) {
+        parts.push(`sendt ${successCount}`);
+      }
+      if (errorCount > 0) {
+        parts.push(`feilet ${errorCount}`);
+      }
+      if (bannedCount > 0) {
+        parts.push(`hoppet over utestengt ${bannedCount}`);
+      }
+      toast.error("Kunne ikke skrive ut alle valgte.", {
+        id: toastId,
+        description: parts.join(" · "),
+        duration: Infinity,
+      });
     } else {
       toast.success(`Sendt ${successCount} til utskriftskø.`, { id: toastId, duration: 6000 });
     }

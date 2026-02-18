@@ -401,6 +401,17 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
           );
           setSelectedMember((prev) => (prev ? { ...prev, firstname, lastname } : prev));
         }}
+        onBanUpdated={(next) => {
+          if (!selectedMember) {
+            return;
+          }
+          setRows((prev) =>
+            prev.map((row) =>
+              String(row.id) === String(selectedMember.id) ? { ...row, is_banned: next } : row,
+            ),
+          );
+          setSelectedMember((prev) => (prev ? { ...prev, is_banned: next } : prev));
+        }}
       />
     </div>
   );

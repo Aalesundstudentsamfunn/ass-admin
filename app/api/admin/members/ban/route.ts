@@ -1,6 +1,6 @@
 /**
  * POST /api/admin/members/ban
- * Bans a member in Supabase Auth and mirrors status to public.members.is_banned.
+ * Sets ban status for a member in Supabase Auth and mirrors to public.members.is_banned.
  * Access is restricted to authenticated members with privilege_type >= 4.
  */
 import { NextResponse } from "next/server";
@@ -12,6 +12,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const memberId = String(body?.member_id ?? "").trim();
+    const nextBanned = body?.is_banned === false ? false : true;
     if (!memberId) {
       return NextResponse.json({ error: "Medlems-ID mangler." }, { status: 400 });
     }
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Mangler tilgang." }, { status: 401 });
     }
 
-    if (authData.user.id === memberId) {
+    if (nextBanned && authData.user.id === memberId) {
       return NextResponse.json({ error: "Du kan ikke banne deg selv." }, { status: 400 });
     }
 
@@ -46,8 +47,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Fant ikke medlem." }, { status: 404 });
     }
 
-    if (targetMember.is_banned === true) {
-      return NextResponse.json({ ok: true, already_banned: true });
+    if (targetMember.is_banned === nextBanned) {
+      return NextResponse.json({ ok: true, unchanged: true });
     }
 
     const admin = createAdminClient();
@@ -58,11 +59,11 @@ export async function POST(request: Request) {
 
     const existingAppMetadata = authUserData.user.app_metadata ?? {};
     const { error: authUpdateError } = await admin.auth.admin.updateUserById(memberId, {
-      // effectively permanent ban; adjust if you want timed bans later
-      ban_duration: "876000h",
+      // effectively permanent ban when true
+      ban_duration: nextBanned ? "876000h" : "none",
       app_metadata: {
         ...existingAppMetadata,
-        is_banned: true,
+        is_banned: nextBanned,
       },
     });
 
@@ -72,13 +73,16 @@ export async function POST(request: Request) {
 
     const { error: memberUpdateError } = await supabase
       .from("members")
-      .update({ is_banned: true, is_membership_active: false })
+      .update({
+        is_banned: nextBanned,
+        ...(nextBanned ? { is_membership_active: false } : {}),
+      })
       .eq("id", memberId);
 
     if (memberUpdateError) {
       // best-effort rollback in auth if DB update fails
       await admin.auth.admin.updateUserById(memberId, {
-        ban_duration: "none",
+        ban_duration: targetMember.is_banned ? "876000h" : "none",
         app_metadata: existingAppMetadata,
       });
       await supabase
@@ -91,7 +95,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: memberUpdateError.message }, { status: 400 });
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, is_banned: nextBanned });
   } catch (error: unknown) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Ukjent feil" }, { status: 500 });
   }
