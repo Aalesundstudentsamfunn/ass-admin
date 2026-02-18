@@ -5,7 +5,7 @@ import type React from "react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Users, UserCheck, Heart, Package, Building2, Menu, Settings, Award, FileText, ChevronLeft, ChevronRight } from "lucide-react"
+import { Users, Printer, Heart, Package, Building2, Menu, Settings, Award, FileText, ChevronLeft, ChevronRight } from "lucide-react"
 import Image from "next/image"
 import Logo from "@/app/logo.png"
 import Link from "next/link"
@@ -29,12 +29,12 @@ type CurrentUser = {
 
 const navigation = [
   { name: "Medlemmer", href: "/dashboard/members", icon: Users },
-  { name: "Brukere", href: "/dashboard/users", icon: UserCheck },
   { name: "Frivillige", href: "/dashboard/voluntary", icon: Heart },
   { name: "Utstyr", href: "/dashboard/equipment", icon: Package },
   { name: "Grupper", href: "/dashboard/groups", icon: Building2 },
   { name: "Sertifisering", href: "/dashboard/certification", icon: Award },
   { name: "Sertifisering — søknader", href: "/dashboard/certification-application", icon: FileText },
+  { name: "Printerkø", href: "/dashboard/queue", icon: Printer },
   { name: "Innstillinger", href: "/dashboard/settings", icon: Settings },
 ]
 
