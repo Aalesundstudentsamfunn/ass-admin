@@ -20,6 +20,7 @@ export const PRIVILEGE_REQUIREMENTS = {
   deleteMembers: PRIVILEGE_LEVELS.STORTINGET,
   manageMembershipStatus: PRIVILEGE_LEVELS.STORTINGET,
   banMembers: PRIVILEGE_LEVELS.STORTINGET,
+  viewAuditLogs: PRIVILEGE_LEVELS.STORTINGET,
 } as const;
 
 export const PRIVILEGE_OPTIONS: { value: number; label: string }[] = [

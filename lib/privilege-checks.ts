@@ -89,6 +89,13 @@ export function canBanMembers(value: number | null | undefined) {
 }
 
 /**
+ * Audit log is admin-only (4+).
+ */
+export function canViewAuditLogs(value: number | null | undefined) {
+  return normalizePrivilege(value) >= PRIVILEGE_REQUIREMENTS.viewAuditLogs;
+}
+
+/**
  * Membership status helper.
  * Membership is active only when the explicit flag is true.
  * No privilege-based fallback: access level and active membership are independent.
@@ -97,10 +104,10 @@ export function isMembershipActive(activeFlag: boolean | null | undefined) {
   return activeFlag === true;
 }
 
+//TODO: Fix 4+ not doing priv 5
 /**
  * Returns the highest privilege value the current user is allowed to assign.
  * - 4+ can assign up to 5
- * //TODO: Fix 4+ not doing priv 5
  * - 2 and 3 can assign up to 2
  * - others cannot assign any privilege
  */
