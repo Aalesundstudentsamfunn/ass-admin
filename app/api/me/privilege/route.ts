@@ -7,25 +7,16 @@
 //TODO: Remove duplicate calls to this api
 
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { assertPermission } from "@/lib/server/assert-permission";
 
 export async function GET() {
-  const supabase = await createClient();
-  const { data: authData, error: authError } = await supabase.auth.getUser();
-
-  if (authError || !authData.user) {
-    return NextResponse.json({ error: "not_authenticated" }, { status: 401 });
+  const permission = await assertPermission();
+  if (!permission.ok) {
+    const status = permission.response.status === 401 ? 401 : 500;
+    return NextResponse.json(
+      { error: status === 401 ? "not_authenticated" : "failed_to_load_privilege" },
+      { status },
+    );
   }
-
-  const { data: memberData, error: memberError } = await supabase
-    .from("members")
-    .select("privilege_type")
-    .eq("id", authData.user.id)
-    .maybeSingle();
-
-  if (memberError) {
-    return NextResponse.json({ error: memberError.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ privilege_type: memberData?.privilege_type ?? null });
+  return NextResponse.json({ privilege_type: permission.privilege });
 }

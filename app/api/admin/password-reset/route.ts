@@ -1,12 +1,11 @@
 /**
  * POST /api/admin/password-reset
  * Sends a Supabase password reset email for the target member email.
- * Access is restricted to authenticated members with privilege_type >= 3.
+ * Access is restricted by shared assertPermission guard (requirement: resetPasswords).
  */
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { canResetPasswords } from "@/lib/privilege-checks";
+import { assertPermission } from "@/lib/server/assert-permission";
 
 export async function POST(request: Request) {
   try {
@@ -17,20 +16,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "E-post mangler." }, { status: 400 });
     }
 
-    const supabase = await createClient();
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (authError || !authData.user) {
-      return NextResponse.json({ error: "Mangler tilgang." }, { status: 401 });
-    }
-
-    const { data: me } = await supabase
-      .from("members")
-      .select("privilege_type")
-      .eq("id", authData.user.id)
-      .single();
-
-    if (!canResetPasswords(me?.privilege_type)) {
-      return NextResponse.json({ error: "Mangler tilgang." }, { status: 403 });
+    const permission = await assertPermission({ requirement: "resetPasswords" });
+    if (!permission.ok) {
+      return permission.response;
     }
 
     const admin = createAdminClient();
