@@ -65,7 +65,7 @@ const ensureAuthUser = async (email: string, firstname: string, lastname: string
   const existing = await findAuthUserByEmail(normalizedEmail);
   if (existing) {
     if (isAuthUserBanned(existing)) {
-      throw new Error("Kontoen er utestengt. Oppretting ble ikke sendt.");
+      throw new Error("E-posten kan ikke brukes.");
     }
     return { user: existing, temporaryPassword: null };
   }
@@ -215,7 +215,7 @@ async function activateMember(_: unknown, formData: FormData) {
       return { ok: false, error: "Fant ikke medlem med denne e-posten." };
     }
     if (existingMember.is_banned === true) {
-      return { ok: false, error: "Kontoen er utestengt. Aktivering ble ikke sendt." };
+      return { ok: false, error: "E-posten kan ikke brukes." };
     }
     if (isMembershipActive(existingMember.is_membership_active, existingMember.privilege_type)) {
       return { ok: false, error: "Dette medlemskapet er allerede aktivt." };
@@ -293,7 +293,7 @@ async function addNewMember(_: unknown, formData: FormData) {
     }
     if (existingMember) {
       if (existingMember.is_banned === true) {
-        return { ok: false, error: "Kontoen er utestengt. Oppretting ble ikke sendt." };
+        return { ok: false, error: "E-posten kan ikke brukes." };
       }
       if (isMembershipActive(existingMember.is_membership_active, existingMember.privilege_type)) {
         return { ok: false, error: "E-posten finnes allerede med aktivt medlemskap." };

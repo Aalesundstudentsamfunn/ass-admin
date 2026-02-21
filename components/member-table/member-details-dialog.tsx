@@ -65,6 +65,7 @@ export function MemberDetailsDialog({
   onMembershipStatusUpdated,
   onNameUpdated,
   onBanUpdated,
+  showBanControls = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -75,6 +76,7 @@ export function MemberDetailsDialog({
   onMembershipStatusUpdated: (next: boolean) => void;
   onNameUpdated: (firstname: string, lastname: string) => void;
   onBanUpdated: (next: boolean) => void;
+  showBanControls?: boolean;
 }) {
   const [addedByProfile, setAddedByProfile] = React.useState<AddedByProfile | null>(null);
   const [loadingAddedBy, setLoadingAddedBy] = React.useState(false);
@@ -133,7 +135,7 @@ export function MemberDetailsDialog({
   const canEditTarget = canEditMemberPrivileges(currentPrivilege);
   const canEditThisTarget = canEditPrivilegeForTarget(currentPrivilege, targetPrivilege);
   const canEditMembershipStatus = canManageMembershipStatus(currentPrivilege);
-  const canViewBanControls = canBanMembers(currentPrivilege);
+  const canViewBanControls = showBanControls && canBanMembers(currentPrivilege);
   const allowedMax = getMaxAssignablePrivilege(currentPrivilege);
   const selectDisabled = !canEditTarget || !canEditThisTarget || isSaving || !member?.id;
   const membershipActive =
@@ -453,7 +455,7 @@ export function MemberDetailsDialog({
             <DetailRow label="Opprettet">
               <span className="font-medium">{createdAtLabel}</span>
             </DetailRow>
-            {!member.password_set_at && member.email ? (
+            {member.email ? (
               <div className="flex justify-end pt-2">
                 <Button
                   size="sm"
