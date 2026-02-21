@@ -11,12 +11,18 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { CreateUserDialog } from "@/components/add-new-member";
 import { MemberDataTable } from "@/components/member-table/member-data-table";
 import { MemberDetailsDialog } from "@/components/member-table/member-details-dialog";
-import { copyToClipboard, getPrivilegeLabel, MemberRow, PILL_CLASS, PRIVILEGE_OPTIONS } from "@/components/member-table/shared";
+import {
+  copyToClipboard,
+  getBulkPrivilegeOptions,
+  getPrivilegeLabel,
+  MemberRow,
+  PILL_CLASS,
+  PRIVILEGE_OPTIONS,
+} from "@/components/member-table/shared";
 import { createClient } from "@/lib/supabase/client";
 import { enqueuePrinterQueue, watchPrinterQueueStatus } from "@/lib/printer-queue";
 import { useCurrentPrivilege } from "@/lib/use-current-privilege";
 import { useMemberPageSizeDefault } from "@/lib/table-settings";
-import { PRIVILEGE_LEVELS } from "@/lib/privilege-config";
 import {
   canAssignPrivilege,
   canEditPrivilegeForTarget,
@@ -26,6 +32,8 @@ import {
   canResetPasswords as canResetPasswordsByPrivilege,
   canSetOwnPrivilege,
   getMaxAssignablePrivilege,
+  isVoluntaryOrHigher,
+  memberPrivilege,
 } from "@/lib/privilege-checks";
 import { toast } from "sonner";
 
@@ -130,8 +138,7 @@ function buildColumns({
       cell: ({ row }) => {
         const member = row.original as UserRow;
         const label = getPrivilegeLabel(row.getValue("privilege_type") as number | null);
-        const targetPrivilege =
-          typeof member.privilege_type === "number" ? member.privilege_type : PRIVILEGE_LEVELS.MEMBER;
+        const targetPrivilege = memberPrivilege(member.privilege_type);
         if (!canEditPrivileges || !canEditPrivilegeForTarget(currentPrivilege, targetPrivilege)) {
           return (
             <Badge variant="secondary" className={PILL_CLASS}>
@@ -235,18 +242,7 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
   const canResetPasswords = canResetPasswordsByPrivilege(currentPrivilege);
   const canEditPrivileges = canEditMemberPrivileges(currentPrivilege);
   const allowedMax = getMaxAssignablePrivilege(currentPrivilege);
-  const bulkOptions = React.useMemo(
-    () => {
-      if (allowedMax === null) {
-        return [];
-      }
-      if (allowedMax === PRIVILEGE_LEVELS.VOLUNTARY) {
-        return PRIVILEGE_OPTIONS.filter((option) => option.value === PRIVILEGE_LEVELS.VOLUNTARY);
-      }
-      return PRIVILEGE_OPTIONS.filter((option) => option.value <= allowedMax);
-    },
-    [allowedMax],
-  );
+  const bulkOptions = React.useMemo(() => getBulkPrivilegeOptions(allowedMax), [allowedMax]);
 
   React.useEffect(() => {
     setRows(initialData);
@@ -291,8 +287,7 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
       email: member.email,
       ref: member.id,
       ref_invoker: authData.user.id,
-      is_voluntary:
-        (member.privilege_type ?? PRIVILEGE_LEVELS.MEMBER) >= PRIVILEGE_LEVELS.VOLUNTARY,
+      is_voluntary: isVoluntaryOrHigher(member.privilege_type),
     });
 
     if (error) {
@@ -330,8 +325,7 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
 
   const handleRowPrivilegeChange = React.useCallback(
     async (member: UserRow, next: number) => {
-      const currentValue =
-        typeof member.privilege_type === "number" ? member.privilege_type : PRIVILEGE_LEVELS.MEMBER;
+      const currentValue = memberPrivilege(member.privilege_type);
       if (!Number.isFinite(next) || next === currentValue) {
         return;
       }
@@ -417,9 +411,7 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
           canAssignPrivilege(
             currentPrivilege,
             next,
-            typeof member.privilege_type === "number"
-              ? member.privilege_type
-              : PRIVILEGE_LEVELS.MEMBER,
+            memberPrivilege(member.privilege_type),
           ),
         )
         .map((member) => String(member.id));
@@ -579,8 +571,7 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
         email: member.email,
         ref: member.id,
         ref_invoker: authData.user.id,
-        is_voluntary:
-          (member.privilege_type ?? PRIVILEGE_LEVELS.MEMBER) >= PRIVILEGE_LEVELS.VOLUNTARY,
+        is_voluntary: isVoluntaryOrHigher(member.privilege_type),
       });
       if (error) {
         errorCount += 1;
