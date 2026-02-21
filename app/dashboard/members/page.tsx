@@ -8,7 +8,11 @@ import { enqueuePrinterQueue } from "@/lib/printer-queue";
 import { randomBytes } from "crypto";
 import { canManageMembers, isMembershipActive } from "@/lib/privilege-checks";
 import { PRIVILEGE_LEVELS } from "@/lib/privilege-config";
+import { shouldAutoPrint, type PrintableMember } from "@/lib/members/shared";
 
+/**
+ * Paginates auth users and returns the user with matching email, if any.
+ */
 const findAuthUserByEmail = async (email: string) => {
   const admin = createAdminClient();
   const normalizedEmail = email.trim().toLowerCase();
@@ -31,8 +35,14 @@ const findAuthUserByEmail = async (email: string) => {
   }
 };
 
+/**
+ * Normalizes emails used across member lookup, insert, and auth lookup.
+ */
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
+/**
+ * Generates a temporary password for invited users.
+ */
 const generateTemporaryPassword = () => {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
   const bytes = randomBytes(18);
@@ -43,6 +53,9 @@ const generateTemporaryPassword = () => {
   return password;
 };
 
+/**
+ * Checks whether the auth user currently has an active ban.
+ */
 const isAuthUserBanned = (user: { app_metadata?: Record<string, unknown> | null; banned_until?: string | null } | null | undefined) => {
   if (!user) {
     return false;
@@ -60,6 +73,10 @@ const isAuthUserBanned = (user: { app_metadata?: Record<string, unknown> | null;
   return false;
 };
 
+/**
+ * Finds or creates an auth user by email.
+ * For new users, sends invite and sets a generated temporary password.
+ */
 const ensureAuthUser = async (email: string, firstname: string, lastname: string) => {
   const admin = createAdminClient();
   const normalizedEmail = email.trim().toLowerCase();
@@ -106,6 +123,34 @@ const ensureAuthUser = async (email: string, firstname: string, lastname: string
   return { user: data.user, temporaryPassword };
 };
 
+/**
+ * Maps the form's voluntary toggle to stored privilege level.
+ */
+const toPrivilegeType = (isVoluntary: boolean) =>
+  isVoluntary ? PRIVILEGE_LEVELS.VOLUNTARY : PRIVILEGE_LEVELS.MEMBER;
+
+/**
+ * Adds a member card print job to the printer queue.
+ * Shared by both create and activate flows.
+ */
+const queueMemberCardPrint = async (
+  sb: Awaited<ReturnType<typeof createClient>>,
+  member: PrintableMember,
+  createdBy: string,
+  privilegeType: number,
+) =>
+  enqueuePrinterQueue(sb, {
+    firstname: member.firstname,
+    lastname: member.lastname,
+    email: member.email,
+    ref: member.id,
+    ref_invoker: createdBy,
+    is_voluntary: privilegeType >= PRIVILEGE_LEVELS.VOLUNTARY,
+  });
+
+/**
+ * Gets and validates current actor for member-management server actions.
+ */
 const getCurrentActor = async (sb: Awaited<ReturnType<typeof createClient>>) => {
   const { data: authData, error: authError } = await sb.auth.getUser();
   if (authError || !authData.user) {
@@ -128,6 +173,9 @@ const getCurrentActor = async (sb: Awaited<ReturnType<typeof createClient>>) => 
   return { ok: true as const, userId: authData.user.id };
 };
 
+/**
+ * Server action: checks whether email already exists and returns member state.
+ */
 async function checkMemberEmail(_: unknown, formData: FormData) {
   "use server";
 
@@ -167,7 +215,7 @@ async function checkMemberEmail(_: unknown, formData: FormData) {
       ok: true,
       email: normalizedEmail,
       exists: true,
-      active: isMembershipActive(existingMember.is_membership_active, existingMember.privilege_type),
+      active: isMembershipActive(existingMember.is_membership_active),
       banned: existingMember.is_banned === true,
       member: {
         id: existingMember.id,
@@ -183,13 +231,15 @@ async function checkMemberEmail(_: unknown, formData: FormData) {
   }
 }
 
+/**
+ * Server action: re-activates an existing inactive member by email.
+ */
 async function activateMember(_: unknown, formData: FormData) {
   "use server";
 
   const normalizedEmail = normalizeEmail(String(formData.get("email") ?? ""));
   const voluntary = Boolean(formData.get("voluntary"));
-  const autoPrintValue = formData.get("autoPrint");
-  const autoPrint = autoPrintValue === null ? true : String(autoPrintValue) !== "false";
+  const autoPrint = shouldAutoPrint(formData.get("autoPrint"));
 
   if (!normalizedEmail) {
     return { ok: false, error: "E-post mangler." };
@@ -218,11 +268,11 @@ async function activateMember(_: unknown, formData: FormData) {
     if (existingMember.is_banned === true) {
       return { ok: false, error: "E-posten kan ikke brukes." };
     }
-    if (isMembershipActive(existingMember.is_membership_active, existingMember.privilege_type)) {
+    if (isMembershipActive(existingMember.is_membership_active)) {
       return { ok: false, error: "Dette medlemskapet er allerede aktivt." };
     }
 
-    const privilegeType = voluntary ? PRIVILEGE_LEVELS.VOLUNTARY : PRIVILEGE_LEVELS.MEMBER;
+    const privilegeType = toPrivilegeType(voluntary);
     const { data: updatedMember, error: updateError } = await sb
       .from("members")
       .update({ privilege_type: privilegeType, is_membership_active: true })
@@ -239,14 +289,12 @@ async function activateMember(_: unknown, formData: FormData) {
       return { ok: true, autoPrint: false };
     }
 
-    const { data: queueRow, error: queueError } = await enqueuePrinterQueue(sb, {
-      firstname: updatedMember.firstname,
-      lastname: updatedMember.lastname,
-      email: updatedMember.email,
-      ref: updatedMember.id,
-      ref_invoker: createdBy,
-      is_voluntary: privilegeType >= PRIVILEGE_LEVELS.VOLUNTARY,
-    });
+    const { data: queueRow, error: queueError } = await queueMemberCardPrint(
+      sb,
+      updatedMember,
+      createdBy,
+      privilegeType,
+    );
 
     if (queueError) {
       return { ok: false, error: "medlemskap aktivert men utskrift feilet: " + queueError.message };
@@ -265,15 +313,17 @@ async function activateMember(_: unknown, formData: FormData) {
   }
 }
 
+/**
+ * Server action: creates a new member and links/creates auth user.
+ */
 async function addNewMember(_: unknown, formData: FormData) {
   "use server";
 
   const firstname = String(formData.get("firstname") ?? "");
   const normalizedEmail = normalizeEmail(String(formData.get("email") ?? ""));
   const lastname = String(formData.get("lastname") ?? "");
-  const voluntary = Boolean(formData.get("voluntary")) ? true : false;
-  const autoPrintValue = formData.get("autoPrint");
-  const autoPrint = autoPrintValue === null ? true : String(autoPrintValue) !== "false";
+  const voluntary = Boolean(formData.get("voluntary"));
+  const autoPrint = shouldAutoPrint(formData.get("autoPrint"));
 
   try {
     const sb = await createClient();
@@ -296,7 +346,7 @@ async function addNewMember(_: unknown, formData: FormData) {
       if (existingMember.is_banned === true) {
         return { ok: false, error: "E-posten kan ikke brukes." };
       }
-      if (isMembershipActive(existingMember.is_membership_active, existingMember.privilege_type)) {
+      if (isMembershipActive(existingMember.is_membership_active)) {
         return { ok: false, error: "E-posten finnes allerede med aktivt medlemskap." };
       }
       return { ok: false, error: "E-posten finnes allerede, bruk Aktiver medlemskap." };
@@ -304,7 +354,7 @@ async function addNewMember(_: unknown, formData: FormData) {
 
     const authResult = await ensureAuthUser(normalizedEmail, firstname, lastname);
     const authUser = authResult.user;
-    const privilegeType = voluntary ? PRIVILEGE_LEVELS.VOLUNTARY : PRIVILEGE_LEVELS.MEMBER;
+    const privilegeType = toPrivilegeType(voluntary);
 
     const { data: newMember, error: insertError } = await sb
       .from("members")
@@ -329,14 +379,12 @@ async function addNewMember(_: unknown, formData: FormData) {
       return { ok: true, autoPrint: false };
     }
 
-    const { data: queueRow, error: queueError } = await enqueuePrinterQueue(sb, {
-      firstname: newMember.firstname,
-      lastname: newMember.lastname,
-      email: newMember.email,
-      ref: newMember.id,
-      ref_invoker: createdBy,
-      is_voluntary: privilegeType >= PRIVILEGE_LEVELS.VOLUNTARY,
-    });
+    const { data: queueRow, error: queueError } = await queueMemberCardPrint(
+      sb,
+      newMember,
+      createdBy,
+      privilegeType,
+    );
 
     if (queueError) {
       return { ok: false, error: "added user but failed to add to printer queue: " + queueError.message };
