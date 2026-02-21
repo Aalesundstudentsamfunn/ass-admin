@@ -369,9 +369,14 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
       const before = rows;
       try {
         setRows((prev) => prev.filter((row) => String(row.id) !== memberId));
-        const { error } = await supabase.from("members").delete().eq("id", memberId);
-        if (error) {
-          throw error;
+        const response = await fetch("/api/admin/members/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ member_id: memberId }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload?.error ?? "Kunne ikke slette medlem.");
         }
         if (selectedMember && String(selectedMember.id) === memberId) {
           setSelectedMember(null);
@@ -390,7 +395,7 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
         setIsDeleting(false);
       }
     },
-    [rows, selectedMember, supabase, router],
+    [rows, selectedMember, router],
   );
 
   const handleBulkPrivilege = React.useCallback(
@@ -616,10 +621,19 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
       }
       const ids = members.map((member) => String(member.id));
       const toastId = toast.loading("Sletter medlemmer...", { duration: 10000 });
-      const supabaseClient = createClient();
-      const { error } = await supabaseClient.from("members").delete().in("id", ids);
-      if (error) {
-        toast.error("Kunne ikke slette medlemmer.", { id: toastId, description: error.message, duration: Infinity });
+      const response = await fetch("/api/admin/members/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ member_ids: ids }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const failed = Array.isArray(payload?.failed) ? payload.failed.length : 0;
+        const details =
+          failed > 0
+            ? `${payload?.error ?? "Kunne ikke slette medlemmer."} (${failed} feilet)`
+            : payload?.error ?? "Kunne ikke slette medlemmer.";
+        toast.error("Kunne ikke slette medlemmer.", { id: toastId, description: details, duration: Infinity });
         return;
       }
       setRows((prev) => prev.filter((row) => !ids.includes(String(row.id))));
