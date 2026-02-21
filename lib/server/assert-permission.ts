@@ -27,6 +27,11 @@ type AssertPermissionFailure = {
 
 type AssertPermissionResult = AssertPermissionSuccess | AssertPermissionFailure;
 
+const deny = (status: number, error: string): AssertPermissionFailure => ({
+  ok: false,
+  response: NextResponse.json({ error }, { status }),
+});
+
 /**
  * Shared API guard:
  * - validates authenticated session
@@ -38,10 +43,7 @@ export async function assertPermission(options: AssertPermissionOptions = {}): P
   const { data: authData, error: authError } = await supabase.auth.getUser();
 
   if (authError || !authData.user) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: "Mangler tilgang." }, { status: 401 }),
-    };
+    return deny(401, "Mangler tilgang.");
   }
 
   const { data: memberData, error: memberError } = await supabase
@@ -51,10 +53,7 @@ export async function assertPermission(options: AssertPermissionOptions = {}): P
     .maybeSingle();
 
   if (memberError) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: memberError.message }, { status: 500 }),
-    };
+    return deny(500, memberError.message);
   }
 
   const privilege = normalizePrivilege(memberData?.privilege_type);
@@ -67,23 +66,11 @@ export async function assertPermission(options: AssertPermissionOptions = {}): P
   };
 
   if (minPrivilege !== null && privilege < minPrivilege) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { error: options.forbiddenMessage ?? "Mangler tilgang." },
-        { status: 403 },
-      ),
-    };
+    return deny(403, options.forbiddenMessage ?? "Mangler tilgang.");
   }
 
   if (options.check && !options.check(context)) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { error: options.forbiddenMessage ?? "Mangler tilgang." },
-        { status: 403 },
-      ),
-    };
+    return deny(403, options.forbiddenMessage ?? "Mangler tilgang.");
   }
 
   return {
