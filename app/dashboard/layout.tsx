@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import DashboardShell from "./DashboardShell";
 import { canAccessDashboard } from "@/lib/privilege-checks";
+import { PRIVILEGE_LEVELS } from "@/lib/privilege-config";
 
 export default async function DashboardLayout({
   children,
@@ -29,7 +30,7 @@ export default async function DashboardLayout({
     redirect("/auth/update-password");
   }
 
-  const privilegeType = member?.privilege_type ?? 0;
+  const privilegeType = member?.privilege_type ?? PRIVILEGE_LEVELS.NONE;
   if (!canAccessDashboard(privilegeType)) {
     redirect("/not-volunteer");
   }
