@@ -442,7 +442,7 @@ export function MemberDetailsDialog({
                   ) : (
                     <>
                       <XCircle className="h-4 w-4 text-red-500" aria-hidden="true" />
-                      <span>Bannlyst</span>
+                      <span>Utestengt</span>
                     </>
                   )}
                 </span>
@@ -500,20 +500,20 @@ export function MemberDetailsDialog({
                   disabled={isSaving || isSelf}
                   onClick={async () => {
                     if (isSelf) {
-                      toast.error("Du kan ikke banne deg selv.");
+                      toast.error("Du kan ikke utestenge deg selv.");
                       return;
                     }
                     const nextBanned = !banned;
                     const confirmed = window.confirm(
                       nextBanned
-                        ? "Er du sikker på at du vil banne denne brukeren?"
-                        : "Er du sikker på at du vil oppheve bannlysning for denne brukeren?",
+                        ? "Er du sikker på at du vil utestenge denne brukeren?"
+                        : "Er du sikker på at du vil oppheve utestengingen for denne brukeren?",
                     );
                     if (!confirmed) {
                       return;
                     }
                     const toastId = toast.loading(
-                      nextBanned ? "Banner bruker..." : "Opphever bannlysning...",
+                      nextBanned ? "Utestenger bruker..." : "Opphever utestenging...",
                       { duration: 10000 },
                     );
                     setIsSaving(true);
@@ -525,7 +525,7 @@ export function MemberDetailsDialog({
                       });
                       const payload = await res.json().catch(() => ({}));
                       if (!res.ok) {
-                        toast.error(nextBanned ? "Kunne ikke banne bruker." : "Kunne ikke oppheve bannlysning.", {
+                        toast.error(nextBanned ? "Kunne ikke utestenge bruker." : "Kunne ikke oppheve utestengingen.", {
                           id: toastId,
                           description: payload?.error ?? "Ukjent feil.",
                           duration: Infinity,
@@ -534,7 +534,7 @@ export function MemberDetailsDialog({
                         return;
                       }
                       toast.success(
-                        nextBanned ? "Bruker ble bannlyst." : "Bannlysning opphevet.",
+                        nextBanned ? "Bruker ble Utestengt." : "Utestenging opphevet.",
                         { id: toastId, duration: 6000 },
                       );
                       if (nextBanned) {
@@ -542,7 +542,7 @@ export function MemberDetailsDialog({
                       }
                       onBanUpdated(nextBanned);
                     } catch (error: unknown) {
-                      toast.error(nextBanned ? "Kunne ikke banne bruker." : "Kunne ikke oppheve bannlysning.", {
+                      toast.error(nextBanned ? "Kunne ikke utestenge bruker." : "Kunne ikke oppheve utestengingen.", {
                         id: toastId,
                         description: error instanceof Error ? error.message : "Ukjent feil.",
                         duration: Infinity,
@@ -551,7 +551,7 @@ export function MemberDetailsDialog({
                     setIsSaving(false);
                   }}
                 >
-                  {banned ? "Opphev bannlysning" : "Ban bruker"}
+                  {banned ? "Opphev utestenging" : "Utesteng bruker"}
                 </Button>
               </div>
             ) : null}
