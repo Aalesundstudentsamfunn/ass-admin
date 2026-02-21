@@ -10,7 +10,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-const BANNED_LOGIN_MESSAGE = "Kontoen din er sperret. Kontakt it@astudent.no.";
+const GENERIC_LOGIN_BLOCKED_MESSAGE = "Kunne ikke logge inn. Sjekk opplysningene dine eller kontakt it@astudent.no.";
 
 function isBannedAuthError(error: unknown) {
   const rawMessage = typeof error === "object" && error !== null && "message" in error ? String((error as { message?: unknown }).message ?? "") : String(error ?? "");
@@ -31,7 +31,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
     }
     const hash = window.location.hash.toLowerCase();
     if (hash.includes("banned") || hash.includes("user_banned")) {
-      setError(BANNED_LOGIN_MESSAGE);
+      setError(GENERIC_LOGIN_BLOCKED_MESSAGE);
     }
   }, []);
 
@@ -51,7 +51,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
       router.push("/dashboard");
     } catch (error: unknown) {
       if (isBannedAuthError(error)) {
-        setError(BANNED_LOGIN_MESSAGE);
+        setError(GENERIC_LOGIN_BLOCKED_MESSAGE);
       } else {
         setError(error instanceof Error ? error.message : "An error occurred");
       }

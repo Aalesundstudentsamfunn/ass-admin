@@ -473,9 +473,9 @@ export function CreateUserDialog() {
 
             {stage === "exists-banned" ? (
               <div className="mt-4 space-y-4">
-                <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-sm">
-                  <p className="font-medium">Kontoen er utestengt.</p>
-                  <p className="text-muted-foreground">Oppretting/aktivering ble ikke sendt for denne e-posten.</p>
+                <div className="rounded-xl border border-border/60 bg-background/50 p-3 text-sm">
+                  <p className="font-medium">E-posten kan ikke brukes.</p>
+                  <p className="text-muted-foreground">Oppretting eller aktivering er ikke tilgjengelig for denne e-posten.</p>
                   {existingMember ? (
                     <p className="mt-2 text-xs text-muted-foreground">
                       {existingMember.firstname} {existingMember.lastname} · {existingMember.email}

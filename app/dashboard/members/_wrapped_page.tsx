@@ -267,7 +267,7 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
 
   const handlePrint = React.useCallback(async (member: UserRow) => {
     if (member.is_banned === true) {
-      toast.error("Kontoen er utestengt. Utskrift ble ikke sendt.");
+      toast.error("Kunne ikke sende utskrift for denne brukeren.");
       return;
     }
     const supabaseClient = createClient();
@@ -549,7 +549,7 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
     const bannedCount = members.filter((member) => member.is_banned === true).length;
     const printableMembers = members.filter((member) => member.is_banned !== true);
     if (!printableMembers.length) {
-      toast.error("Ingen utskrifter sendt. Valgte kontoer er utestengt.");
+      toast.error("Ingen utskrifter sendt. Valgte kontoer kan ikke brukes for utskrift.");
       return;
     }
     const confirmed = window.confirm(`Sende ${printableMembers.length} til utskriftskø?`);
@@ -591,7 +591,7 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
         parts.push(`feilet ${errorCount}`);
       }
       if (bannedCount > 0) {
-        parts.push(`hoppet over utestengt ${bannedCount}`);
+        parts.push(`hoppet over utilgjengelig ${bannedCount}`);
       }
       toast.error("Kunne ikke skrive ut alle valgte.", {
         id: toastId,

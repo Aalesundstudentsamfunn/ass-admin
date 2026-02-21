@@ -412,6 +412,7 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
           );
           setSelectedMember((prev) => (prev ? { ...prev, is_banned: next } : prev));
         }}
+        showBanControls={false}
       />
     </div>
   );
