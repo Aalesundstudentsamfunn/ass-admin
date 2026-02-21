@@ -12,6 +12,7 @@ import { copyToClipboard, getPrivilegeLabel, MemberRow, PILL_CLASS, PRIVILEGE_OP
 import { createClient } from "@/lib/supabase/client";
 import { useCurrentPrivilege } from "@/lib/use-current-privilege";
 import { useMemberPageSizeDefault } from "@/lib/table-settings";
+import { PRIVILEGE_LEVELS } from "@/lib/privilege-config";
 import {
   canAssignPrivilege,
   canEditPrivilegeForTarget,
@@ -121,7 +122,8 @@ function buildColumns(
       cell: ({ row }) => {
         const member = row.original as UserRow;
         const label = getPrivilegeLabel(row.getValue("privilege_type") as number | null);
-        const targetPrivilege = typeof member.privilege_type === "number" ? member.privilege_type : 1;
+        const targetPrivilege =
+          typeof member.privilege_type === "number" ? member.privilege_type : PRIVILEGE_LEVELS.MEMBER;
         if (!canEditPrivileges || !canEditPrivilegeForTarget(currentPrivilege, targetPrivilege)) {
           return (
             <Badge variant="secondary" className={PILL_CLASS}>
@@ -194,8 +196,8 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
       if (allowedMax === null) {
         return [];
       }
-      if (allowedMax === 2) {
-        return PRIVILEGE_OPTIONS.filter((option) => option.value === 2);
+      if (allowedMax === PRIVILEGE_LEVELS.VOLUNTARY) {
+        return PRIVILEGE_OPTIONS.filter((option) => option.value === PRIVILEGE_LEVELS.VOLUNTARY);
       }
       return PRIVILEGE_OPTIONS.filter((option) => option.value <= allowedMax);
     },
@@ -224,7 +226,7 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
   const applyPrivilegeToRows = React.useCallback((ids: string[], next: number) => {
     const idSet = new Set(ids);
     setRows((prev) => {
-      if (next < 2) {
+      if (next < PRIVILEGE_LEVELS.VOLUNTARY) {
         return prev.filter((row) => !idSet.has(String(row.id)));
       }
       return prev.map((row) => (idSet.has(String(row.id)) ? { ...row, privilege_type: next } : row));
@@ -233,7 +235,7 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
       if (!prev || !idSet.has(String(prev.id))) {
         return prev;
       }
-      if (next < 2) {
+      if (next < PRIVILEGE_LEVELS.VOLUNTARY) {
         setDetailsOpen(false);
         return null;
       }
@@ -258,7 +260,8 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
 
   const handleRowPrivilegeChange = React.useCallback(
     async (member: UserRow, next: number) => {
-      const currentValue = typeof member.privilege_type === "number" ? member.privilege_type : 1;
+      const currentValue =
+        typeof member.privilege_type === "number" ? member.privilege_type : PRIVILEGE_LEVELS.MEMBER;
       if (!Number.isFinite(next) || next === currentValue) {
         return;
       }
@@ -307,7 +310,9 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
           canAssignPrivilege(
             currentPrivilege,
             next,
-            typeof member.privilege_type === "number" ? member.privilege_type : 1,
+            typeof member.privilege_type === "number"
+              ? member.privilege_type
+              : PRIVILEGE_LEVELS.MEMBER,
           ),
         )
         .map((member) => String(member.id));

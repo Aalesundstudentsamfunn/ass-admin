@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { enqueuePrinterQueue } from "@/lib/printer-queue";
 import { randomBytes } from "crypto";
 import { canManageMembers, isMembershipActive } from "@/lib/privilege-checks";
+import { PRIVILEGE_LEVELS } from "@/lib/privilege-config";
 
 const findAuthUserByEmail = async (email: string) => {
   const admin = createAdminClient();
@@ -221,7 +222,7 @@ async function activateMember(_: unknown, formData: FormData) {
       return { ok: false, error: "Dette medlemskapet er allerede aktivt." };
     }
 
-    const privilegeType = voluntary ? 2 : 1;
+    const privilegeType = voluntary ? PRIVILEGE_LEVELS.VOLUNTARY : PRIVILEGE_LEVELS.MEMBER;
     const { data: updatedMember, error: updateError } = await sb
       .from("members")
       .update({ privilege_type: privilegeType, is_membership_active: true })
@@ -244,7 +245,7 @@ async function activateMember(_: unknown, formData: FormData) {
       email: updatedMember.email,
       ref: updatedMember.id,
       ref_invoker: createdBy,
-      is_voluntary: privilegeType >= 2,
+      is_voluntary: privilegeType >= PRIVILEGE_LEVELS.VOLUNTARY,
     });
 
     if (queueError) {
@@ -303,7 +304,7 @@ async function addNewMember(_: unknown, formData: FormData) {
 
     const authResult = await ensureAuthUser(normalizedEmail, firstname, lastname);
     const authUser = authResult.user;
-    const privilegeType = voluntary ? 2 : 1;
+    const privilegeType = voluntary ? PRIVILEGE_LEVELS.VOLUNTARY : PRIVILEGE_LEVELS.MEMBER;
 
     const { data: newMember, error: insertError } = await sb
       .from("members")
@@ -334,7 +335,7 @@ async function addNewMember(_: unknown, formData: FormData) {
       email: newMember.email,
       ref: newMember.id,
       ref_invoker: createdBy,
-      is_voluntary: privilegeType >= 2,
+      is_voluntary: privilegeType >= PRIVILEGE_LEVELS.VOLUNTARY,
     });
 
     if (queueError) {
