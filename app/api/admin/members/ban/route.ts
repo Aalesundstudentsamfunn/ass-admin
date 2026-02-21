@@ -1,12 +1,11 @@
 /**
  * POST /api/admin/members/ban
  * Sets ban status for a member in Supabase Auth and mirrors to public.members.is_banned.
- * Access is restricted to authenticated members with privilege_type >= 4.
+ * Access is restricted by shared assertPermission guard (requirement: banMembers).
  */
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { canBanMembers } from "@/lib/privilege-checks";
+import { assertPermission } from "@/lib/server/assert-permission";
 
 export async function POST(request: Request) {
   try {
@@ -17,24 +16,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Medlems-ID mangler." }, { status: 400 });
     }
 
-    const supabase = await createClient();
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (authError || !authData.user) {
-      return NextResponse.json({ error: "Mangler tilgang." }, { status: 401 });
+    const permission = await assertPermission({ requirement: "banMembers" });
+    if (!permission.ok) {
+      return permission.response;
     }
+    const { supabase, userId } = permission;
 
-    if (nextBanned && authData.user.id === memberId) {
+    if (nextBanned && userId === memberId) {
       return NextResponse.json({ error: "Du kan ikke banne deg selv." }, { status: 400 });
-    }
-
-    const { data: me } = await supabase
-      .from("members")
-      .select("privilege_type")
-      .eq("id", authData.user.id)
-      .single();
-
-    if (!canBanMembers(me?.privilege_type)) {
-      return NextResponse.json({ error: "Mangler tilgang." }, { status: 403 });
     }
 
     const { data: targetMember, error: targetError } = await supabase
