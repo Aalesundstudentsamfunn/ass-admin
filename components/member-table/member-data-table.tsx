@@ -18,26 +18,13 @@ import { Filter, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { GlassPanel } from "@/components/ui/glass-panel";
+import { TablePaginationControls } from "@/components/ui/table-pagination-controls";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { MEMBER_PAGE_SIZES } from "@/lib/table-settings";
 import { isVoluntaryOrHigher } from "@/lib/privilege-checks";
 import type { MemberRow, PrivilegeOption } from "./shared";
-
-function Glass({ className = "", children }: React.PropsWithChildren<{ className?: string }>) {
-  return (
-    <div
-      className={cn(
-        "relative rounded-2xl border backdrop-blur-xl",
-        "bg-white/65 border-white/50 shadow-[0_1px_0_rgba(255,255,255,0.6),0_10px_30px_-10px_rgba(16,24,40,0.25)]",
-        "dark:bg-white/5 dark:border-white/10 dark:shadow-[0_1px_0_rgba(255,255,255,0.07),0_20px_60px_-20px_rgba(0,0,0,0.6)]",
-        className,
-      )}
-    >
-      {children}
-    </div>
-  );
-}
 
 export function MemberDataTable({
   columns,
@@ -419,7 +406,7 @@ export function MemberDataTable({
         </div>
       ) : null}
 
-      <Glass>
+      <GlassPanel>
         <div className="overflow-x-auto rounded-2xl">
           <Table>
             <TableHeader>
@@ -504,57 +491,25 @@ export function MemberDataTable({
             </TableBody>
           </Table>
         </div>
-      </Glass>
+      </GlassPanel>
 
-      <div className="flex items-center justify-between">
-        <div className="text-xs text-muted-foreground">
-          Viser {table.getRowModel().rows.length} av {table.getFilteredRowModel().rows.length} rader
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Rader per side</span>
-          <select
-            value={table.getState().pagination.pageSize}
-            onChange={(e) => {
-              const next = Number(e.target.value);
-              if (Number.isNaN(next)) {
-                return;
-              }
-              table.setPageSize(next);
-              table.setPageIndex(0);
-            }}
-            className="h-8 w-20 rounded-xl border border-border/60 bg-background/60 px-2 text-xs"
-            style={{ fontVariantNumeric: "tabular-nums" }}
-          >
-            {pageSizeOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-          <Button variant="outline" size="sm" className="rounded-xl" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
-            Forrige
-          </Button>
-          <span className="text-xs">Gå til side</span>
-          <Input
-            type="number"
-            min={1}
-            max={table.getPageCount()}
-            value={table.getState().pagination.pageIndex + 1}
-            onChange={(e) => {
-              let page = Number(e.target.value) - 1;
-              if (!Number.isNaN(page)) {
-                page = Math.max(0, Math.min(page, table.getPageCount() - 1));
-                table.setPageIndex(page);
-              }
-            }}
-            className="w-16 h-8 px-2 py-1 text-xs"
-            style={{ fontVariantNumeric: "tabular-nums" }}
-          />
-          <Button variant="outline" size="sm" className="rounded-xl" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
-            Neste
-          </Button>
-        </div>
-      </div>
+      <TablePaginationControls
+        rowCount={table.getRowModel().rows.length}
+        filteredCount={table.getFilteredRowModel().rows.length}
+        pageIndex={table.getState().pagination.pageIndex}
+        pageCount={table.getPageCount()}
+        canPrevious={table.getCanPreviousPage()}
+        canNext={table.getCanNextPage()}
+        onPrevious={() => table.previousPage()}
+        onNext={() => table.nextPage()}
+        onPageIndexChange={(page) => table.setPageIndex(page)}
+        pageSize={table.getState().pagination.pageSize}
+        pageSizeOptions={pageSizeOptions}
+        onPageSizeChange={(nextPageSize) => {
+          table.setPageSize(nextPageSize);
+          table.setPageIndex(0);
+        }}
+      />
     </div>
   );
 }
