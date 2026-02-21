@@ -2,6 +2,7 @@
  * Shared privilege helpers for client UX checks and lightweight API guards.
  * Note: DB RLS policies are still the source of truth, this is just UX feedback.
  */
+import { PRIVILEGE_LEVELS, PRIVILEGE_REQUIREMENTS } from "@/lib/privilege-config";
 
 // TODO: Add RLS policies to the new member table.
 
@@ -17,49 +18,49 @@ export function normalizePrivilege(value: number | null | undefined) {
  * Dashboard entry requires at least frivillig-level access.
  */
 export function canAccessDashboard(value: number | null | undefined) {
-  return normalizePrivilege(value) >= 2;
+  return normalizePrivilege(value) >= PRIVILEGE_REQUIREMENTS.dashboardAccess;
 }
 
 /**
  * Member management (create/activate) requires frivillig or higher.
  */
 export function canManageMembers(value: number | null | undefined) {
-  return normalizePrivilege(value) >= 2;
+  return normalizePrivilege(value) >= PRIVILEGE_REQUIREMENTS.manageMembers;
 }
 
 /**
  * Certificate management requires group leader or higher.
  */
 export function canManageCertificates(value: number | null | undefined) {
-  return normalizePrivilege(value) >= 3;
+  return normalizePrivilege(value) >= PRIVILEGE_REQUIREMENTS.manageCertificates;
 }
 
 /**
  * Password reset action for other users is restricted to 3+.
  */
 export function canResetPasswords(value: number | null | undefined) {
-  return normalizePrivilege(value) >= 3;
+  return normalizePrivilege(value) >= PRIVILEGE_REQUIREMENTS.resetPasswords;
 }
 
 /**
  * Member deletion is restricted to top-level admin roles.
  */
 export function canDeleteMembers(value: number | null | undefined) {
-  return normalizePrivilege(value) >= 4;
+  return normalizePrivilege(value) >= PRIVILEGE_REQUIREMENTS.deleteMembers;
 }
 
 /**
  * Membership active/inactive toggle is admin-only (4+).
  */
 export function canManageMembershipStatus(value: number | null | undefined) {
-  return normalizePrivilege(value) >= 4;
+  return normalizePrivilege(value) >= PRIVILEGE_REQUIREMENTS.manageMembershipStatus;
 }
 
 /**
  * Banning users is admin-only (4+).
  */
 export function canBanMembers(value: number | null | undefined) {
-  return normalizePrivilege(value) >= 4;
+  return normalizePrivilege(value) >= PRIVILEGE_REQUIREMENTS.banMembers;
 }
 
 /**
@@ -74,7 +75,7 @@ export function isMembershipActive(
   if (typeof activeFlag === "boolean") {
     return activeFlag;
   }
-  return normalizePrivilege(privilegeValue) >= 1;
+  return normalizePrivilege(privilegeValue) >= PRIVILEGE_LEVELS.MEMBER;
 }
 
 /**
@@ -85,11 +86,11 @@ export function isMembershipActive(
  */
 export function getMaxAssignablePrivilege(value: number | null | undefined) {
   const privilege = normalizePrivilege(value);
-  if (privilege >= 4) {
-    return 5;
+  if (privilege >= PRIVILEGE_LEVELS.STORTINGET) {
+    return PRIVILEGE_LEVELS.IT;
   }
-  if (privilege === 2) {
-    return 2;
+  if (privilege === PRIVILEGE_LEVELS.VOLUNTARY) {
+    return PRIVILEGE_LEVELS.VOLUNTARY;
   }
   return null;
 }
@@ -111,11 +112,11 @@ export function canEditPrivilegeForTarget(
   targetPrivilege: number | null | undefined,
 ) {
   const current = normalizePrivilege(currentPrivilege);
-  if (current >= 4) {
+  if (current >= PRIVILEGE_LEVELS.STORTINGET) {
     return true;
   }
-  if (current === 2) {
-    return normalizePrivilege(targetPrivilege) < 2;
+  if (current === PRIVILEGE_LEVELS.VOLUNTARY) {
+    return normalizePrivilege(targetPrivilege) < PRIVILEGE_LEVELS.VOLUNTARY;
   }
   return false;
 }
@@ -133,8 +134,11 @@ export function canAssignPrivilege(
   if (maxAllowed === null || nextPrivilege > maxAllowed) {
     return false;
   }
-  if (current === 2) {
-    return normalizePrivilege(targetPrivilege) < 2 && nextPrivilege === 2;
+  if (current === PRIVILEGE_LEVELS.VOLUNTARY) {
+    return (
+      normalizePrivilege(targetPrivilege) < PRIVILEGE_LEVELS.VOLUNTARY &&
+      nextPrivilege === PRIVILEGE_LEVELS.VOLUNTARY
+    );
   }
   return true;
 }
