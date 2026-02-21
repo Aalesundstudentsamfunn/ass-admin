@@ -1,7 +1,10 @@
 "use client";
 
 import { toast } from "sonner";
-import { PRIVILEGE_OPTIONS as SHARED_PRIVILEGE_OPTIONS } from "@/lib/privilege-config";
+import {
+  PRIVILEGE_LEVELS,
+  PRIVILEGE_OPTIONS as SHARED_PRIVILEGE_OPTIONS,
+} from "@/lib/privilege-config";
 
 export type MemberRow = {
   id: string | number;
@@ -33,6 +36,20 @@ export function getPrivilegeLabel(value: number | null | undefined) {
     return "Ukjent";
   }
   return PRIVILEGE_LABELS.get(value) ?? `Nivå ${value}`;
+}
+
+/**
+ * Returns assignable privilege options for the current user max level.
+ * Voluntary-level (2-3) users only get the voluntary option.
+ */
+export function getBulkPrivilegeOptions(allowedMax: number | null) {
+  if (allowedMax === null) {
+    return [];
+  }
+  if (allowedMax === PRIVILEGE_LEVELS.VOLUNTARY) {
+    return PRIVILEGE_OPTIONS.filter((option) => option.value === PRIVILEGE_LEVELS.VOLUNTARY);
+  }
+  return PRIVILEGE_OPTIONS.filter((option) => option.value <= allowedMax);
 }
 
 export async function copyToClipboard(value: string, label: string) {
