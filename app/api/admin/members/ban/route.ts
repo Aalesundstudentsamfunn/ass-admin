@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     const { supabase, userId } = permission;
 
     if (nextBanned && userId === memberId) {
-      return NextResponse.json({ error: "Du kan ikke banne deg selv." }, { status: 400 });
+      return NextResponse.json({ error: "Du kan ikke utestenge deg selv." }, { status: 400 });
     }
 
     const { data: targetMember, error: targetError } = await supabase
