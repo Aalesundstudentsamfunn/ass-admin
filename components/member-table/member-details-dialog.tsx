@@ -5,6 +5,7 @@ import { CheckCircle2, Pencil, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { PRIVILEGE_LEVELS } from "@/lib/privilege-config";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -129,7 +130,8 @@ export function MemberDetailsDialog({
   const passwordSetLabel = member?.password_set_at ? new Date(member.password_set_at).toLocaleString() : null;
   const passwordIsSet = Boolean(member?.password_set_at);
   const currentPrivilege = typeof currentUserPrivilege === "number" ? currentUserPrivilege : null;
-  const targetPrivilege = typeof member?.privilege_type === "number" ? member?.privilege_type : 1;
+  const targetPrivilege =
+    typeof member?.privilege_type === "number" ? member?.privilege_type : PRIVILEGE_LEVELS.MEMBER;
   const isSelf = Boolean(currentUserId && member?.id && String(currentUserId) === String(member.id));
   const canEditName = canManageMembers(currentPrivilege);
   const canEditTarget = canEditMemberPrivileges(currentPrivilege);
@@ -141,7 +143,7 @@ export function MemberDetailsDialog({
   const membershipActive =
     typeof member?.is_membership_active === "boolean"
       ? member.is_membership_active
-      : (member?.privilege_type ?? 0) >= 1;
+      : (member?.privilege_type ?? PRIVILEGE_LEVELS.NONE) >= PRIVILEGE_LEVELS.MEMBER;
   const banned = member?.is_banned === true;
   const membershipDisabled = !canEditMembershipStatus || isSaving || !member?.id;
   const allowedOptions =
