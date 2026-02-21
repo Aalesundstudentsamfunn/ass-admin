@@ -5,7 +5,6 @@ import { CheckCircle2, Pencil, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { PRIVILEGE_LEVELS } from "@/lib/privilege-config";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -17,6 +16,8 @@ import {
   canManageMembershipStatus,
   canSetOwnPrivilege,
   getMaxAssignablePrivilege,
+  isMembershipActive,
+  memberPrivilege,
 } from "@/lib/privilege-checks";
 import { copyToClipboard, MemberRow, PRIVILEGE_OPTIONS } from "./shared";
 
@@ -130,8 +131,7 @@ export function MemberDetailsDialog({
   const passwordSetLabel = member?.password_set_at ? new Date(member.password_set_at).toLocaleString() : null;
   const passwordIsSet = Boolean(member?.password_set_at);
   const currentPrivilege = typeof currentUserPrivilege === "number" ? currentUserPrivilege : null;
-  const targetPrivilege =
-    typeof member?.privilege_type === "number" ? member?.privilege_type : PRIVILEGE_LEVELS.MEMBER;
+  const targetPrivilege = memberPrivilege(member?.privilege_type);
   const isSelf = Boolean(currentUserId && member?.id && String(currentUserId) === String(member.id));
   const canEditName = canManageMembers(currentPrivilege);
   const canEditTarget = canEditMemberPrivileges(currentPrivilege);
@@ -140,10 +140,7 @@ export function MemberDetailsDialog({
   const canViewBanControls = showBanControls && canBanMembers(currentPrivilege);
   const allowedMax = getMaxAssignablePrivilege(currentPrivilege);
   const selectDisabled = !canEditTarget || !canEditThisTarget || isSaving || !member?.id;
-  const membershipActive =
-    typeof member?.is_membership_active === "boolean"
-      ? member.is_membership_active
-      : (member?.privilege_type ?? PRIVILEGE_LEVELS.NONE) >= PRIVILEGE_LEVELS.MEMBER;
+  const membershipActive = isMembershipActive(member?.is_membership_active);
   const banned = member?.is_banned === true;
   const membershipDisabled = !canEditMembershipStatus || isSaving || !member?.id;
   const allowedOptions =
