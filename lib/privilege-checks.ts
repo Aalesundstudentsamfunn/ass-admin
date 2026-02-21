@@ -15,21 +15,46 @@ export function normalizePrivilege(value: number | null | undefined) {
 }
 
 /**
- * Dashboard entry requires at least frivillig-level access.
+ * Returns a privilege value with a fallback when value is null/undefined.
+ * Fallback for member rows where missing privilege should still map to a known baseline.
+ */
+export function privilegeOrDefault(
+  value: number | null | undefined,
+  fallback: number,
+) {
+  return typeof value === "number" ? value : fallback;
+}
+
+/**
+ * Member-row helper: defaults missing privilege to MEMBER (1).
+ */
+export function memberPrivilege(value: number | null | undefined) {
+  return privilegeOrDefault(value, PRIVILEGE_LEVELS.MEMBER);
+}
+
+/**
+ * True when privilege is voluntary or higher.
+ */
+export function isVoluntaryOrHigher(value: number | null | undefined) {
+  return memberPrivilege(value) >= PRIVILEGE_LEVELS.VOLUNTARY;
+}
+
+/**
+ * Dashboard entry requires at least voluntary-level access.
  */
 export function canAccessDashboard(value: number | null | undefined) {
   return normalizePrivilege(value) >= PRIVILEGE_REQUIREMENTS.dashboardAccess;
 }
 
 /**
- * Member management (create/activate) requires frivillig or higher.
+ * Member management (create/activate) requires voluntary or higher.
  */
 export function canManageMembers(value: number | null | undefined) {
   return normalizePrivilege(value) >= PRIVILEGE_REQUIREMENTS.manageMembers;
 }
 
 /**
- * Certificate management requires group leader or higher.
+ * Certificate management requires groupleader or higher.
  */
 export function canManageCertificates(value: number | null | undefined) {
   return normalizePrivilege(value) >= PRIVILEGE_REQUIREMENTS.manageCertificates;
@@ -43,7 +68,7 @@ export function canResetPasswords(value: number | null | undefined) {
 }
 
 /**
- * Member deletion is restricted to top-level admin roles.
+ * Member deletion is restricted to admin roles.
  */
 export function canDeleteMembers(value: number | null | undefined) {
   return normalizePrivilege(value) >= PRIVILEGE_REQUIREMENTS.deleteMembers;
@@ -65,23 +90,18 @@ export function canBanMembers(value: number | null | undefined) {
 
 /**
  * Membership status helper.
- * - Prefers explicit boolean flag when available (`is_membership_active`).
- * - Falls back to legacy privilege-based check (1+ => active).
+ * Membership is active only when the explicit flag is true.
+ * No privilege-based fallback: access level and active membership are independent.
  */
-export function isMembershipActive(
-  activeFlag: boolean | null | undefined,
-  privilegeValue?: number | null | undefined,
-) {
-  if (typeof activeFlag === "boolean") {
-    return activeFlag;
-  }
-  return normalizePrivilege(privilegeValue) >= PRIVILEGE_LEVELS.MEMBER;
+export function isMembershipActive(activeFlag: boolean | null | undefined) {
+  return activeFlag === true;
 }
 
 /**
  * Returns the highest privilege value the current user is allowed to assign.
  * - 4+ can assign up to 5
- * - 2 can assign up to 2
+ * //TODO: Fix 4+ not doing priv 5
+ * - 2 and 3 can assign up to 2
  * - others cannot assign any privilege
  */
 export function getMaxAssignablePrivilege(value: number | null | undefined) {
@@ -89,7 +109,10 @@ export function getMaxAssignablePrivilege(value: number | null | undefined) {
   if (privilege >= PRIVILEGE_LEVELS.STORTINGET) {
     return PRIVILEGE_LEVELS.IT;
   }
-  if (privilege === PRIVILEGE_LEVELS.VOLUNTARY) {
+  if (
+    privilege === PRIVILEGE_LEVELS.VOLUNTARY ||
+    privilege === PRIVILEGE_LEVELS.GROUP_LEADER
+  ) {
     return PRIVILEGE_LEVELS.VOLUNTARY;
   }
   return null;
@@ -105,7 +128,7 @@ export function canEditMemberPrivileges(value: number | null | undefined) {
 /**
  * Per-target edit check:
  * - 4+ can edit anyone
- * - 2 can only promote users below 2 up to 2
+ * - 2 and 3 can only promote users below 2 up to 2
  */
 export function canEditPrivilegeForTarget(
   currentPrivilege: number | null | undefined,
@@ -115,7 +138,10 @@ export function canEditPrivilegeForTarget(
   if (current >= PRIVILEGE_LEVELS.STORTINGET) {
     return true;
   }
-  if (current === PRIVILEGE_LEVELS.VOLUNTARY) {
+  if (
+    current === PRIVILEGE_LEVELS.VOLUNTARY ||
+    current === PRIVILEGE_LEVELS.GROUP_LEADER
+  ) {
     return normalizePrivilege(targetPrivilege) < PRIVILEGE_LEVELS.VOLUNTARY;
   }
   return false;
@@ -134,7 +160,10 @@ export function canAssignPrivilege(
   if (maxAllowed === null || nextPrivilege > maxAllowed) {
     return false;
   }
-  if (current === PRIVILEGE_LEVELS.VOLUNTARY) {
+  if (
+    current === PRIVILEGE_LEVELS.VOLUNTARY ||
+    current === PRIVILEGE_LEVELS.GROUP_LEADER
+  ) {
     return (
       normalizePrivilege(targetPrivilege) < PRIVILEGE_LEVELS.VOLUNTARY &&
       nextPrivilege === PRIVILEGE_LEVELS.VOLUNTARY
