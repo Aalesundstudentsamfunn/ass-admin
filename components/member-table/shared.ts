@@ -1,6 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
+import { PRIVILEGE_OPTIONS as SHARED_PRIVILEGE_OPTIONS } from "@/lib/privilege-config";
 
 export type MemberRow = {
   id: string | number;
@@ -23,13 +24,7 @@ export type PrivilegeOption = {
 
 export const PILL_CLASS = "rounded-full px-2.5 py-0.5 text-xs font-medium";
 
-export const PRIVILEGE_OPTIONS: PrivilegeOption[] = [
-  { value: 1, label: "Medlem" },
-  { value: 2, label: "Frivillig" },
-  { value: 3, label: "Gruppeleder" },
-  { value: 4, label: "Stortinget" },
-  { value: 5, label: "IT" },
-];
+export const PRIVILEGE_OPTIONS: PrivilegeOption[] = SHARED_PRIVILEGE_OPTIONS;
 
 const PRIVILEGE_LABELS = new Map(PRIVILEGE_OPTIONS.map((option) => [option.value, option.label]));
 
