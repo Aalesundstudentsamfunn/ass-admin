@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { MEMBER_PAGE_SIZES } from "@/lib/table-settings";
-import { PRIVILEGE_LEVELS } from "@/lib/privilege-config";
+import { isVoluntaryOrHigher } from "@/lib/privilege-checks";
 import type { MemberRow, PrivilegeOption } from "./shared";
 
 function Glass({ className = "", children }: React.PropsWithChildren<{ className?: string }>) {
@@ -194,18 +194,12 @@ export function MemberDataTable({
       const sourceRows = table.getPreFilteredRowModel().rows;
       if (preset === "voluntary") {
         setSelectionByRows(
-          sourceRows.filter(
-            (row) =>
-              (row.original.privilege_type ?? PRIVILEGE_LEVELS.MEMBER) >= PRIVILEGE_LEVELS.VOLUNTARY,
-          ),
+          sourceRows.filter((row) => isVoluntaryOrHigher(row.original.privilege_type)),
         );
         return;
       }
       setSelectionByRows(
-        sourceRows.filter(
-          (row) =>
-            (row.original.privilege_type ?? PRIVILEGE_LEVELS.MEMBER) < PRIVILEGE_LEVELS.VOLUNTARY,
-        ),
+        sourceRows.filter((row) => !isVoluntaryOrHigher(row.original.privilege_type)),
       );
     },
     [setSelectionByRows, table],
