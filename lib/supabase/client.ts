@@ -1,5 +1,5 @@
 /**
- * Shared library module.
+ * Creates the browser Supabase client used in client components/hooks.
  */
 import { createBrowserClient } from "@supabase/ssr";
 

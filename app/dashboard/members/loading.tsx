@@ -1,7 +1,7 @@
 /**
- * Dashboard loading UI module.
+ * Loading placeholder for `members` dashboard view.
  */
-// app/loading.tsx (Next.js App Router)
+
 "use client"
 
 import * as React from "react"

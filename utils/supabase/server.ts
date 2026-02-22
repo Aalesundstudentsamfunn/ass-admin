@@ -1,11 +1,11 @@
 /**
- * Utility helper module.
+ * Alternate server-side Supabase client factory used by legacy imports.
  */
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
 /**
- * Legacy server Supabase client helper (kept for compatibility).
+ * Creates a request-scoped server Supabase client bound to Next cookie storage.
  */
 export async function createClient() {
     const cookieStore = await cookies()

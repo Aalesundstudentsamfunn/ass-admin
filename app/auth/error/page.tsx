@@ -1,5 +1,5 @@
 /**
- * Authentication module for sign-in, callback, or recovery flows.
+ * Auth error page that displays a human-readable error from query params.
  */
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 

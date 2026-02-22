@@ -1,5 +1,5 @@
 /**
- * Authentication module for sign-in, callback, or recovery flows.
+ * Login page for staff/admin members.
  */
 import { LoginForm } from "@/components/auth/login-form";
 import { Button } from "@/components/ui/button";

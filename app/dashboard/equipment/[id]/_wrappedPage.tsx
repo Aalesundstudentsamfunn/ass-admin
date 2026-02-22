@@ -1,5 +1,5 @@
 /**
- * Dashboard client wrapper/presentation module.
+ * Client-side presentation and interaction layer for `equipment/[id]/_wrappedPage.tsx`.
  */
 "use client"
 import Image from "next/image";

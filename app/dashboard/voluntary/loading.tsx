@@ -1,4 +1,7 @@
-// app/loading.tsx (Next.js App Router)
+/**
+ * Loading placeholder for `voluntary` dashboard view.
+ */
+
 "use client"
 
 import * as React from "react"

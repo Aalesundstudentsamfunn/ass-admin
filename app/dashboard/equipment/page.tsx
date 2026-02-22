@@ -1,6 +1,5 @@
 /**
- * Dashboard page module.
- * Fetches data and renders route-specific admin UI.
+ * Server route for `equipment` dashboard view.
  */
 import Link from "next/link"
 import GroupCard from "./_groupcard"

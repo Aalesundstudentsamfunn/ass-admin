@@ -1,6 +1,5 @@
 /**
- * Dashboard page module.
- * Fetches data and renders route-specific admin UI.
+ * Server route for `equipment/by-group/[id]` dashboard view.
  */
 import { createClient } from "@/lib/supabase/server";
 import WrappedUtstyrPage from "./_wrappedPage";

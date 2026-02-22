@@ -1,5 +1,5 @@
 /**
- * Dashboard client wrapper/presentation module.
+ * Client-side presentation and interaction layer for `equipment/_groupcard.tsx`.
  */
 import { Card, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

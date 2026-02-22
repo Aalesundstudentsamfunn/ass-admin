@@ -1,5 +1,5 @@
 /**
- * Authentication module for sign-in, callback, or recovery flows.
+ * Page that lets users set a new password after recovery/invite flows.
  */
 import { UpdatePasswordForm } from "@/components/auth/update-password-form";
 

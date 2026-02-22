@@ -1,5 +1,5 @@
 /**
- * Shared library module.
+ * Printer queue data helpers for enqueueing jobs and watching completion/error state.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 

@@ -1,5 +1,5 @@
 /**
- * Shared library module.
+ * Creates a server-only Supabase service-role client for privileged backend operations.
  */
 import { createClient } from "@supabase/supabase-js";
 

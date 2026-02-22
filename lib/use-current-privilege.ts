@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Shared library module.
+ * Client hook that fetches and caches current user privilege for UX gating.
  */
 
 import * as React from "react";

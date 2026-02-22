@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Shared library module.
+ * Typed localStorage helpers and hooks for persisted UI preferences.
  */
 
 import { useCallback, useEffect, useState } from "react";

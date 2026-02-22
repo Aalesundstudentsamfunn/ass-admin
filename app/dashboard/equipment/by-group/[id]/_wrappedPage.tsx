@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Dashboard client wrapper/presentation module.
+ * Client-side presentation and interaction layer for `equipment/by-group/[id]/_wrappedPage.tsx`.
  */
 
 import { useMemo, useState } from "react";

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Shared library module.
+ * Client-side helpers for persisted auto-print preference in member flows.
  */
 
 import { getStoredSetting, setStoredSetting, useStoredSetting } from "@/lib/settings-storage";

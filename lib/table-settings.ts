@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Shared library module.
+ * Persisted table-page-size configuration helpers used across dashboard tables.
  */
 
 import { getStoredSetting, setStoredSetting, useStoredSetting } from "@/lib/settings-storage";

@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * Client queue page that renders table view and details dialog state.
+ */
+
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

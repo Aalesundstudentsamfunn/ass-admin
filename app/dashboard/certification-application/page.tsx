@@ -1,8 +1,7 @@
 "use client";
 
 /**
- * Dashboard page module.
- * Fetches data and renders route-specific admin UI.
+ * Server route for `certification-application` dashboard view.
  */
 
 import * as React from "react";

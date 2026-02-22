@@ -1,5 +1,5 @@
 /**
- * Authentication module for sign-in, callback, or recovery flows.
+ * Page that renders the forgot-password form.
  */
 import { ForgotPasswordForm } from "@/components/auth/forgot-password-form";
 

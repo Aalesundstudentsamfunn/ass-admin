@@ -1,6 +1,5 @@
 /**
- * Dashboard page module.
- * Fetches data and renders route-specific admin UI.
+ * Dashboard landing route that loads overview statistics and renders the home view.
  */
 import { createClient } from "@/lib/supabase/server";
 import Landing from "./_wrapped_page";

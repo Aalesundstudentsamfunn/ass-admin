@@ -1,5 +1,5 @@
 /**
- * Shared library module.
+ * Middleware auth/session synchronizer that refreshes Supabase session cookies.
  */
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
