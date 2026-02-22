@@ -1,5 +1,5 @@
 /**
- * Authentication module for sign-in, callback, or recovery flows.
+ * Auth callback handler that exchanges code for session and redirects to the target path.
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
