@@ -1,8 +1,14 @@
+/**
+ * Authentication module for sign-in, callback, or recovery flows.
+ */
 import { createClient } from "@/lib/supabase/server";
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import { type NextRequest } from "next/server";
 
+/**
+ * Validates OTP confirmation token and redirects on success/failure.
+ */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const token_hash = searchParams.get("token_hash");

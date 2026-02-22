@@ -1,3 +1,6 @@
+/**
+ * Dashboard loading UI module.
+ */
 // app/loading.tsx (Next.js App Router)
 "use client"
 

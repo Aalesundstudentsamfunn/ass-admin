@@ -1,7 +1,14 @@
 "use client";
 
+/**
+ * Shared library module.
+ */
+
 import * as React from "react";
 
+/**
+ * Fetches current member privilege from `/api/me/privilege` once on mount.
+ */
 export function useCurrentPrivilege() {
   const [privilege, setPrivilege] = React.useState<number | null>(null);
 

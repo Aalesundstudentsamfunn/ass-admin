@@ -39,6 +39,14 @@ import { toast } from "sonner";
 
 export type UserRow = MemberRow;
 
+/**
+ * Builds members table columns.
+ *
+ * Notes:
+ * - Search column is hidden and used as a combined haystack for name/email/uuid.
+ * - `created_at_sort` is hidden and used to keep a stable default sort.
+ * - Privilege cell uses dropdown options constrained by current user's permissions.
+ */
 function buildColumns({
   onDelete,
   onPrint,
@@ -61,7 +69,8 @@ function buildColumns({
   return [
     {
       id: "search",
-      accessorFn: (row: UserRow) => `${row.firstname} ${row.lastname} ${row.email ?? ""}`.trim(),
+      accessorFn: (row: UserRow) =>
+        `${row.firstname} ${row.lastname} ${row.email ?? ""} ${String(row.id ?? "")}`.trim(),
       filterFn: (row, columnId, value) => {
         const query = String(value ?? "").trim().toLowerCase();
         if (!query) {
@@ -227,6 +236,12 @@ function buildColumns({
 }
 
 export default function MembersTablePage({ initialData }: { initialData: UserRow[] }) {
+  /**
+   * Client-side container for members management:
+   * - keeps local table state for optimistic UX
+   * - coordinates API actions (print/delete/bulk updates)
+   * - drives details dialog state
+   */
   const router = useRouter();
   const supabase = React.useMemo(() => createClient(), []);
   const defaultPageSize = useMemberPageSizeDefault();
@@ -693,6 +708,7 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
             showSelectionQuickActions
             toolbarActions={<CreateUserDialog />}
             searchParamKey="email"
+            searchPlaceholder="Søk navn, e-post eller UUID…"
             onRowClick={(member) => {
               setSelectedMember(member);
               setDetailsOpen(true);

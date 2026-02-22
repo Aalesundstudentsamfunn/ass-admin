@@ -6,6 +6,9 @@ import { cookies } from "next/headers";
  * global variable. Always create a new client within each function when using
  * it.
  */
+/**
+ * Creates a request-scoped server Supabase client backed by Next cookies.
+ */
 export async function createClient() {
   const cookieStore = await cookies();
 

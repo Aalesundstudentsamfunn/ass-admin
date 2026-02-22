@@ -3,6 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { normalizePrivilege } from "@/lib/privilege-checks";
 import { PRIVILEGE_REQUIREMENTS } from "@/lib/privilege-config";
 
+/**
+ * Shared server-side authorization guard for admin API routes.
+ * Centralizes auth/session checks + privilege checks before mutations run.
+ */
 type AssertPermissionOptions = {
   minPrivilege?: number;
   requirement?: keyof typeof PRIVILEGE_REQUIREMENTS;

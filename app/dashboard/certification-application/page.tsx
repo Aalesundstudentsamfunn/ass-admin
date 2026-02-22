@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * Dashboard page module.
+ * Fetches data and renders route-specific admin UI.
+ */
+
 import * as React from "react";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";

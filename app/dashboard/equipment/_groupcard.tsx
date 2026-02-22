@@ -1,3 +1,6 @@
+/**
+ * Dashboard client wrapper/presentation module.
+ */
 import { Card, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";

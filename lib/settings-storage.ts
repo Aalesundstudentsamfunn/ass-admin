@@ -1,10 +1,17 @@
 "use client";
 
+/**
+ * Shared library module.
+ */
+
 import { useCallback, useEffect, useState } from "react";
 
 type Parser<T> = (raw: string) => T;
 type Serializer<T> = (value: T) => string;
 
+/**
+ * Reads and parses a typed setting from localStorage.
+ */
 export function getStoredSetting<T>(key: string, defaultValue: T, parse: Parser<T>): T {
   if (typeof window === "undefined") {
     return defaultValue;
@@ -22,6 +29,9 @@ export function getStoredSetting<T>(key: string, defaultValue: T, parse: Parser<
   }
 }
 
+/**
+ * Serializes and stores a typed setting in localStorage.
+ */
 export function setStoredSetting<T>(key: string, value: T, serialize: Serializer<T>) {
   if (typeof window === "undefined") {
     return;
@@ -30,6 +40,9 @@ export function setStoredSetting<T>(key: string, value: T, serialize: Serializer
   window.localStorage.setItem(key, serialize(value));
 }
 
+/**
+ * React hook that binds a typed setting to component state and cross-tab sync.
+ */
 export function useStoredSetting<T>(
   key: string,
   defaultValue: T,

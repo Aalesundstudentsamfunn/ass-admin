@@ -1,3 +1,7 @@
+/**
+ * Dashboard page module.
+ * Fetches data and renders route-specific admin UI.
+ */
 // app/dashboard/groups/page.tsx
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"

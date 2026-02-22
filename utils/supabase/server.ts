@@ -1,6 +1,12 @@
+/**
+ * Utility helper module.
+ */
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
+/**
+ * Legacy server Supabase client helper (kept for compatibility).
+ */
 export async function createClient() {
     const cookieStore = await cookies()
 

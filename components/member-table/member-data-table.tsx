@@ -26,6 +26,15 @@ import { MEMBER_PAGE_SIZES } from "@/lib/table-settings";
 import { isVoluntaryOrHigher } from "@/lib/privilege-checks";
 import type { MemberRow, PrivilegeOption } from "./shared";
 
+/**
+ * Shared table shell used by members/frivillige pages.
+ *
+ * It centralizes:
+ * - search + quick filters
+ * - sorting/pagination
+ * - optional row-selection mode with bulk actions
+ * - responsive table rendering with shared styles
+ */
 export function MemberDataTable({
   columns,
   data,
@@ -45,6 +54,7 @@ export function MemberDataTable({
   showSelectionQuickActions = false,
   toolbarActions,
   searchParamKey,
+  searchPlaceholder = "Søk navn eller e-post…",
 }: {
   columns: ColumnDef<MemberRow, unknown>[];
   data: MemberRow[];
@@ -64,6 +74,7 @@ export function MemberDataTable({
   showSelectionQuickActions?: boolean;
   toolbarActions?: React.ReactNode;
   searchParamKey?: string;
+  searchPlaceholder?: string;
 }) {
   const [sorting, setSorting] = React.useState<SortingState>([{ id: "created_at_sort", desc: true }]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
@@ -126,6 +137,9 @@ export function MemberDataTable({
   const hasSearchFilter = Boolean(table.getColumn("search")?.getFilterValue());
   const isDefaultSort = sorting.length === 1 && sorting[0]?.id === "created_at_sort" && sorting[0]?.desc === true;
 
+  /**
+   * Applies predefined sorting/filter presets used by the funnel icon menu.
+   */
   const applyQuickFilter = (preset: "latest" | "oldest" | "lastname" | "email" | "privilege" | "reset") => {
     switch (preset) {
       case "latest":
@@ -168,6 +182,9 @@ export function MemberDataTable({
     [table],
   );
 
+  /**
+   * Fast bulk selection presets for selection mode.
+   */
   const quickSelect = React.useCallback(
     (preset: "voluntary" | "members" | "visible" | "everyone") => {
       if (preset === "visible") {
@@ -198,7 +215,7 @@ export function MemberDataTable({
         <div className="flex flex-1 items-center gap-2">
           <div className="relative w-full max-w-xs">
             <Input
-              placeholder="Søk navn eller e-post…"
+              placeholder={searchPlaceholder}
               value={(table.getColumn("search")?.getFilterValue() as string) ?? ""}
               onChange={(e) => table.getColumn("search")?.setFilterValue(e.target.value)}
               className="rounded-xl bg-background/60 pr-10"

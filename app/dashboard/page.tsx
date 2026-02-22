@@ -1,3 +1,7 @@
+/**
+ * Dashboard page module.
+ * Fetches data and renders route-specific admin UI.
+ */
 import { createClient } from "@/lib/supabase/server";
 import Landing from "./_wrapped_page";
 

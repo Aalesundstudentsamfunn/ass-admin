@@ -1,3 +1,6 @@
+/**
+ * Authentication module for sign-in, callback, or recovery flows.
+ */
 import { LoginForm } from "@/components/auth/login-form";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";

@@ -1,3 +1,6 @@
+/**
+ * Authentication module for sign-in, callback, or recovery flows.
+ */
 import { UpdatePasswordForm } from "@/components/auth/update-password-form";
 
 export default function Page() {

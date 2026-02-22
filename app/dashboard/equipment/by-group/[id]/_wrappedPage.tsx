@@ -1,6 +1,10 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+/**
+ * Dashboard client wrapper/presentation module.
+ */
+
+import { useMemo, useState } from "react";
 import Image from "next/image";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ItemType } from "./page";

@@ -1,6 +1,12 @@
+/**
+ * Authentication module for sign-in, callback, or recovery flows.
+ */
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+/**
+ * Exchanges auth code for session and redirects to target route.
+ */
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");

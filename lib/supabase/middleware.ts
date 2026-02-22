@@ -1,7 +1,14 @@
+/**
+ * Shared library module.
+ */
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 
+/**
+ * Refreshes Supabase auth session in middleware and redirects unauthenticated
+ * requests away from protected routes.
+ */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,

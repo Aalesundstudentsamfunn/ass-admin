@@ -1,3 +1,6 @@
+/**
+ * Authentication module for sign-in, callback, or recovery flows.
+ */
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function Page({

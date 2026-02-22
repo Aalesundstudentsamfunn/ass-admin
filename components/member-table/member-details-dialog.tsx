@@ -27,6 +27,9 @@ type AddedByProfile = {
   email?: string | null;
 };
 
+/**
+ * Consistent two-column row layout for labels/values inside the member details dialog.
+ */
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="grid grid-cols-[9rem_minmax(0,1fr)] items-center gap-4">
@@ -80,6 +83,11 @@ export function MemberDetailsDialog({
   onBanUpdated: (next: boolean) => void;
   showBanControls?: boolean;
 }) {
+  /**
+   * Dialog-local state:
+   * - `addedByProfile` resolves created_by reference for display.
+   * - name draft states keep edits local until save succeeds.
+   */
   const [addedByProfile, setAddedByProfile] = React.useState<AddedByProfile | null>(null);
   const [loadingAddedBy, setLoadingAddedBy] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);

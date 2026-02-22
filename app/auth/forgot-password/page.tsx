@@ -1,3 +1,6 @@
+/**
+ * Authentication module for sign-in, callback, or recovery flows.
+ */
 import { ForgotPasswordForm } from "@/components/auth/forgot-password-form";
 
 export default function Page() {
