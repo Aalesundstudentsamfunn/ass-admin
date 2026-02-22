@@ -4,8 +4,6 @@
  * Used by client-side permission gating in the dashboard.
  */
 
-//TODO: Remove duplicate calls to this api
-
 import { NextResponse } from "next/server";
 import { assertPermission } from "@/lib/server/assert-permission";
 

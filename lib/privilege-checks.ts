@@ -4,8 +4,6 @@
  */
 import { PRIVILEGE_LEVELS, PRIVILEGE_REQUIREMENTS } from "@/lib/privilege-config";
 
-// TODO: Add RLS policies to the new member table.
-
 /**
  * Normalizes nullable/invalid privilege values to a safe integer baseline (0).
  */
@@ -104,17 +102,20 @@ export function isMembershipActive(activeFlag: boolean | null | undefined) {
   return activeFlag === true;
 }
 
-//TODO: Fix 4+ not doing priv 5
 /**
  * Returns the highest privilege value the current user is allowed to assign.
- * - 4+ can assign up to 5
+ * - 5 can assign up to 5
+ * - 4 can assign up to 4
  * - 2 and 3 can assign up to 2
  * - others cannot assign any privilege
  */
 export function getMaxAssignablePrivilege(value: number | null | undefined) {
   const privilege = normalizePrivilege(value);
-  if (privilege >= PRIVILEGE_LEVELS.STORTINGET) {
+  if (privilege >= PRIVILEGE_LEVELS.IT) {
     return PRIVILEGE_LEVELS.IT;
+  }
+  if (privilege >= PRIVILEGE_LEVELS.STORTINGET) {
+    return PRIVILEGE_LEVELS.STORTINGET;
   }
   if (
     privilege === PRIVILEGE_LEVELS.VOLUNTARY ||
@@ -134,7 +135,8 @@ export function canEditMemberPrivileges(value: number | null | undefined) {
 
 /**
  * Per-target edit check:
- * - 4+ can edit anyone
+ * - 5 can edit anyone
+ * - 4 can edit up to 4
  * - 2 and 3 can only promote users below 2 up to 2
  */
 export function canEditPrivilegeForTarget(
@@ -142,14 +144,18 @@ export function canEditPrivilegeForTarget(
   targetPrivilege: number | null | undefined,
 ) {
   const current = normalizePrivilege(currentPrivilege);
-  if (current >= PRIVILEGE_LEVELS.STORTINGET) {
+  const target = normalizePrivilege(targetPrivilege);
+  if (current >= PRIVILEGE_LEVELS.IT) {
     return true;
+  }
+  if (current >= PRIVILEGE_LEVELS.STORTINGET) {
+    return target <= current;
   }
   if (
     current === PRIVILEGE_LEVELS.VOLUNTARY ||
     current === PRIVILEGE_LEVELS.GROUP_LEADER
   ) {
-    return normalizePrivilege(targetPrivilege) < PRIVILEGE_LEVELS.VOLUNTARY;
+    return target < PRIVILEGE_LEVELS.VOLUNTARY;
   }
   return false;
 }
@@ -167,10 +173,22 @@ export function canAssignPrivilege(
   if (maxAllowed === null || nextPrivilege > maxAllowed) {
     return false;
   }
+  if (current >= PRIVILEGE_LEVELS.IT) {
+    return true;
+  }
+  if (current >= PRIVILEGE_LEVELS.STORTINGET) {
+    if (typeof targetPrivilege !== "number") {
+      return true;
+    }
+    return normalizePrivilege(targetPrivilege) <= current;
+  }
   if (
     current === PRIVILEGE_LEVELS.VOLUNTARY ||
     current === PRIVILEGE_LEVELS.GROUP_LEADER
   ) {
+    if (typeof targetPrivilege !== "number") {
+      return nextPrivilege === PRIVILEGE_LEVELS.VOLUNTARY;
+    }
     return (
       normalizePrivilege(targetPrivilege) < PRIVILEGE_LEVELS.VOLUNTARY &&
       nextPrivilege === PRIVILEGE_LEVELS.VOLUNTARY
