@@ -23,6 +23,11 @@ import { TablePaginationControls } from "@/components/ui/table-pagination-contro
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { MEMBER_PAGE_SIZES } from "@/lib/table-settings";
+import {
+  buildSearchHaystack,
+  containsTextFilter,
+  sortByDateValue,
+} from "@/lib/table/column-helpers";
 import { formatDate, getInvokerLabel, getStatusMeta, PrinterLogRow } from "./shared";
 
 const DEFAULT_QUEUE_SORT: SortingState = [{ id: "created_at", desc: true }];
@@ -32,7 +37,7 @@ function buildColumns(): ColumnDef<PrinterLogRow, unknown>[] {
     {
       id: "search",
       accessorFn: (row: PrinterLogRow) =>
-        [
+        buildSearchHaystack([
           row.firstname,
           row.lastname,
           row.email,
@@ -40,27 +45,14 @@ function buildColumns(): ColumnDef<PrinterLogRow, unknown>[] {
           row.error_msg ?? "",
           getInvokerLabel(row),
           getStatusMeta(row).label,
-        ]
-          .join(" ")
-          .trim(),
-      filterFn: (row, columnId, value) => {
-        const query = String(value ?? "").trim().toLowerCase();
-        if (!query) {
-          return true;
-        }
-        const haystack = String(row.getValue(columnId) ?? "").toLowerCase();
-        return haystack.includes(query);
-      },
+        ]),
+      filterFn: containsTextFilter,
       enableSorting: false,
       enableHiding: true,
     },
     {
       accessorKey: "created_at",
-      sortingFn: (a, b) => {
-        const aValue = new Date(String(a.getValue("created_at") ?? "")).getTime();
-        const bValue = new Date(String(b.getValue("created_at") ?? "")).getTime();
-        return aValue - bValue;
-      },
+      sortingFn: sortByDateValue,
       header: ({ column }) => (
         <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
           Tidspunkt <ArrowUpDown className="h-3.5 w-3.5" />

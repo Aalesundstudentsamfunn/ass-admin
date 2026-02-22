@@ -2,30 +2,31 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUpDown, Printer, Trash2 } from "lucide-react";
+import { Printer, Trash2 } from "lucide-react";
 import { ColumnDef } from "@tanstack/react-table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { CreateUserDialog } from "@/components/add-new-member";
 import { MemberDataTable } from "@/components/member-table/member-data-table";
 import { MemberDetailsDialog } from "@/components/member-table/member-details-dialog";
 import {
-  copyToClipboard,
+  createMemberCreatedAtSortColumn,
+  createMemberIdentityColumns,
+  createMemberPrivilegeColumn,
+  createMemberSearchColumn,
+} from "@/components/member-table/columns";
+import {
   getBulkPrivilegeOptions,
   getPrivilegeLabel,
   MemberRow,
-  PILL_CLASS,
-  PRIVILEGE_OPTIONS,
 } from "@/components/member-table/shared";
 import { createClient } from "@/lib/supabase/client";
 import { enqueuePrinterQueue, watchPrinterQueueStatus } from "@/lib/printer-queue";
 import { useCurrentPrivilege } from "@/lib/use-current-privilege";
+import { useCurrentUserId } from "@/lib/use-current-user-id";
 import { useMemberPageSizeDefault } from "@/lib/table-settings";
 import {
   canAssignPrivilege,
-  canEditPrivilegeForTarget,
   canDeleteMembers as canDeleteMembersByPrivilege,
   canEditMemberPrivileges,
   canManageMembershipStatus,
@@ -39,14 +40,6 @@ import { toast } from "sonner";
 
 export type UserRow = MemberRow;
 
-/**
- * Builds members table columns.
- *
- * Notes:
- * - Search column is hidden and used as a combined haystack for name/email/uuid.
- * - `created_at_sort` is hidden and used to keep a stable default sort.
- * - Privilege cell uses dropdown options constrained by current user's permissions.
- */
 function buildColumns({
   onDelete,
   onPrint,
@@ -67,134 +60,15 @@ function buildColumns({
   currentPrivilege: number | null | undefined;
 }): ColumnDef<UserRow, unknown>[] {
   return [
-    {
-      id: "search",
-      accessorFn: (row: UserRow) =>
-        `${row.firstname} ${row.lastname} ${row.email ?? ""} ${String(row.id ?? "")}`.trim(),
-      filterFn: (row, columnId, value) => {
-        const query = String(value ?? "").trim().toLowerCase();
-        if (!query) {
-          return true;
-        }
-        const haystack = String(row.getValue(columnId) ?? "").toLowerCase();
-        return haystack.includes(query);
-      },
-      enableSorting: false,
-      enableHiding: true,
-    },
-    {
-      id: "created_at_sort",
-      accessorKey: "created_at",
-      sortingFn: (a, b) => {
-        const aValue = new Date(String(a.getValue("created_at_sort") ?? "")).getTime();
-        const bValue = new Date(String(b.getValue("created_at_sort") ?? "")).getTime();
-        return aValue - bValue;
-      },
-      header: () => null,
-      cell: () => null,
-      enableHiding: true,
-    },
-    {
-      accessorKey: "email",
-      header: ({ column }) => (
-        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          E-post <ArrowUpDown className="h-3.5 w-3.5" />
-        </button>
-      ),
-      cell: ({ row }) => (
-        <span className="relative inline-flex items-center group">
-          <button
-            type="button"
-            className="underline-offset-2 hover:underline"
-            onClick={(event) => {
-              event.stopPropagation();
-              copyToClipboard(String(row.getValue("email") ?? ""), "E-post");
-            }}
-          >
-            {row.getValue("email")}
-          </button>
-          <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground/90 px-2 py-1 text-[10px] text-background opacity-0 transition-opacity group-hover:opacity-100">
-            Kopier
-          </span>
-        </span>
-      ),
-    },
-    {
-      accessorKey: "firstname",
-      header: ({ column }) => (
-        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Fornavn <ArrowUpDown className="h-3.5 w-3.5" />
-        </button>
-      ),
-      cell: ({ row }) => <span>{row.getValue("firstname")}</span>,
-    },
-    {
-      accessorKey: "lastname",
-      header: ({ column }) => (
-        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Etternavn <ArrowUpDown className="h-3.5 w-3.5" />
-        </button>
-      ),
-      cell: ({ row }) => <span>{row.getValue("lastname")}</span>,
-    },
-    {
-      accessorKey: "privilege_type",
-      header: ({ column }) => (
-        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Tilgang <ArrowUpDown className="h-3.5 w-3.5" />
-        </button>
-      ),
-      cell: ({ row }) => {
-        const member = row.original as UserRow;
-        const label = getPrivilegeLabel(row.getValue("privilege_type") as number | null);
-        const targetPrivilege = memberPrivilege(member.privilege_type);
-        if (!canEditPrivileges || !canEditPrivilegeForTarget(currentPrivilege, targetPrivilege)) {
-          return (
-            <Badge variant="secondary" className={PILL_CLASS}>
-              {label}
-            </Badge>
-          );
-        }
-        const options = (bulkOptions.length ? bulkOptions : PRIVILEGE_OPTIONS).filter((option) =>
-          canAssignPrivilege(currentPrivilege, option.value, targetPrivilege),
-        );
-        if (!options.length) {
-          return (
-            <Badge variant="secondary" className={PILL_CLASS}>
-              {label}
-            </Badge>
-          );
-        }
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="inline-flex"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <Badge variant="secondary" className={`${PILL_CLASS} cursor-pointer`}>
-                  {label}
-                </Badge>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[10rem]">
-              {options.map((option) => (
-                <DropdownMenuItem
-                  key={option.value}
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    onPrivilegeChange(member, option.value);
-                  }}
-                >
-                  {option.label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        );
-      },
-    },
+    createMemberSearchColumn(true),
+    createMemberCreatedAtSortColumn(),
+    ...createMemberIdentityColumns(),
+    createMemberPrivilegeColumn({
+      canEditPrivileges,
+      bulkOptions,
+      currentPrivilege,
+      onPrivilegeChange,
+    }),
     {
       id: "actions",
       header: () => <span className="sr-only">Actions</span>,
@@ -239,17 +113,16 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
   /**
    * Client-side container for members management:
    * - keeps local table state for optimistic UX
-   * - coordinates API actions (print/delete/bulk updates)
-   * - drives details dialog state
+  * - coordinates API actions (print/delete/bulk updates)
+  * - drives details dialog state
    */
   const router = useRouter();
-  const supabase = React.useMemo(() => createClient(), []);
   const defaultPageSize = useMemberPageSizeDefault();
   const [rows, setRows] = React.useState<UserRow[]>(initialData);
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [selectedMember, setSelectedMember] = React.useState<UserRow | null>(null);
   const [detailsOpen, setDetailsOpen] = React.useState(false);
-  const [currentUserId, setCurrentUserId] = React.useState<string | null>(null);
+  const currentUserId = useCurrentUserId();
 
   const currentPrivilege = useCurrentPrivilege();
   const canDeleteMembers = canDeleteMembersByPrivilege(currentPrivilege);
@@ -262,21 +135,6 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
   React.useEffect(() => {
     setRows(initialData);
   }, [initialData]);
-
-  React.useEffect(() => {
-    let active = true;
-    const loadUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!active) {
-        return;
-      }
-      setCurrentUserId(data.user?.id ?? null);
-    };
-    loadUser();
-    return () => {
-      active = false;
-    };
-  }, [supabase]);
 
   const handlePrint = React.useCallback(async (member: UserRow) => {
     if (member.is_banned === true) {
