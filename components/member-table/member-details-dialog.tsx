@@ -19,7 +19,20 @@ import {
   isMembershipActive,
   memberPrivilege,
 } from "@/lib/privilege-checks";
-import { copyToClipboard, MemberRow, PRIVILEGE_OPTIONS } from "./shared";
+import { MemberRow, PRIVILEGE_OPTIONS } from "./shared";
+import {
+  CopyableInlineValue,
+  DetailRow,
+  StatusIcon,
+  YesNoStatus,
+} from "./member-details-primitives";
+import {
+  sendMemberPasswordReset,
+  updateMemberBanStatus,
+  updateMemberMembershipStatus,
+  updateMemberName,
+  updateMemberPrivilege,
+} from "./member-details-actions";
 
 type AddedByProfile = {
   firstname?: string | null;
@@ -28,38 +41,8 @@ type AddedByProfile = {
 };
 
 /**
- * Consistent two-column row layout for labels/values inside the member details dialog.
+ * Member details modal for editing name, privilege, membership and ban state.
  */
-function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-[9rem_minmax(0,1fr)] items-center gap-4">
-      <span className="text-muted-foreground">{label}</span>
-      <div className="flex min-w-0 justify-end text-right">{children}</div>
-    </div>
-  );
-}
-
-function YesNoStatus({ value }: { value: boolean }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 font-medium">
-      {value ? (
-        <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-hidden="true" />
-      ) : (
-        <XCircle className="h-4 w-4 text-red-500" aria-hidden="true" />
-      )}
-      {value ? "Ja" : "Nei"}
-    </span>
-  );
-}
-
-function StatusIcon({ value }: { value: boolean }) {
-  return value ? (
-    <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-hidden="true" />
-  ) : (
-    <XCircle className="h-4 w-4 text-red-500" aria-hidden="true" />
-  );
-}
-
 export function MemberDetailsDialog({
   open,
   onOpenChange,
@@ -183,10 +166,9 @@ export function MemberDetailsDialog({
       toast.error("Ugyldig tilgangsnivå for din rolle.");
       return;
     }
-    const supabase = createClient();
     const toastId = toast.loading("Oppdaterer tilgangsnivå...", { duration: 10000 });
     setIsSaving(true);
-    const { error } = await supabase.from("members").update({ privilege_type: next }).eq("id", member.id);
+    const { error } = await updateMemberPrivilege(member.id, next);
     if (error) {
       toast.error("Kunne ikke oppdatere tilgangsnivå.", {
         id: toastId,
@@ -216,12 +198,7 @@ export function MemberDetailsDialog({
 
     const toastId = toast.loading("Oppdaterer medlemsstatus...", { duration: 10000 });
     setIsSaving(true);
-    const response = await fetch("/api/admin/members/membership-status", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ member_id: member.id, is_active: next }),
-    });
-    const payload = await response.json().catch(() => ({}));
+    const { response, payload } = await updateMemberMembershipStatus(member.id, next);
     if (!response.ok) {
       toast.error("Kunne ikke oppdatere medlemsstatus.", {
         id: toastId,
@@ -257,12 +234,7 @@ export function MemberDetailsDialog({
     const toastId = toast.loading("Oppdaterer navn...", { duration: 10000 });
     setIsSaving(true);
     try {
-      const response = await fetch("/api/admin/members/update-name", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: member.id, firstname, lastname }),
-      });
-      const payload = await response.json().catch(() => ({}));
+      const { response, payload } = await updateMemberName(member.id, firstname, lastname);
       if (!response.ok) {
         toast.error("Kunne ikke oppdatere navn.", {
           id: toastId,
@@ -295,21 +267,7 @@ export function MemberDetailsDialog({
           <div className="grid gap-2 text-sm">
             <DetailRow label="UUID">
               <span className="font-medium">
-                <span className="relative inline-flex items-center group">
-                  <button
-                    type="button"
-                    className="underline-offset-2 hover:underline"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      copyToClipboard(String(member.id), "UUID");
-                    }}
-                  >
-                    {member.id}
-                  </button>
-                  <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground/90 px-2 py-1 text-[10px] text-background opacity-0 transition-opacity group-hover:opacity-100">
-                    Kopier
-                  </span>
-                </span>
+                <CopyableInlineValue value={String(member.id)} copyLabel="UUID" />
               </span>
             </DetailRow>
             {canEditName ? (
@@ -369,21 +327,7 @@ export function MemberDetailsDialog({
             <DetailRow label="E-post">
               {member.email ? (
                 <span className="font-medium">
-                  <span className="relative inline-flex items-center group">
-                    <button
-                      type="button"
-                      className="underline-offset-2 hover:underline"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        copyToClipboard(member.email ?? "", "E-post");
-                      }}
-                    >
-                      {member.email}
-                    </button>
-                    <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground/90 px-2 py-1 text-[10px] text-background opacity-0 transition-opacity group-hover:opacity-100">
-                      Kopier
-                    </span>
-                  </span>
+                  <CopyableInlineValue value={member.email} copyLabel="E-post" />
                 </span>
               ) : (
                 <span className="font-medium">—</span>
@@ -471,13 +415,8 @@ export function MemberDetailsDialog({
                   onClick={async () => {
                     const toastId = toast.loading("Sender passordlenke...", { duration: 10000 });
                     try {
-                      const res = await fetch("/api/admin/members/password-reset", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ email: member.email }),
-                      });
-                      if (!res.ok) {
-                        const payload = await res.json().catch(() => ({}));
+                      const { response, payload } = await sendMemberPasswordReset(member.email);
+                      if (!response.ok) {
                         toast.error("Kunne ikke sende passordlenke.", {
                           id: toastId,
                           description: payload?.error ?? "Ukjent feil.",
@@ -526,13 +465,11 @@ export function MemberDetailsDialog({
                     );
                     setIsSaving(true);
                     try {
-                      const res = await fetch("/api/admin/members/ban", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ member_id: member.id, is_banned: nextBanned }),
-                      });
-                      const payload = await res.json().catch(() => ({}));
-                      if (!res.ok) {
+                      const { response, payload } = await updateMemberBanStatus(
+                        member.id,
+                        nextBanned,
+                      );
+                      if (!response.ok) {
                         toast.error(nextBanned ? "Kunne ikke utestenge bruker." : "Kunne ikke oppheve utestengingen.", {
                           id: toastId,
                           description: payload?.error ?? "Ukjent feil.",

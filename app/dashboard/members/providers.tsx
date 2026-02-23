@@ -1,37 +1,13 @@
 'use client';
 import { createContext, useContext } from 'react';
+import type {
+    AddMemberActionResult,
+    CheckMemberEmailResult,
+} from "@/lib/members/actions-types";
 
-type AddNewMemberResult = {
-    ok: boolean;
-    error?: string;
-    autoPrint?: boolean;
-    queueId?: string | number;
-    queueRef?: string | number;
-    queueInvoker?: string;
-};
-
-type MemberLookup = {
-    id: string;
-    firstname: string;
-    lastname: string;
-    email: string;
-    privilege_type: number | null;
-    is_banned?: boolean | null;
-};
-
-type CheckMemberResult = {
-    ok: boolean;
-    error?: string;
-    exists?: boolean;
-    active?: boolean;
-    banned?: boolean;
-    email?: string;
-    member?: MemberLookup;
-};
-
-type AddNewMember = (state: unknown, formData: FormData) => Promise<AddNewMemberResult>;
-type CheckMemberEmail = (state: unknown, formData: FormData) => Promise<CheckMemberResult>;
-type ActivateMember = (state: unknown, formData: FormData) => Promise<AddNewMemberResult>;
+type AddNewMember = (state: unknown, formData: FormData) => Promise<AddMemberActionResult>;
+type CheckMemberEmail = (state: unknown, formData: FormData) => Promise<CheckMemberEmailResult>;
+type ActivateMember = (state: unknown, formData: FormData) => Promise<AddMemberActionResult>;
 
 const ActionsCtx = createContext<{
     addNewMember: AddNewMember;
@@ -39,6 +15,9 @@ const ActionsCtx = createContext<{
     activateMember: ActivateMember;
 } | null>(null);
 
+/**
+ * Provides server actions used by the create/activate member dialog.
+ */
 export function ActionsProvider({
     children,
     addNewMember,
@@ -53,6 +32,9 @@ export function ActionsProvider({
     return <ActionsCtx.Provider value={{ addNewMember, checkMemberEmail, activateMember }}>{children}</ActionsCtx.Provider>;
 }
 
+/**
+ * Reads member action functions from context.
+ */
 export function useActions() {
     const ctx = useContext(ActionsCtx);
     if (!ctx) throw new Error('useActions must be used within ActionsProvider');
