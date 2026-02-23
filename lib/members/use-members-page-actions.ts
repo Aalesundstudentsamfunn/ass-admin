@@ -3,7 +3,6 @@
 import * as React from "react";
 import { toast } from "sonner";
 import type { MemberRow } from "@/components/member-table/shared";
-import { getPrivilegeLabel } from "@/components/member-table/shared";
 import { createClient } from "@/lib/supabase/client";
 import {
   bulkUpdateMemberPrivilege,
@@ -273,10 +272,6 @@ export function useMembersPageActions({
         toast.error("Ingen valgte medlemmer kan oppdateres med dette nivået.");
         return;
       }
-      const label = getPrivilegeLabel(next);
-      if (!window.confirm(`Oppdatere ${eligibleIds.length} medlemmer til ${label}?`)) {
-        return;
-      }
 
       const toastId = toast.loading("Oppdaterer tilgangsnivå...", { duration: 10000 });
       const { error } = await bulkUpdateMemberPrivilege(eligibleIds, next);
@@ -307,13 +302,6 @@ export function useMembersPageActions({
       }
       if (!canManageMembership) {
         toast.error("Du har ikke tilgang til å endre medlemsstatus.");
-        return;
-      }
-      if (
-        !window.confirm(
-          `${isActive ? "Aktivere" : "Sette inaktivt"} medlemskap for ${members.length} medlemmer?`,
-        )
-      ) {
         return;
       }
 
@@ -360,9 +348,6 @@ export function useMembersPageActions({
       );
       if (!emails.length) {
         toast.error("Ingen gyldige e-poster valgt.");
-        return;
-      }
-      if (!window.confirm(`Sende passordlenke til ${emails.length} medlemmer?`)) {
         return;
       }
 
@@ -414,9 +399,6 @@ export function useMembersPageActions({
     const printableMembers = members.filter((member) => member.is_banned !== true);
     if (!printableMembers.length) {
       toast.error("Ingen utskrifter sendt. Valgte kontoer kan ikke brukes for utskrift.");
-      return;
-    }
-    if (!window.confirm(`Sende ${printableMembers.length} til utskriftskø?`)) {
       return;
     }
 
@@ -485,9 +467,6 @@ export function useMembersPageActions({
       }
       if (!canDeleteMembers) {
         toast.error("Du har ikke tilgang til å slette medlemmer.");
-        return;
-      }
-      if (!window.confirm(`Er du sikker på at du vil slette ${members.length} medlemmer?`)) {
         return;
       }
 

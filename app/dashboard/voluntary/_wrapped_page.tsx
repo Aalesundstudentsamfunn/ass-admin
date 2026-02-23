@@ -13,7 +13,6 @@ import {
 } from "@/components/member-table/columns";
 import {
   getBulkPrivilegeOptions,
-  getPrivilegeLabel,
   MemberRow,
 } from "@/components/member-table/shared";
 import {
@@ -198,12 +197,6 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
         .map((member) => String(member.id));
       if (!eligibleIds.length) {
         toast.error("Ingen valgte medlemmer kan oppdateres med dette nivået.");
-        return;
-      }
-
-      const label = getPrivilegeLabel(next);
-      const confirmed = window.confirm(`Oppdatere ${eligibleIds.length} frivillige til ${label}?`);
-      if (!confirmed) {
         return;
       }
 

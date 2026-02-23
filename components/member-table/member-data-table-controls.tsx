@@ -2,6 +2,14 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { isVoluntaryOrHigher } from "@/lib/privilege-checks";
 import type { MemberRow, PrivilegeOption } from "./shared";
 
@@ -109,111 +117,196 @@ export function MemberBulkActionsBar({
   onBulkDelete?: (members: MemberRow[]) => Promise<void>;
   onResetSelection: () => void;
 }) {
+  const [open, setOpen] = React.useState(false);
+  const [isApplying, setIsApplying] = React.useState(false);
+  const selectedLabel = selectedCount === 1 ? "medlem" : "medlemmer";
+  const selectedPrivilegeLabel = React.useMemo(() => {
+    if (!bulkOptions || !bulkOptions.length) {
+      return null;
+    }
+    const match = bulkOptions.find((option) => String(option.value) === bulkPrivilege);
+    return match?.label ?? null;
+  }, [bulkOptions, bulkPrivilege]);
+
+  const runBulkAction = React.useCallback(
+    async (action: () => Promise<void>) => {
+      setIsApplying(true);
+      try {
+        await action();
+        setOpen(false);
+      } finally {
+        setIsApplying(false);
+      }
+    },
+    [],
+  );
+
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/60 bg-background/60 px-3 py-2 text-sm">
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/60 bg-background/60 px-3 py-2 text-sm">
+      <div className="flex items-center gap-2">
       <span className="font-medium">{selectedCount} valgt</span>
+        <span className="text-xs text-muted-foreground">
+          Klargjort for bulkoppdatering av valgte rader.
+        </span>
+      </div>
 
-      {canEditPrivileges && onBulkPrivilege && bulkOptions && bulkOptions.length > 0 ? (
-        <div className="flex items-center gap-2">
-          <select
-            className="h-8 rounded-xl border border-border/60 bg-background/60 px-2 text-xs"
-            value={bulkPrivilege}
-            onChange={(event) => onBulkPrivilegeValueChange(event.target.value)}
-          >
-            {bulkOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-xl"
-            disabled={!bulkPrivilege}
-            onClick={async () => {
-              const next = Number(bulkPrivilege);
-              await onBulkPrivilege(selectedMembers, next);
-              onResetSelection();
-            }}
-          >
-            Oppdater tilgang
-          </Button>
-        </div>
-      ) : null}
-
-      {canManageMembership && onBulkMembershipStatus ? (
-        <>
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-xl"
-            onClick={async () => {
-              await onBulkMembershipStatus(selectedMembers, true);
-              onResetSelection();
-            }}
-          >
-            Sett aktiv
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-xl"
-            onClick={async () => {
-              await onBulkMembershipStatus(selectedMembers, false);
-              onResetSelection();
-            }}
-          >
-            Sett inaktiv
-          </Button>
-        </>
-      ) : null}
-
-      {canResetPasswords && onBulkPasswordReset ? (
-        <Button
-          size="sm"
-          variant="outline"
-          className="rounded-xl"
-          onClick={async () => {
-            await onBulkPasswordReset(selectedMembers);
-            onResetSelection();
-          }}
-        >
-          Send passordlenke
+      <div className="flex items-center gap-2">
+        <Button size="sm" variant="outline" className="rounded-xl" onClick={() => setOpen(true)}>
+          Bulk handlinger
         </Button>
-      ) : null}
-
-      {onBulkPrint ? (
-        <Button
-          size="sm"
-          variant="outline"
-          className="rounded-xl"
-          onClick={async () => {
-            await onBulkPrint(selectedMembers);
-            onResetSelection();
-          }}
-        >
-          Print kort
+        <Button size="sm" variant="ghost" className="rounded-xl" onClick={onResetSelection}>
+          Nullstill valg
         </Button>
-      ) : null}
+      </div>
 
-      {canDelete && onBulkDelete ? (
-        <Button
-          size="sm"
-          variant="destructive"
-          className="rounded-xl"
-          onClick={async () => {
-            await onBulkDelete(selectedMembers);
-            onResetSelection();
-          }}
-        >
-          Slett
-        </Button>
-      ) : null}
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent side="right" className="sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>Bulk handlinger</SheetTitle>
+            <SheetDescription>
+              Du er i ferd med å oppdatere {selectedCount} {selectedLabel}.
+            </SheetDescription>
+          </SheetHeader>
 
-      <Button size="sm" variant="ghost" className="rounded-xl" onClick={onResetSelection}>
-        Nullstill valg
-      </Button>
+          <div className="flex-1 space-y-4 overflow-y-auto px-4 pb-4">
+            {canEditPrivileges && onBulkPrivilege && bulkOptions && bulkOptions.length > 0 ? (
+              <div className="space-y-2 rounded-xl border border-border/60 bg-background/50 p-3">
+                <p className="text-sm font-medium">Oppdater tilgangsnivå</p>
+                <select
+                  className="h-9 w-full rounded-xl border border-border/60 bg-background/70 px-3 text-sm"
+                  value={bulkPrivilege}
+                  onChange={(event) => onBulkPrivilegeValueChange(event.target.value)}
+                  disabled={isApplying}
+                >
+                  {bulkOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  Du er i ferd med å sette {selectedCount} {selectedLabel}
+                  {selectedPrivilegeLabel ? ` til ${selectedPrivilegeLabel}` : ""}.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full rounded-xl"
+                  disabled={!bulkPrivilege || isApplying}
+                  onClick={async () => {
+                    const next = Number(bulkPrivilege);
+                    await runBulkAction(async () => onBulkPrivilege(selectedMembers, next));
+                  }}
+                >
+                  Bruk tilgangsnivå
+                </Button>
+              </div>
+            ) : null}
+
+            {canManageMembership && onBulkMembershipStatus ? (
+              <div className="space-y-2 rounded-xl border border-border/60 bg-background/50 p-3">
+                <p className="text-sm font-medium">Medlemsstatus</p>
+                <p className="text-xs text-muted-foreground">
+                  Du er i ferd med å oppdatere medlemsstatus for {selectedCount} {selectedLabel}.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-xl"
+                    disabled={isApplying}
+                    onClick={async () => {
+                      await runBulkAction(async () => onBulkMembershipStatus(selectedMembers, true));
+                    }}
+                  >
+                    Sett aktiv
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-xl"
+                    disabled={isApplying}
+                    onClick={async () => {
+                      await runBulkAction(async () => onBulkMembershipStatus(selectedMembers, false));
+                    }}
+                  >
+                    Sett inaktiv
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
+            {canResetPasswords && onBulkPasswordReset ? (
+              <div className="space-y-2 rounded-xl border border-border/60 bg-background/50 p-3">
+                <p className="text-sm font-medium">Passordlenke</p>
+                <p className="text-xs text-muted-foreground">
+                  Du er i ferd med å sende passordlenke til {selectedCount} {selectedLabel}.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full rounded-xl"
+                  disabled={isApplying}
+                  onClick={async () => {
+                    await runBulkAction(async () => onBulkPasswordReset(selectedMembers));
+                  }}
+                >
+                  Send passordlenke
+                </Button>
+              </div>
+            ) : null}
+
+            {onBulkPrint ? (
+              <div className="space-y-2 rounded-xl border border-border/60 bg-background/50 p-3">
+                <p className="text-sm font-medium">Print kort</p>
+                <p className="text-xs text-muted-foreground">
+                  Du er i ferd med å sende {selectedCount} {selectedLabel} til utskriftskø.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full rounded-xl"
+                  disabled={isApplying}
+                  onClick={async () => {
+                    await runBulkAction(async () => onBulkPrint(selectedMembers));
+                  }}
+                >
+                  Send til utskrift
+                </Button>
+              </div>
+            ) : null}
+
+            {canDelete && onBulkDelete ? (
+              <div className="space-y-2 rounded-xl border border-destructive/35 bg-destructive/5 p-3">
+                <p className="text-sm font-medium text-destructive">Slett medlemmer</p>
+                <p className="text-xs text-muted-foreground">
+                  Du er i ferd med å slette {selectedCount} {selectedLabel}.
+                </p>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="w-full rounded-xl"
+                  disabled={isApplying}
+                  onClick={async () => {
+                    await runBulkAction(async () => onBulkDelete(selectedMembers));
+                  }}
+                >
+                  Slett valgte
+                </Button>
+              </div>
+            ) : null}
+          </div>
+
+          <SheetFooter>
+            <Button size="sm" variant="ghost" className="rounded-xl" onClick={onResetSelection} disabled={isApplying}>
+              Nullstill valg
+            </Button>
+            <Button size="sm" variant="outline" className="rounded-xl" onClick={() => setOpen(false)} disabled={isApplying}>
+              Lukk
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
