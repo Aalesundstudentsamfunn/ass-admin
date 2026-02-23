@@ -9,23 +9,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CreateUserDialog } from "@/components/add-new-member";
 import { MemberDataTable } from "@/components/member-table/member-data-table";
 import { MemberDetailsDialog } from "@/components/member-table/member-details-dialog";
-import {
-  createMemberCreatedAtSortColumn,
-  createMemberIdentityColumns,
-  createMemberPrivilegeColumn,
-  createMemberSearchColumn,
-} from "@/components/member-table/columns";
+import { createMemberCreatedAtSortColumn, createMemberIdentityColumns, createMemberPrivilegeColumn, createMemberSearchColumn } from "@/components/member-table/columns";
 import { getBulkPrivilegeOptions, MemberRow } from "@/components/member-table/shared";
 import { useCurrentPrivilege } from "@/lib/use-current-privilege";
 import { useCurrentUserId } from "@/lib/use-current-user-id";
 import { useMemberPageSizeDefault } from "@/lib/table-settings";
-import {
-  canDeleteMembers as canDeleteMembersByPrivilege,
-  canEditMemberPrivileges,
-  canManageMembershipStatus,
-  canResetPasswords as canResetPasswordsByPrivilege,
-  getMaxAssignablePrivilege,
-} from "@/lib/privilege-checks";
+import { canDeleteMembers as canDeleteMembersByPrivilege, canEditMemberPrivileges, canManageMembershipStatus, canResetPasswords as canResetPasswordsByPrivilege, getMaxAssignablePrivilege } from "@/lib/privilege-checks";
 import { useMembersPageActions } from "@/lib/members/use-members-page-actions";
 
 export type UserRow = MemberRow;
@@ -36,25 +25,7 @@ export type UserRow = MemberRow;
  * How: Composes shared member columns (search/identity/privilege) and appends row action buttons.
  * @returns ColumnDef<UserRow, unknown>[]
  */
-function buildColumns({
-  onDelete,
-  onPrint,
-  isDeleting,
-  canEditPrivileges,
-  bulkOptions,
-  onPrivilegeChange,
-  canDelete,
-  currentPrivilege,
-}: {
-  onDelete: (id: string | number) => Promise<void>;
-  onPrint: (member: UserRow) => Promise<void>;
-  isDeleting: boolean;
-  canEditPrivileges: boolean;
-  bulkOptions: { value: number; label: string }[];
-  onPrivilegeChange: (member: UserRow, next: number) => void;
-  canDelete: boolean;
-  currentPrivilege: number | null | undefined;
-}): ColumnDef<UserRow, unknown>[] {
+function buildColumns({ onDelete, onPrint, isDeleting, canEditPrivileges, bulkOptions, onPrivilegeChange, canDelete, currentPrivilege }: { onDelete: (id: string | number) => Promise<void>; onPrint: (member: UserRow) => Promise<void>; isDeleting: boolean; canEditPrivileges: boolean; bulkOptions: { value: number; label: string }[]; onPrivilegeChange: (member: UserRow, next: number) => void; canDelete: boolean; currentPrivilege: number | null | undefined }): ColumnDef<UserRow, unknown>[] {
   return [
     createMemberSearchColumn(true),
     createMemberCreatedAtSortColumn(),
@@ -79,8 +50,7 @@ function buildColumns({
               onClick={async (event) => {
                 event.stopPropagation();
                 await onPrint(user);
-              }}
-            >
+              }}>
               <Printer className="mr-1 h-4 w-4" /> Print kort
             </Button>
             {canDelete ? (
@@ -92,9 +62,8 @@ function buildColumns({
                 onClick={async (event) => {
                   event.stopPropagation();
                   await onDelete(user.id);
-                }}
-              >
-                <Trash2 className="mr-1 h-4 w-4" /> {isDeleting ? "Sletter..." : "Delete"}
+                }}>
+                <Trash2 className="mr-1 h-4 w-4" /> {isDeleting ? "Sletter..." : "Slett"}
               </Button>
             ) : null}
           </div>
@@ -132,16 +101,7 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
     setRows(initialData);
   }, [initialData]);
 
-  const {
-    handlePrint,
-    handleRowPrivilegeChange,
-    handleDeleteMember,
-    handleBulkPrivilege,
-    handleBulkMembershipStatus,
-    handleBulkPasswordReset,
-    handleBulkPrint,
-    handleBulkDelete,
-  } = useMembersPageActions({
+  const { handlePrint, handleRowPrivilegeChange, handleDeleteMember, handleBulkPrivilege, handleBulkMembershipStatus, handleBulkPasswordReset, handleBulkPrint, handleBulkDelete } = useMembersPageActions({
     rows,
     currentUserId,
     currentPrivilege,
@@ -162,9 +122,7 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
         return;
       }
       const selectedId = String(selectedMember.id);
-      setRows((prev) =>
-        prev.map((row) => (String(row.id) === selectedId ? { ...row, ...patch } : row)),
-      );
+      setRows((prev) => prev.map((row) => (String(row.id) === selectedId ? { ...row, ...patch } : row)));
       setSelectedMember((prev) => (prev ? { ...prev, ...patch } : prev));
     },
     [selectedMember],
@@ -182,16 +140,7 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
         canDelete: canDeleteMembers,
         currentPrivilege,
       }),
-    [
-      handleDeleteMember,
-      handlePrint,
-      isDeleting,
-      canEditPrivileges,
-      bulkOptions,
-      handleRowPrivilegeChange,
-      canDeleteMembers,
-      currentPrivilege,
-    ],
+    [handleDeleteMember, handlePrint, isDeleting, canEditPrivileges, bulkOptions, handleRowPrivilegeChange, canDeleteMembers, currentPrivilege],
   );
 
   return (
