@@ -129,7 +129,10 @@ export function MemberBulkActionsBar({
   }, [bulkOptions, bulkPrivilege]);
 
   const runBulkAction = React.useCallback(
-    async (action: () => Promise<void>) => {
+    async (action: () => Promise<void>, confirmMessage: string) => {
+      if (!window.confirm(confirmMessage)) {
+        return;
+      }
       setIsApplying(true);
       try {
         await action();
@@ -195,7 +198,10 @@ export function MemberBulkActionsBar({
                   disabled={!bulkPrivilege || isApplying}
                   onClick={async () => {
                     const next = Number(bulkPrivilege);
-                    await runBulkAction(async () => onBulkPrivilege(selectedMembers, next));
+                    await runBulkAction(
+                      async () => onBulkPrivilege(selectedMembers, next),
+                      `Er du sikker på at du vil oppdatere tilgangsnivå for ${selectedCount} ${selectedLabel}?`,
+                    );
                   }}
                 >
                   Bruk tilgangsnivå
@@ -216,7 +222,10 @@ export function MemberBulkActionsBar({
                     className="rounded-xl"
                     disabled={isApplying}
                     onClick={async () => {
-                      await runBulkAction(async () => onBulkMembershipStatus(selectedMembers, true));
+                      await runBulkAction(
+                        async () => onBulkMembershipStatus(selectedMembers, true),
+                        `Er du sikker på at du vil sette medlemsstatus til aktiv for ${selectedCount} ${selectedLabel}?`,
+                      );
                     }}
                   >
                     Sett aktiv
@@ -227,7 +236,10 @@ export function MemberBulkActionsBar({
                     className="rounded-xl"
                     disabled={isApplying}
                     onClick={async () => {
-                      await runBulkAction(async () => onBulkMembershipStatus(selectedMembers, false));
+                      await runBulkAction(
+                        async () => onBulkMembershipStatus(selectedMembers, false),
+                        `Er du sikker på at du vil sette medlemsstatus til inaktiv for ${selectedCount} ${selectedLabel}?`,
+                      );
                     }}
                   >
                     Sett inaktiv
@@ -248,7 +260,10 @@ export function MemberBulkActionsBar({
                   className="w-full rounded-xl"
                   disabled={isApplying}
                   onClick={async () => {
-                    await runBulkAction(async () => onBulkPasswordReset(selectedMembers));
+                    await runBulkAction(
+                      async () => onBulkPasswordReset(selectedMembers),
+                      `Er du sikker på at du vil sende passordlenke til ${selectedCount} ${selectedLabel}?`,
+                    );
                   }}
                 >
                   Send passordlenke
@@ -268,7 +283,10 @@ export function MemberBulkActionsBar({
                   className="w-full rounded-xl"
                   disabled={isApplying}
                   onClick={async () => {
-                    await runBulkAction(async () => onBulkPrint(selectedMembers));
+                    await runBulkAction(
+                      async () => onBulkPrint(selectedMembers),
+                      `Er du sikker på at du vil sende ${selectedCount} ${selectedLabel} til utskriftskø?`,
+                    );
                   }}
                 >
                   Send til utskrift
@@ -288,7 +306,10 @@ export function MemberBulkActionsBar({
                   className="w-full rounded-xl"
                   disabled={isApplying}
                   onClick={async () => {
-                    await runBulkAction(async () => onBulkDelete(selectedMembers));
+                    await runBulkAction(
+                      async () => onBulkDelete(selectedMembers),
+                      `Dette vil slette ${selectedCount} ${selectedLabel}. Er du helt sikker?`,
+                    );
                   }}
                 >
                   Slett valgte
