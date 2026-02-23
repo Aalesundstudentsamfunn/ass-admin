@@ -10,6 +10,9 @@ import favicon from "./favicon.webp";
 // Tech: Next.js (App Router compatible), TailwindCSS, TypeScript
 // Drop this file in /app/admin/page.tsx or /app/page.tsx as needed.
 
+/**
+ * Renders ass admin landing.
+ */
 export default function AssAdminLanding() {
   return (
     <main className="relative min-h-dvh overflow-hidden antialiased">
@@ -109,6 +112,10 @@ export default function AssAdminLanding() {
 
 /* --------------------------------- UI ---------------------------------- */
 
+/**
+ * Renders nav bar.
+ *
+ */
 function NavBar() {
   return (
     <header className="sticky top-0 z-20 backdrop-blur supports-[backdrop-filter]:bg-zinc-950/5">
@@ -139,6 +146,10 @@ function NavBar() {
   );
 }
 
+/**
+ * Renders footer.
+ *
+ */
 function Footer() {
   return (
     <footer className="mx-auto mt-16 max-w-6xl px-4 pb-12">
@@ -161,10 +172,18 @@ function Footer() {
   );
 }
 
+/**
+ * Renders glass card.
+ *
+ */
 function GlassCard({ className = "", children }: { className?: string; children: React.ReactNode }) {
   return <div className={"relative rounded-3xl border border-white/10 bg-white/5 shadow-2xl shadow-black/40 backdrop-blur-xl " + "[--glass-highlight:linear-gradient(180deg,rgba(255,255,255,0.25),rgba(255,255,255,0))] " + "before:pointer-events-none before:absolute before:inset-0 before:rounded-3xl before:bg-[image:var(--glass-highlight)] " + className}>{children}</div>;
 }
 
+/**
+ * Renders nav btn.
+ *
+ */
 function NavBtn({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <a href={href} className="rounded-xl px-3 py-1.5 text-sm /85 ring-1 ring-white/10 transition hover:bg-white/5 hover:">
@@ -173,6 +192,10 @@ function NavBtn({ href, children }: { href: string; children: React.ReactNode })
   );
 }
 
+/**
+ * Renders quick link.
+ *
+ */
 function QuickLink({ icon: Icon, title, desc }: { icon: React.ComponentType<{ className?: string }>; title: string; desc: string }) {
   return (
     <a href={`#${title.toLowerCase()}`} className="group flex items-start gap-3 rounded-2xl bg-white/5 p-3 ring-1 ring-white/10 transition hover:bg-white/10">
@@ -187,6 +210,10 @@ function QuickLink({ icon: Icon, title, desc }: { icon: React.ComponentType<{ cl
   );
 }
 
+/**
+ * Renders group pill.
+ *
+ */
 function GroupPill({ icon: Icon, label }: { icon: React.ComponentType<{ className?: string }>; label: string }) {
   return (
     <a href={`#${label.toLowerCase()}`} className="group inline-flex items-center gap-2 rounded-2xl bg-white/5 px-3 py-2 ring-1 ring-white/10 backdrop-blur-md transition hover:bg-white/10">

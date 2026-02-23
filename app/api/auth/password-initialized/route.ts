@@ -7,6 +7,9 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { assertPermission } from "@/lib/server/assert-permission";
 
+/**
+ * Marks the current member as password-initialized after successful login/update flow.
+ */
 export async function POST() {
   try {
     const permission = await assertPermission();

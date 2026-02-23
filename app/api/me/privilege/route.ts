@@ -7,6 +7,9 @@
 import { NextResponse } from "next/server";
 import { assertPermission } from "@/lib/server/assert-permission";
 
+/**
+ * Resolves the caller's privilege level used by client-side UX guards.
+ */
 export async function GET() {
   const permission = await assertPermission();
   if (!permission.ok) {

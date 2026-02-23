@@ -19,6 +19,9 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
+/**
+ * Renders root layout.
+ */
 export default function RootLayout({
   children,
 }: Readonly<{
