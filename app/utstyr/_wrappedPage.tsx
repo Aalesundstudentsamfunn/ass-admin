@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
+import { PublicNavbar } from "@/components/public/public-navbar";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -76,8 +77,9 @@ export default function UtstyrClient({
     const anyOverdue = reservations.some((r) => dueText(r.end_time).overdue);
 
     return (
-        <main className="min-h-screen bg-background p-6 text-foreground">
-            <div className="mx-auto max-w-4xl space-y-8">
+        <main className="min-h-screen bg-background text-foreground">
+            <PublicNavbar />
+            <div className="mx-auto max-w-4xl space-y-8 p-6">
                 {/* Header */}
                 <div>
                     <h1 className="text-3xl font-semibold">Hei {firstname}</h1>
