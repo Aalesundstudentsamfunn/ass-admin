@@ -29,6 +29,8 @@ type ResolvedTarget = {
   targetEmail: string | null;
 };
 
+const BAN_RELATED_ACTIONS = new Set(["member.ban", "member.unban"]);
+
 const ACTION_LABELS: Record<string, string> = {
   "member.create": "Opprettet medlem",
   "member.activate": "Aktiverte medlemskap",
@@ -709,6 +711,116 @@ function buildChangeLines(row: DbAuditRow): string[] {
 }
 
 /**
+ * Parses ISO timestamps to epoch ms when valid.
+ *
+ * How: Returns `null` for invalid or missing values.
+ * @returns number | null
+ */
+function toEpochMs(value: string | null): number | null {
+  if (!value) {
+    return null;
+  }
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * True when a row is the auth-sync variant of `member.update`.
+ *
+ * How: auth sync rows are emitted without an app actor id.
+ * @returns boolean
+ */
+function isAuthSyncMemberUpdate(row: DbAuditRow): boolean {
+  return asString(row.action) === "member.update" && !normalizeId(asString(row.actor_id));
+}
+
+/**
+ * Builds stable target tokens for row-to-row matching.
+ *
+ * How: Encodes id/email sources as prefixed tokens (`id:...`, `email:...`).
+ * @returns string[]
+ */
+function getTargetTokens(row: DbAuditRow): string[] {
+  const tokens: string[] = [];
+
+  for (const id of getTargetLookupIds(row)) {
+    tokens.push(`id:${id}`);
+  }
+  for (const email of getTargetLookupEmails(row)) {
+    const normalized = normalizeEmail(email);
+    if (normalized) {
+      tokens.push(`email:${normalized}`);
+    }
+  }
+
+  const fallbackTargetId = normalizeId(asString(row.target_id));
+  if (isUuid(fallbackTargetId)) {
+    tokens.push(`id:${fallbackTargetId}`);
+  } else if (isEmail(normalizeEmail(fallbackTargetId))) {
+    tokens.push(`email:${normalizeEmail(fallbackTargetId)}`);
+  }
+
+  return Array.from(new Set(tokens));
+}
+
+/**
+ * Checks whether two rows refer to the same member target.
+ *
+ * How: Compares normalized id/email token intersection.
+ * @returns boolean
+ */
+function rowsShareTarget(left: DbAuditRow, right: DbAuditRow): boolean {
+  const leftTokens = new Set(getTargetTokens(left));
+  if (!leftTokens.size) {
+    return false;
+  }
+  return getTargetTokens(right).some((token) => leftTokens.has(token));
+}
+
+/**
+ * Returns true when two rows happened close enough to be considered the same action window.
+ *
+ * How: Uses a small tolerance (5s) to absorb trigger/API timing differences.
+ * @returns boolean
+ */
+function isSameActionWindow(leftCreatedAt: string | null, rightCreatedAt: string | null): boolean {
+  const leftMs = toEpochMs(leftCreatedAt);
+  const rightMs = toEpochMs(rightCreatedAt);
+  if (leftMs === null || rightMs === null) {
+    return false;
+  }
+  return Math.abs(leftMs - rightMs) <= 5000;
+}
+
+/**
+ * Removes auth-sync noise when a ban/unban exists for the same member in the same action window.
+ *
+ * How: Keeps explicit app ban/unban rows and drops only redundant `member.update` sync rows.
+ * @returns DbAuditRow[]
+ */
+function filterRedundantAuthSyncRows(rows: DbAuditRow[]): DbAuditRow[] {
+  return rows.filter((row, index) => {
+    if (!isAuthSyncMemberUpdate(row)) {
+      return true;
+    }
+
+    return !rows.some((candidate, candidateIndex) => {
+      if (candidateIndex === index) {
+        return false;
+      }
+      const action = asString(candidate.action);
+      if (!action || !BAN_RELATED_ACTIONS.has(action)) {
+        return false;
+      }
+      if (!isSameActionWindow(row.created_at, candidate.created_at)) {
+        return false;
+      }
+      return rowsShareTarget(row, candidate);
+    });
+  });
+}
+
+/**
  * Loads and adapts the latest admin audit rows for dashboard rendering.
  *
  * How: Fetches raw rows, enriches actor/target names from `members`, and builds concise labels.
@@ -735,7 +847,7 @@ export async function fetchAuditRows(
   }
 
   const dbRows = (data ?? []) as DbAuditRow[];
-  const filteredRows = dbRows;
+  const filteredRows = filterRedundantAuthSyncRows(dbRows);
 
   const actorIds = Array.from(
     new Set(
