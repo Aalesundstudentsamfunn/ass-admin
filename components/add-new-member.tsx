@@ -1,66 +1,62 @@
 "use client";
 
 import * as React from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { useActions } from "@/app/dashboard/members/providers";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
+import { useActionState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { useActions } from "@/app/dashboard/members/providers";
 import { createClient } from "@/lib/supabase/client";
 import { watchPrinterQueueStatus } from "@/lib/printer-queue";
-import { useActionState, useEffect } from "react";
 import { useAutoPrintSetting } from "@/lib/auto-print";
+import { AddMemberDialogGlass } from "@/components/add-member-dialog/glass";
+import {
+  MemberActivateForm,
+  MemberBlockedStatePanel,
+  MemberCreateForm,
+  MemberEmailCheckForm,
+} from "@/components/add-member-dialog/stage-content";
+import type {
+  AddMemberDialogStage,
+  CheckEmailActionResult,
+  QueueActionResult,
+} from "@/components/add-member-dialog/types";
 
-type QueueResult = {
-  ok: boolean;
-  error?: string;
-  autoPrint?: boolean;
-  queueId?: string | number;
-  queueRef?: string | number;
-  queueInvoker?: string;
-};
-
-type CheckResult = {
-  ok: boolean;
-  error?: string;
-  exists?: boolean;
-  active?: boolean;
-  banned?: boolean;
-  email?: string;
-  member?: {
-    id: string;
-    firstname: string;
-    lastname: string;
-    email: string;
-    privilege_type: number | null;
-    is_banned?: boolean | null;
-  };
-};
-
-type Stage = "email" | "create" | "exists-active" | "exists-inactive" | "exists-banned";
-
-function Glass({ className = "", children }: React.PropsWithChildren<{ className?: string }>) {
-  return <div className={`relative rounded-2xl border backdrop-blur-xl ` + `bg-white/65 border-white/50 shadow-[0_1px_0_rgba(255,255,255,0.6),0_10px_30px_-10px_rgba(16,24,40,0.25)] ` + `dark:bg-white/5 dark:border-white/10 dark:shadow-[0_1px_0_rgba(255,255,255,0.07),0_20px_60px_-20px_rgba(0,0,0,0.6)] ` + className}>{children}</div>;
-}
-
+/**
+ * Add-member modal with 2-step flow:
+ * 1) check email
+ * 2) create or activate membership depending on existing state.
+ */
 export function CreateUserDialog() {
   const [open, setOpen] = React.useState(false);
-  const [stage, setStage] = React.useState<Stage>("email");
+  const [stage, setStage] = React.useState<AddMemberDialogStage>("email");
   const [firstname, setFirstname] = React.useState("");
   const [lastname, setLastname] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [resolvedEmail, setResolvedEmail] = React.useState("");
   const [voluntary, setVoluntary] = React.useState(false);
-  const [existingMember, setExistingMember] = React.useState<CheckResult["member"] | null>(null);
+  const [existingMember, setExistingMember] = React.useState<CheckEmailActionResult["member"] | null>(null);
   const { autoPrint } = useAutoPrintSetting();
 
   const { addNewMember, checkMemberEmail, activateMember } = useActions();
-  const [checkState, checkAction, checkPending] = useActionState(checkMemberEmail, { ok: false } as CheckResult);
-  const [createState, createAction, createPending] = useActionState(addNewMember, { ok: false } as QueueResult);
-  const [activateState, activateAction, activatePending] = useActionState(activateMember, { ok: false } as QueueResult);
+  const [checkState, checkAction, checkPending] = useActionState(checkMemberEmail, {
+    ok: false,
+  } as CheckEmailActionResult);
+  const [createState, createAction, createPending] = useActionState(addNewMember, {
+    ok: false,
+  } as QueueActionResult);
+  const [activateState, activateAction, activatePending] = useActionState(
+    activateMember,
+    { ok: false } as QueueActionResult,
+  );
 
   const supabase = React.useMemo(() => createClient(), []);
   const toastIdRef = React.useRef<string | number | null>(null);
@@ -70,6 +66,9 @@ export function CreateUserDialog() {
   const unsubscribeRef = React.useRef<(() => void) | null>(null);
   const queueKeyRef = React.useRef<string | null>(null);
 
+  /**
+   * Stops any active printer-queue subscription when dialog closes or unmounts.
+   */
   const stopQueueWatch = React.useCallback(() => {
     if (unsubscribeRef.current) {
       unsubscribeRef.current();
@@ -78,13 +77,16 @@ export function CreateUserDialog() {
     queueKeyRef.current = null;
   }, []);
 
+  /**
+   * Starts queue watcher after successful create/activate with auto-print enabled.
+   */
   const startQueueWatch = React.useCallback(
     ({
       result,
       queuedDescription,
       completedMessage,
     }: {
-      result: QueueResult;
+      result: QueueActionResult;
       queuedDescription: string;
       completedMessage: string;
     }) => {
@@ -126,7 +128,10 @@ export function CreateUserDialog() {
         timeoutMs: 25000,
         timeoutErrorMessage: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
         onCompleted: () => {
-          toast.success(completedMessage, { id: toastIdRef.current ?? undefined, duration: 10000 });
+          toast.success(completedMessage, {
+            id: toastIdRef.current ?? undefined,
+            duration: 10000,
+          });
           toastIdRef.current = null;
           queueKeyRef.current = null;
         },
@@ -317,7 +322,7 @@ export function CreateUserDialog() {
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md border-0 bg-transparent p-0 shadow-none">
-        <Glass className="p-[1px]">
+        <AddMemberDialogGlass className="p-[1px]">
           <div className="rounded-2xl bg-transparent p-6">
             <DialogHeader>
               <DialogTitle>Opprett ny bruker</DialogTitle>
@@ -326,172 +331,89 @@ export function CreateUserDialog() {
               </DialogDescription>
             </DialogHeader>
 
-            <form
+            <MemberEmailCheckForm
               action={checkAction}
-              className="mt-4 space-y-3"
-              onSubmit={() => {
+              email={email}
+              isBusy={isBusy}
+              stage={stage}
+              checkPending={checkPending}
+              onEmailChange={setEmail}
+              onSubmitStart={() => {
                 checkSubmittedRef.current = true;
                 if (!toastIdRef.current) {
                   toastIdRef.current = toast.loading("Sjekker e-post...", { duration: 10000 });
                 }
               }}
-            >
-              <div className="space-y-2">
-                <Label htmlFor="email-check">E-post</Label>
-                <Input
-                  id="email-check"
-                  type="email"
-                  name="email"
-                  placeholder="ola@example.com"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  required
-                  className="rounded-xl"
-                />
-              </div>
-              <div className="flex justify-end">
-                <Button type="submit" variant="outline" className="rounded-xl" disabled={isBusy}>
-                  {checkPending ? "Sjekker..." : stage === "email" ? "Sjekk e-post" : "Sjekk på nytt"}
-                </Button>
-              </div>
-            </form>
+            />
 
             {stage === "create" ? (
-              <form
+              <MemberCreateForm
                 action={createAction}
-                className="mt-4 space-y-4"
-                onSubmit={() => {
+                normalizedEmail={normalizedEmail}
+                autoPrint={autoPrint}
+                firstname={firstname}
+                lastname={lastname}
+                voluntary={voluntary}
+                isBusy={isBusy}
+                createPending={createPending}
+                onFirstnameChange={setFirstname}
+                onLastnameChange={setLastname}
+                onVoluntaryChange={setVoluntary}
+                onClose={() => setOpen(false)}
+                onSubmitStart={() => {
                   createSubmittedRef.current = true;
                   if (!toastIdRef.current) {
                     toastIdRef.current = toast.loading("Oppretter medlem...", { duration: 10000 });
                   }
                 }}
-              >
-                <input type="hidden" name="email" value={normalizedEmail} />
-                <input type="hidden" name="autoPrint" value={autoPrint ? "true" : "false"} />
-
-                <div className="space-y-2">
-                  <Label htmlFor="firstname">Fornavn</Label>
-                  <Input
-                    id="firstname"
-                    name="firstname"
-                    placeholder="Ola"
-                    value={firstname}
-                    onChange={(event) => setFirstname(event.target.value)}
-                    required
-                    className="rounded-xl"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="lastname">Etternavn</Label>
-                  <Input
-                    id="lastname"
-                    name="lastname"
-                    placeholder="Nordmann"
-                    value={lastname}
-                    onChange={(event) => setLastname(event.target.value)}
-                    required
-                    className="rounded-xl"
-                  />
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="voluntary-create" name="voluntary" checked={voluntary} onCheckedChange={(v) => setVoluntary(!!v)} />
-                  <Label htmlFor="voluntary-create">Frivillig</Label>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <Button type="button" variant="secondary" onClick={() => setOpen(false)} className="rounded-xl" disabled={isBusy}>
-                    Avbryt
-                  </Button>
-                  <Button className="rounded-xl" disabled={isBusy}>
-                    {createPending ? "Oppretter..." : "Opprett medlem"}
-                  </Button>
-                </div>
-              </form>
+              />
             ) : null}
 
             {stage === "exists-inactive" ? (
-              <form
+              <MemberActivateForm
                 action={activateAction}
-                className="mt-4 space-y-4"
-                onSubmit={() => {
+                normalizedEmail={normalizedEmail}
+                autoPrint={autoPrint}
+                voluntary={voluntary}
+                existingMember={existingMember}
+                isBusy={isBusy}
+                activatePending={activatePending}
+                onVoluntaryChange={setVoluntary}
+                onClose={() => setOpen(false)}
+                onSubmitStart={() => {
                   activateSubmittedRef.current = true;
                   if (!toastIdRef.current) {
-                    toastIdRef.current = toast.loading("Aktiverer medlemskap...", { duration: 10000 });
+                    toastIdRef.current = toast.loading("Aktiverer medlemskap...", {
+                      duration: 10000,
+                    });
                   }
                 }}
-              >
-                <input type="hidden" name="email" value={normalizedEmail} />
-                <input type="hidden" name="autoPrint" value={autoPrint ? "true" : "false"} />
-
-                <div className="rounded-xl border border-border/60 bg-background/50 p-3 text-sm">
-                  <p className="font-medium">E-posten finnes allerede i databasen.</p>
-                  <p className="text-muted-foreground">Du kan aktivere medlemskapet, men ikke opprette ny bruker på samme e-post.</p>
-                  {existingMember ? (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {existingMember.firstname} {existingMember.lastname} · {existingMember.email}
-                    </p>
-                  ) : null}
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="voluntary-activate" name="voluntary" checked={voluntary} onCheckedChange={(v) => setVoluntary(!!v)} />
-                  <Label htmlFor="voluntary-activate">Aktiver som frivillig</Label>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <Button type="button" variant="secondary" onClick={() => setOpen(false)} className="rounded-xl" disabled={isBusy}>
-                    Avbryt
-                  </Button>
-                  <Button className="rounded-xl" disabled={isBusy}>
-                    {activatePending ? "Aktiverer..." : "Aktiver medlemskap"}
-                  </Button>
-                </div>
-              </form>
+              />
             ) : null}
 
             {stage === "exists-active" ? (
-              <div className="mt-4 space-y-4">
-                <div className="rounded-xl border border-border/60 bg-background/50 p-3 text-sm">
-                  <p className="font-medium">E-posten har allerede aktivt medlemskap.</p>
-                  <p className="text-muted-foreground">Ny bruker kan ikke opprettes på denne e-posten.</p>
-                  {existingMember ? (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {existingMember.firstname} {existingMember.lastname} · {existingMember.email}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="flex justify-end gap-2 pt-2">
-                  <Button type="button" variant="secondary" onClick={() => setOpen(false)} className="rounded-xl" disabled={isBusy}>
-                    Lukk
-                  </Button>
-                </div>
-              </div>
+              <MemberBlockedStatePanel
+                title="E-posten har allerede aktivt medlemskap."
+                description="Ny bruker kan ikke opprettes på denne e-posten."
+                existingMember={existingMember}
+                isBusy={isBusy}
+                onClose={() => setOpen(false)}
+              />
             ) : null}
 
             {stage === "exists-banned" ? (
-              <div className="mt-4 space-y-4">
-                <div className="rounded-xl border border-border/60 bg-background/50 p-3 text-sm">
-                  <p className="font-medium">E-posten kan ikke brukes.</p>
-                  <p className="text-muted-foreground">Oppretting eller aktivering er ikke tilgjengelig for denne e-posten.</p>
-                  {existingMember ? (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {existingMember.firstname} {existingMember.lastname} · {existingMember.email}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="flex justify-end gap-2 pt-2">
-                  <Button type="button" variant="secondary" onClick={() => setOpen(false)} className="rounded-xl" disabled={isBusy}>
-                    Lukk
-                  </Button>
-                </div>
-              </div>
+              <MemberBlockedStatePanel
+                title="E-posten kan ikke brukes."
+                description="Oppretting eller aktivering er ikke tilgjengelig for denne e-posten."
+                existingMember={existingMember}
+                isBusy={isBusy}
+                onClose={() => setOpen(false)}
+              />
             ) : null}
           </div>
-        </Glass>
+        </AddMemberDialogGlass>
       </DialogContent>
     </Dialog>
   );
 }
+
