@@ -40,20 +40,23 @@ export function getStatusMeta(row: PrinterLogRow) {
   if (row.error_msg) {
     return {
       label: "Feilet",
-      className: "border-red-500/40 bg-red-500/15 text-red-200",
+      className:
+        "border-red-300 bg-red-50 text-red-700 dark:border-red-500/40 dark:bg-red-500/15 dark:text-red-300",
       sortValue: 2,
     };
   }
   if (row.completed) {
     return {
       label: "Ferdig",
-      className: "border-emerald-500/40 bg-emerald-500/15 text-emerald-200",
+      className:
+        "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-300",
       sortValue: 0,
     };
   }
   return {
     label: "Pending",
-    className: "border-amber-500/40 bg-amber-500/15 text-amber-200",
+    className:
+      "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-300",
     sortValue: 1,
   };
 }

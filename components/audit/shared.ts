@@ -39,7 +39,7 @@ export function getAuditStatusMeta(status: AuditLogRow["status"]) {
     return {
       label: "Feilet",
       className:
-        "border-red-500/40 bg-red-500/10 text-red-200 dark:text-red-300",
+        "border-red-300 bg-red-50 text-red-700 dark:border-red-500/40 dark:bg-red-500/15 dark:text-red-300",
       sortValue: 2,
     };
   }
@@ -47,13 +47,14 @@ export function getAuditStatusMeta(status: AuditLogRow["status"]) {
     return {
       label: "OK",
       className:
-        "border-emerald-500/40 bg-emerald-500/10 text-emerald-200 dark:text-emerald-300",
+        "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-300",
       sortValue: 1,
     };
   }
   return {
     label: "Ukjent",
-    className: "border-border/60 bg-background/60 text-muted-foreground",
+    className:
+      "border-slate-300 bg-slate-50 text-slate-700 dark:border-border/60 dark:bg-background/60 dark:text-muted-foreground",
     sortValue: 0,
   };
 }
