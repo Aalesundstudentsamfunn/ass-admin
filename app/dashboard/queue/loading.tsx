@@ -5,6 +5,7 @@ export default function LoadingQueuePage() {
     <DashboardLoadingScreen
       title="Laster printerkø"
       description="Henter utskriftslogger og status…"
+      embedded
     />
   );
 }

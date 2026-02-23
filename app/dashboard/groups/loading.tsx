@@ -5,6 +5,7 @@ export default function LoadingGroupsPage() {
     <DashboardLoadingScreen
       title="Laster grupper"
       description="Henter grupper og tilgjengelig utstyr…"
+      embedded
     />
   );
 }

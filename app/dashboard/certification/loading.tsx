@@ -5,6 +5,7 @@ export default function LoadingCertificationPage() {
     <DashboardLoadingScreen
       title="Laster sertifisering"
       description="Henter sertifiseringer og status…"
+      embedded
     />
   );
 }

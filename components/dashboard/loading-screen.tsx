@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { cn } from "@/lib/utils";
+import { GlassPanel } from "@/components/ui/glass-panel";
 
 /**
  * Reusable dashboard loading surface used across route-level loading.tsx files.
@@ -11,14 +13,16 @@ import * as React from "react";
 export function DashboardLoadingScreen({
   title = "Laster side",
   description = "Henter data og klargjør visning…",
+  embedded = false,
 }: {
   title?: string;
   description?: string;
+  embedded?: boolean;
 }) {
   return (
-    <div className="relative flex min-h-dvh items-center justify-center p-6">
-      <LiquidBackground />
-      <GlassPanel className="w-full max-w-xl p-6">
+    <div className={cn("relative flex items-center justify-center p-6", embedded ? "h-full min-h-[60vh]" : "min-h-dvh")}>
+      {!embedded ? <LiquidBackground /> : null}
+      <GlassPanel className={cn("w-full p-6", embedded ? "max-w-2xl" : "max-w-xl")}>
         <div className="flex flex-col items-center text-center">
           <div className="flex items-center gap-3">
             <Spinner />
@@ -48,25 +52,6 @@ function LiquidBackground() {
         @keyframes pulsebar { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
-    </div>
-  );
-}
-
-/**
- * Renders glass panel.
- *
- */
-function GlassPanel({ className = "", children }: React.PropsWithChildren<{ className?: string }>) {
-  return (
-    <div
-      className={
-        `relative rounded-2xl border backdrop-blur-xl ` +
-        `bg-white/65 border-white/50 shadow-[0_1px_0_rgba(255,255,255,0.6),0_10px_30px_-10px_rgba(16,24,40,0.25)] ` +
-        `dark:bg-white/5 dark:border-white/10 dark:shadow-[0_1px_0_rgba(255,255,255,0.07),0_20px_60px_-20px_rgba(0,0,0,0.6)] ` +
-        className
-      }
-    >
-      {children}
     </div>
   );
 }

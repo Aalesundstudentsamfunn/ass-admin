@@ -9,6 +9,7 @@ export default function LoadingEquipmentPage() {
     <DashboardLoadingScreen
       title="Laster utstyr"
       description="Henter utstyr, grupper og tilgjengelighet…"
+      embedded
     />
   );
 }

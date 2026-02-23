@@ -5,6 +5,7 @@ export default function LoadingMembersPage() {
     <DashboardLoadingScreen
       title="Laster medlemmer"
       description="Henter medlemsliste og tabelloppsett…"
+      embedded
     />
   );
 }

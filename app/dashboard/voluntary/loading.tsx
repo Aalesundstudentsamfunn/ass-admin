@@ -8,6 +8,7 @@ export default function LoadingVoluntaryPage() {
     <DashboardLoadingScreen
       title="Laster frivillige"
       description="Henter frivilligoversikt og tilganger…"
+      embedded
     />
   );
 }

@@ -9,6 +9,7 @@ export default function LoadingAuditPage() {
     <DashboardLoadingScreen
       title="Laster auditlogg"
       description="Henter hendelser og forbereder detaljer…"
+      embedded
     />
   );
 }
