@@ -4,7 +4,7 @@
  * Client-side presentation and interaction layer for `equipment/by-group/[id]/_wrappedPage.tsx`.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ItemType } from "./page";
@@ -19,7 +19,7 @@ interface CertificateType {
 }
 
 export default function WrappedUtstyrPage({ items, groupId }: { items: ItemType[]; groupId: string }) {
-    const supabase = createClient();
+    const supabase = useMemo(() => createClient(), []);
     const [query, setQuery] = useState("");
     const [open, setOpen] = useState(false);
     const [title, setTitle] = useState("");
