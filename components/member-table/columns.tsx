@@ -170,18 +170,28 @@ export function createMemberPrivilegeColumn({
               type="button"
               className="inline-flex"
               onClick={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
+              data-row-action="true"
             >
               <Badge variant="secondary" className={`${PILL_CLASS} cursor-pointer`}>
                 {label}
               </Badge>
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-[10rem]">
+          <DropdownMenuContent
+            align="end"
+            className="min-w-[10rem]"
+            onClick={(event) => event.stopPropagation()}
+            onPointerDown={(event) => event.stopPropagation()}
+            data-row-action="true"
+          >
             {options.map((option) => (
               <DropdownMenuItem
                 key={option.value}
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
                 onSelect={(event) => {
-                  event.preventDefault();
+                  event.stopPropagation();
                   onPrivilegeChange(member, option.value);
                 }}
               >
