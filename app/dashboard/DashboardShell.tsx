@@ -143,7 +143,7 @@ export default function DashboardShell({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const Sidebar = ({ mobile = false }: { mobile?: boolean }) => (
-    <div className={cn("flex h-full flex-col gap-4", mobile ? "w-full" : "w-full")}>
+    <div className={cn("flex h-full flex-col gap-4", mobile ? "w-full" : "w-full pt-5")}>
       <GlassPanel className={cn("p-4", !mobile && sidebarCollapsed && "px-3 py-3")}>
         <div className={cn("flex items-center gap-3", !mobile && sidebarCollapsed && "justify-center")}>
           <button
@@ -227,7 +227,7 @@ export default function DashboardShell({
         </aside>
 
         {/* Main content area */}
-        <main className="relative z-0 flex min-h-[70vh] flex-1 flex-col">
+        <main className="relative z-0 flex min-h-[70vh] flex-1 flex-col pt-5">
           <GlassPanel className="flex min-h-[70vh] flex-1 p-4 md:p-6">
             <div className="flex-1 overflow-auto">{children}</div>
           </GlassPanel>
