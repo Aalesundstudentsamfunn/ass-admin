@@ -36,7 +36,7 @@ export default async function DashboardLayout({
 
   const privilegeType = member?.privilege_type ?? PRIVILEGE_LEVELS.NONE;
   if (!canAccessDashboard(privilegeType)) {
-    redirect("/not-volunteer");
+    redirect("/utstyr");
   }
 
   const fullName = `${member?.firstname ?? ""} ${member?.lastname ?? ""}`.trim();
