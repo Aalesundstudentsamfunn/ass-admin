@@ -76,7 +76,7 @@ export default function UtstyrClient({
     const anyOverdue = reservations.some((r) => dueText(r.end_time).overdue);
 
     return (
-        <main className="min-h-screen bg-white p-6">
+        <main className="min-h-screen bg-background p-6 text-foreground">
             <div className="mx-auto max-w-4xl space-y-8">
                 {/* Header */}
                 <div>
@@ -88,7 +88,7 @@ export default function UtstyrClient({
 
                 {/* Overdue warning */}
                 {anyOverdue && (
-                    <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
+                    <div className="rounded-xl border border-red-300 bg-red-50 p-4 text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300">
                         <p className="font-semibold">Du har lån som er over fristen.</p>
                         <p className="text-sm mt-1">
                             Hvis utstyr ikke leveres i tide kan det føre til sperring for
@@ -128,7 +128,7 @@ export default function UtstyrClient({
                                                 className="h-20 w-20 rounded-lg object-cover"
                                             />
                                         ) : (
-                                            <div className="h-20 w-20 rounded-lg bg-neutral-100" />
+                                            <div className="h-20 w-20 rounded-lg bg-muted" />
                                         )}
 
                                         {/* Info */}
@@ -148,7 +148,7 @@ export default function UtstyrClient({
                                             <p
                                                 className={cn(
                                                     "mt-1 text-sm font-medium",
-                                                    due.overdue ? "text-red-600" : "text-neutral-700"
+                                                    due.overdue ? "text-red-600 dark:text-red-300" : "text-foreground/75 dark:text-foreground/70"
                                                 )}
                                             >
                                                 {due.text}
@@ -161,7 +161,7 @@ export default function UtstyrClient({
                                         <div
                                             className={cn(
                                                 "text-sm font-medium",
-                                                due.overdue ? "text-red-600" : "text-blue-600"
+                                                due.overdue ? "text-red-600 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"
                                             )}
                                         >
                                             Aktivt lån
@@ -203,7 +203,7 @@ export default function UtstyrClient({
                                             className="h-20 w-20 rounded-lg object-cover"
                                         />
                                     ) : (
-                                        <div className="h-20 w-20 rounded-lg bg-neutral-100" />
+                                        <div className="h-20 w-20 rounded-lg bg-muted" />
                                     )}
 
                                     <div className="flex-1 min-w-0">
@@ -218,7 +218,7 @@ export default function UtstyrClient({
                                         </p>
                                     </div>
 
-                                    <div className="text-sm font-medium text-neutral-600">
+                                    <div className="text-sm font-medium text-foreground/70 dark:text-foreground/65">
                                         Returnert
                                     </div>
                                 </div>
