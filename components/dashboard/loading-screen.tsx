@@ -32,6 +32,10 @@ export function DashboardLoadingScreen({
   );
 }
 
+/**
+ * Renders liquid background.
+ *
+ */
 function LiquidBackground() {
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
@@ -48,6 +52,10 @@ function LiquidBackground() {
   );
 }
 
+/**
+ * Renders glass panel.
+ *
+ */
 function GlassPanel({ className = "", children }: React.PropsWithChildren<{ className?: string }>) {
   return (
     <div
@@ -63,6 +71,10 @@ function GlassPanel({ className = "", children }: React.PropsWithChildren<{ clas
   );
 }
 
+/**
+ * Renders spinner.
+ *
+ */
 function Spinner() {
   return (
     <div className="relative h-10 w-10" role="status" aria-label="Laster">
@@ -77,6 +89,10 @@ function Spinner() {
   );
 }
 
+/**
+ * Renders indeterminate bar.
+ *
+ */
 function IndeterminateBar() {
   return (
     <div className="relative mt-6 h-2 w-56 overflow-hidden rounded-full bg-foreground/10">

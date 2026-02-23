@@ -5,7 +5,7 @@ import type React from "react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Users, Printer, Heart, Package, Building2, Menu, Settings, Award, FileText, ChevronLeft, ChevronRight } from "lucide-react";
+import { Users, Printer, Heart, Package, Building2, Menu, Settings, Award, FileText, ChevronLeft, ChevronRight, ShieldCheck } from "lucide-react";
 import Image from "next/image";
 import Logo from "@/app/logo.png";
 import Link from "next/link";
@@ -14,11 +14,10 @@ import { cn } from "@/lib/utils";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { CurrentUserBadge } from "@/components/current-user-badge";
-
-type CurrentUser = {
-  name?: string | null;
-  email?: string | null;
-} | null;
+import {
+  DashboardSession,
+  DashboardSessionProvider,
+} from "@/components/dashboard/session-context";
 
 /**
  * Liquid Glass redesign for your dashboard layout
@@ -35,11 +34,16 @@ const navigation = [
   { name: "Sertifisering", href: "/dashboard/certification", icon: Award },
   { name: "Sertifisering — søknader", href: "/dashboard/certification-application", icon: FileText },
   { name: "Printerkø", href: "/dashboard/queue", icon: Printer },
+  { name: "Auditlogg", href: "/dashboard/audit", icon: ShieldCheck },
   { name: "Innstillinger", href: "/dashboard/settings", icon: Settings },
 ];
 
 // ---- Reusable UI primitives -------------------------------------------------
 
+/**
+ * Renders liquid background.
+ *
+ */
 function LiquidBackground() {
   // Animated, subtle radial blobs behind everything
   return (
@@ -79,6 +83,10 @@ function LiquidBackground() {
   );
 }
 
+/**
+ * Renders glass panel.
+ *
+ */
 function GlassPanel({ className, children }: React.PropsWithChildren<{ className?: string }>) {
   return (
     <div
@@ -96,6 +104,10 @@ function GlassPanel({ className, children }: React.PropsWithChildren<{ className
   );
 }
 
+/**
+ * Renders nav item.
+ *
+ */
 function NavItem({ item, active, onClick, collapsed }: { item: (typeof navigation)[number]; active: boolean; onClick?: () => void; collapsed?: boolean }) {
   const Icon = item.icon;
   return (
@@ -114,7 +126,17 @@ function NavItem({ item, active, onClick, collapsed }: { item: (typeof navigatio
 
 // ---- Layout -----------------------------------------------------------------
 
-export default function DashboardShell({ children, currentUser = null }: { children: React.ReactNode; currentUser?: CurrentUser }) {
+/**
+ * Renders dashboard shell.
+ *
+ */
+export default function DashboardShell({
+  children,
+  dashboardSession,
+}: {
+  children: React.ReactNode;
+  dashboardSession: DashboardSession;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -142,7 +164,7 @@ export default function DashboardShell({ children, currentUser = null }: { child
       </GlassPanel>
 
       <GlassPanel className="flex-1 p-3">
-        <div className={cn("mb-3 hidden lg:flex", sidebarCollapsed ? "min-h-[72px] items-center justify-center" : "items-start")}>{sidebarCollapsed ? <CurrentUserBadge compact name={currentUser?.name} email={currentUser?.email} className="justify-center px-2 py-1" /> : <CurrentUserBadge prominent name={currentUser?.name} email={currentUser?.email} className="px-2 py-1.5" />}</div>
+        <div className={cn("mb-3 hidden lg:flex", sidebarCollapsed ? "min-h-[72px] items-center justify-center" : "items-start")}>{sidebarCollapsed ? <CurrentUserBadge compact name={dashboardSession.name} email={dashboardSession.email} className="justify-center px-2 py-1" /> : <CurrentUserBadge prominent name={dashboardSession.name} email={dashboardSession.email} className="px-2 py-1.5" />}</div>
         <nav aria-label="Primary">
           <ul className="space-y-1">
             {navigation.map((item) => (
@@ -170,8 +192,9 @@ export default function DashboardShell({ children, currentUser = null }: { child
   );
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col bg-background antialiased">
-      <LiquidBackground />
+    <DashboardSessionProvider value={dashboardSession}>
+      <div className="relative flex min-h-screen w-full flex-col bg-background antialiased">
+        <LiquidBackground />
 
       {/* Top bar (mobile+desktop) */}
       <div className="sticky top-0 z-40 px-3 py-3 lg:hidden">
@@ -191,7 +214,7 @@ export default function DashboardShell({ children, currentUser = null }: { child
             <span className="text-sm font-semibold">Admin Panel</span>
           </div>
           <div className="flex items-center gap-2">
-            <CurrentUserBadge compact name={currentUser?.name} email={currentUser?.email} />
+            <CurrentUserBadge compact name={dashboardSession.name} email={dashboardSession.email} />
             <ThemeSwitcher />
           </div>
         </GlassPanel>
@@ -212,7 +235,8 @@ export default function DashboardShell({ children, currentUser = null }: { child
       </div>
 
       {/* Subtle bottom padding / safe area for mobile */}
-      <div className="h-4 lg:h-6" />
-    </div>
+        <div className="h-4 lg:h-6" />
+      </div>
+    </DashboardSessionProvider>
   );
 }
