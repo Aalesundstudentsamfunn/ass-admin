@@ -77,7 +77,7 @@ async function findAuthUserByEmail(email: string): Promise<AuthUserLike | null> 
   const admin = createAdminClient();
   const normalizedEmail = normalizeMemberEmail(email);
   let page = 1;
-  const perPage = 200;
+  const perPage = 1000;
 
   while (true) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
@@ -177,4 +177,3 @@ export async function ensureAuthUser(email: string, firstname: string, lastname:
 
   return { userId: data.user.id, temporaryPassword };
 }
-
