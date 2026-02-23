@@ -16,7 +16,10 @@ import {
   getPrivilegeLabel,
   MemberRow,
 } from "@/components/member-table/shared";
-import { createClient } from "@/lib/supabase/client";
+import {
+  bulkUpdateMemberPrivilege,
+  updateMemberPrivilege,
+} from "@/lib/members/client-actions";
 import { useCurrentPrivilege } from "@/lib/use-current-privilege";
 import { useCurrentUserId } from "@/lib/use-current-user-id";
 import { useMemberPageSizeDefault } from "@/lib/table-settings";
@@ -32,6 +35,12 @@ import { toast } from "sonner";
 
 export type UserRow = MemberRow;
 
+/**
+ * Builds voluntary table columns.
+ *
+ * How: Reuses shared member columns and keeps an empty actions column to match table layout.
+ * @returns ColumnDef<UserRow, unknown>[]
+ */
 function buildColumns(
   onPrivilegeChange: (member: UserRow, next: number) => void,
   canEditPrivileges: boolean,
@@ -57,6 +66,11 @@ function buildColumns(
   ];
 }
 
+/**
+ * Client container for the frivillige page.
+ *
+ * How: Loads local row state from server data, handles privilege updates, and opens shared member details dialog.
+ */
 export default function VoluntaryPage({ initialData }: { initialData: UserRow[] }) {
   const defaultPageSize = useMemberPageSizeDefault();
   const [rows, setRows] = React.useState<UserRow[]>(initialData);
@@ -73,6 +87,11 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
     setRows(initialData);
   }, [initialData]);
 
+  /**
+   * Applies privilege updates to local state and removes rows that drop below frivillig.
+   *
+   * @returns void
+   */
   const applyPrivilegeToRows = React.useCallback((ids: string[], next: number) => {
     const idSet = new Set(ids);
     setRows((prev) => {
@@ -93,6 +112,11 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
     });
   }, []);
 
+  /**
+   * Applies membership active/inactive updates to local list + selected dialog row.
+   *
+   * @returns void
+   */
   const applyMembershipStatusToRows = React.useCallback((ids: string[], isActive: boolean) => {
     const idSet = new Set(ids);
     setRows((prev) =>
@@ -108,6 +132,11 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
     });
   }, []);
 
+  /**
+   * Updates one row's privilege after client-side permission checks.
+   *
+   * @returns Promise<void>
+   */
   const handleRowPrivilegeChange = React.useCallback(
     async (member: UserRow, next: number) => {
       const currentValue = memberPrivilege(member.privilege_type);
@@ -128,8 +157,7 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
       }
 
       const toastId = toast.loading("Oppdaterer tilgangsnivå...", { duration: 10000 });
-      const supabaseClient = createClient();
-      const { error } = await supabaseClient.from("members").update({ privilege_type: next }).eq("id", member.id);
+      const { error } = await updateMemberPrivilege(String(member.id), next);
       if (error) {
         toast.error("Kunne ikke oppdatere tilgangsnivå.", { id: toastId, description: error.message, duration: Infinity });
         return;
@@ -141,6 +169,11 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
     [applyPrivilegeToRows, canEditPrivileges, currentPrivilege, currentUserId],
   );
 
+  /**
+   * Bulk-updates privileges for all selected rows the current actor is allowed to change.
+   *
+   * @returns Promise<void>
+   */
   const handleBulkPrivilege = React.useCallback(
     async (members: UserRow[], next: number) => {
       if (!members.length) {
@@ -175,8 +208,7 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
       }
 
       const toastId = toast.loading("Oppdaterer tilgangsnivå...", { duration: 10000 });
-      const supabaseClient = createClient();
-      const { error } = await supabaseClient.from("members").update({ privilege_type: next }).in("id", eligibleIds);
+      const { error } = await bulkUpdateMemberPrivilege(eligibleIds, next);
       if (error) {
         toast.error("Kunne ikke oppdatere tilgangsnivå.", { id: toastId, description: error.message, duration: Infinity });
         return;
