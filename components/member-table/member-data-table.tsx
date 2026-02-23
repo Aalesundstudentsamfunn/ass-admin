@@ -118,6 +118,24 @@ function isDefaultMemberSort(sorting: SortingState): boolean {
 }
 
 /**
+ * Keeps default sort as fallback and demotes created_at to tie-breaker when multi-sort is active.
+ */
+function normalizeMemberSorting(next: SortingState): SortingState {
+  if (!next.length) {
+    return DEFAULT_MEMBER_SORT;
+  }
+  if (next.length === 1) {
+    return next;
+  }
+  const withoutCreatedAt = next.filter((item) => item.id !== "created_at_sort");
+  const createdAt = next.find((item) => item.id === "created_at_sort");
+  if (!createdAt) {
+    return next;
+  }
+  return [...withoutCreatedAt, createdAt];
+}
+
+/**
  * Shared table shell used by members/frivillige pages.
  *
  * It centralizes:
@@ -182,10 +200,7 @@ export function MemberDataTable({
   const onSortingChange = React.useCallback((updater: React.SetStateAction<SortingState>) => {
     setSorting((previous) => {
       const next = typeof updater === "function" ? updater(previous) : updater;
-      if (!next.length) {
-        return DEFAULT_MEMBER_SORT;
-      }
-      return next;
+      return normalizeMemberSorting(next);
     });
   }, []);
   const filteredData = React.useMemo(
@@ -326,13 +341,13 @@ export function MemberDataTable({
           const existing = previous[existingIndex];
           if (existing?.desc === nextSort.desc) {
             const removed = previous.filter((item) => item.id !== nextSort.id);
-            return removed.length ? removed : DEFAULT_MEMBER_SORT;
+            return normalizeMemberSorting(removed);
           }
-          return previous.map((item) =>
+          return normalizeMemberSorting(previous.map((item) =>
             item.id === nextSort.id ? nextSort : item,
-          );
+          ));
         }
-        return [...previous, nextSort];
+        return normalizeMemberSorting([...previous, nextSort]);
       });
       table.setPageIndex(0);
       return;

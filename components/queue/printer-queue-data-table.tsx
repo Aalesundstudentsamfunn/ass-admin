@@ -125,7 +125,15 @@ function normalizeQueueSorting(next: SortingState): SortingState {
   if (!next.length) {
     return DEFAULT_QUEUE_SORT;
   }
-  return next;
+  if (next.length === 1) {
+    return next;
+  }
+  const withoutCreatedAt = next.filter((item) => item.id !== "created_at");
+  const createdAt = next.find((item) => item.id === "created_at");
+  if (!createdAt) {
+    return next;
+  }
+  return [...withoutCreatedAt, createdAt];
 }
 
 /**
