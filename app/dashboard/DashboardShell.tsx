@@ -152,7 +152,7 @@ export default function DashboardShell({
               if (mobile) setSidebarOpen(false);
             }}
             className={cn("flex items-center text-left transition-all", !mobile && sidebarCollapsed ? "w-full justify-center gap-0" : "gap-3")}>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 shadow-inner ring-1 ring-white/10">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-inner ring-1 ring-black/10 dark:ring-white/20">
               <Image src={Logo} alt="ASS logo" className="h-7 w-7 object-contain" priority />
             </div>
             <div className={cn("overflow-hidden whitespace-nowrap transition-[max-width,opacity,transform] duration-300", mobile || !sidebarCollapsed ? "max-w-[180px] opacity-100 translate-x-0" : "max-w-0 opacity-0 translate-x-1")}>
