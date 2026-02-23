@@ -5,6 +5,7 @@ export default function LoadingDashboardPage() {
     <DashboardLoadingScreen
       title="Laster dashboard"
       description="Henter data og klargjør adminvisningen…"
+      embedded
     />
   );
 }
