@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { ArrowUpRight, HeartHandshake } from "lucide-react";
 import { PublicNavbar } from "@/components/public/public-navbar";
+import { PublicFooter } from "@/components/public/public-footer";
 
 const GROUPS = ["Ølbryggergruppen", "Spillgruppen", "Surfegruppen", "Håndarbeidgruppen", "Friluftsgruppen", "Fiskegruppen", "Dykkergruppen"];
 
@@ -27,82 +28,58 @@ const EVENTS = [
  */
 export default function HomePage() {
   return (
-    <main className="relative min-h-dvh overflow-hidden bg-background text-foreground">
+    <main className="relative flex min-h-dvh flex-col overflow-hidden bg-background text-foreground">
       <BackgroundBlobs />
       <PublicNavbar />
+      <div className="flex-1">
+        <section className="mx-auto w-full max-w-6xl px-4 pt-12 sm:pt-16">
+          <GlassCard className="p-7 sm:p-10">
+            <div className="flex items-center gap-2 text-xs font-medium text-foreground/75 dark:text-foreground/70">
+              <HeartHandshake className="h-4 w-4" />
+              Av studentar, for studentar i Ålesund
+            </div>
 
-      <section className="mx-auto w-full max-w-6xl px-4 pt-12 sm:pt-16">
-        <GlassCard className="p-7 sm:p-10">
-          <div className="flex items-center gap-2 text-xs font-medium text-foreground/75 dark:text-foreground/70">
-            <HeartHandshake className="h-4 w-4" />
-            Av studentar, for studentar i Ålesund
+            <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl md:text-5xl">Ålesund Studentsamfunn</h1>
+
+            <div className="mt-4 max-w-4xl space-y-4 text-sm leading-relaxed text-foreground/75 sm:text-base dark:text-foreground/70">
+              <p>Ålesund Studentsamfunn er den største studentorganisasjonen i Ålesund, eigd og driven av medlemmene. Vi jobber aktivt for å skape tilhørighet i den vakre jugendbyen og har dannet flere partnerskap og samarbeid slik at våre medlemmer kan benytte seg av et variert og godt tilbud rundt om i byen vår. Sidan gjenoppstarten i 2009 har vi bygd eit inkluderande miljø for studentlivet i byen.</p>
+              <p>Med rundt 1000 medlemmer og over 50 frivillige skaper vi aktivitetar, samarbeid og tilhøyrigheit i byen.</p>
+            </div>
+
+            <div className="mt-7 grid gap-4 md:grid-cols-3">
+              {EVENTS.map((event) => (
+                <a key={event.title} href={event.href} target="_blank" rel="noreferrer" className="group rounded-2xl border border-border/60 bg-card/60 p-4 transition hover:-translate-y-0.5 hover:bg-card/80">
+                  <div className="flex items-center justify-between">
+                    <span className="text-base font-semibold">{event.title}</span>
+                    <ArrowUpRight className="h-4 w-4 text-foreground/60 transition group-hover:text-foreground" />
+                  </div>
+                  <p className="mt-2 text-sm text-foreground/70 dark:text-foreground/65">{event.description}</p>
+                </a>
+              ))}
+            </div>
+          </GlassCard>
+        </section>
+
+        <section className="mx-auto mt-10 w-full max-w-6xl px-4 pb-8">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Aktivitetsgrupper</h2>
           </div>
 
-          <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl md:text-5xl">Ålesund Studentsamfunn</h1>
-
-          <div className="mt-4 max-w-4xl space-y-4 text-sm leading-relaxed text-foreground/75 sm:text-base dark:text-foreground/70">
-            <p>Ålesund Studentsamfunn er den største studentorganisasjonen i Ålesund, eigd og driven av medlemmene. Vi jobber aktivt for å skape tilhørighet i den vakre jugendbyen og har dannet flere partnerskap og samarbeid slik at våre medlemmer kan benytte seg av et variert og godt tilbud rundt om i byen vår. Sidan gjenoppstarten i 2009 har vi bygd eit inkluderande miljø for studentlivet i byen.</p>
-            <p>Med rundt 1000 medlemmer og over 50 frivillige skaper vi aktivitetar, samarbeid og tilhøyrigheit i byen.</p>
-          </div>
-
-          <div className="mt-7 grid gap-4 md:grid-cols-3">
-            {EVENTS.map((event) => (
-              <a key={event.title} href={event.href} target="_blank" rel="noreferrer" className="group rounded-2xl border border-border/60 bg-card/60 p-4 transition hover:-translate-y-0.5 hover:bg-card/80">
-                <div className="flex items-center justify-between">
-                  <span className="text-base font-semibold">{event.title}</span>
-                  <ArrowUpRight className="h-4 w-4 text-foreground/60 transition group-hover:text-foreground" />
-                </div>
-                <p className="mt-2 text-sm text-foreground/70 dark:text-foreground/65">{event.description}</p>
-              </a>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {GROUPS.map((group) => (
+              <GlassCard
+                key={group}
+                className="bg-card/85 px-4 py-3 ring-0 border-border/65 shadow-[0_2px_8px_rgba(15,23,42,0.06)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.16)]"
+              >
+                <p className="font-medium text-foreground/90">{group}</p>
+              </GlassCard>
             ))}
           </div>
-        </GlassCard>
-      </section>
-
-      <section className="mx-auto mt-10 w-full max-w-6xl px-4 pb-8">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Aktivitetsgrupper</h2>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {GROUPS.map((group) => (
-            <GlassCard
-              key={group}
-              className="bg-card/85 px-4 py-3 ring-0 border-border/65 shadow-[0_2px_8px_rgba(15,23,42,0.06)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.16)]"
-            >
-              <p className="font-medium text-foreground/90">{group}</p>
-            </GlassCard>
-          ))}
-        </div>
-      </section>
-
-      <Footer />
-    </main>
-  );
-}
-
-/**
- * Footer with copyright and public links.
- */
-function Footer() {
-  return (
-    <footer className="mx-auto mt-8 w-full max-w-6xl px-4 pb-8">
-      <div className="h-px w-full bg-gradient-to-r from-transparent via-border to-transparent" />
-      <div className="mt-4 flex flex-col gap-3 text-xs text-foreground/70 sm:flex-row sm:items-center sm:justify-between">
-        <p>© {new Date().getFullYear()} Ålesund Studentsamfunn</p>
-        <div className="flex items-center gap-4 sm:justify-end">
-          <a href="https://astudent.no" className="hover:text-foreground">
-            astudent.no
-          </a>
-          <a href="#personvern" className="hover:text-foreground">
-            Personvern
-          </a>
-          <a href="#kontakt" className="hover:text-foreground">
-            Kontakt
-          </a>
-        </div>
+        </section>
       </div>
-    </footer>
+
+      <PublicFooter />
+    </main>
   );
 }
 
