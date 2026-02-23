@@ -5,13 +5,13 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ItemType } from "./page";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { EquipmentImage } from "@/components/equipment/equipment-image";
 
 interface CertificateType {
     id: number;
@@ -156,13 +156,17 @@ export default function WrappedUtstyrPage({ items, groupId }: { items: ItemType[
                 {filtered?.map((item) => (
                     <Card key={item.id.toString()} className="overflow-hidden">
                         <CardHeader>
-                            {item.img_path ? (
-                                <div className="relative w-full h-48 rounded-md overflow-hidden">
-                                    <Image src={process.env.NEXT_PUBLIC_SUPABASE_URL + "/storage/v1/object/public/items/types/" + item.img_path + "." + item.img_type} alt="certificate" fill style={{ objectFit: "cover" }} sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw" />
-                                </div>
-                            ) : (
-                                <div className="h-48 w-full rounded-md bg-muted-foreground/10 flex items-center justify-center text-sm">Ingen bilde</div>
-                            )}
+                            <div className="relative h-48 w-full overflow-hidden rounded-md">
+                                <EquipmentImage
+                                    imgPath={item.img_path}
+                                    imgType={item.img_type}
+                                    bucketPath="items/types"
+                                    alt={item.title ?? "Utstyrtype"}
+                                    fill
+                                    className="object-cover"
+                                    sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+                                />
+                            </div>
                             <CardTitle className="text-base">
                                 {item.title ?? "Uten tittel"}
                             </CardTitle>

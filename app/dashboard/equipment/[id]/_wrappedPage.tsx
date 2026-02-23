@@ -2,7 +2,6 @@
  * Client-side presentation and interaction layer for `equipment/[id]/_wrappedPage.tsx`.
  */
 "use client"
-import Image from "next/image";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
@@ -19,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { EquipmentImage } from "@/components/equipment/equipment-image";
 
 import { createClient } from "@/lib/supabase/client";
 import { ItemType } from "./page";
@@ -217,26 +217,15 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
                 {/* VENSTRE SIDE – BILDE */}
                 <section className="bg-muted/20 lg:sticky lg:top-0 lg:h-screen lg:border-r lg:border-border/60">
                     <div className="relative w-full aspect-[4/3] lg:h-full lg:aspect-auto">
-                        {item.img_path ? (
-                            <Image
-                                src={
-                                    process.env.NEXT_PUBLIC_SUPABASE_URL +
-                                    "/storage/v1/object/public/items/" +
-                                    item.img_path +
-                                    "." +
-                                    item.img_type
-                                }
-                                alt={item.itemname}
-                                fill
-                                priority
-                                className="object-cover"
-                                sizes="(max-width: 1024px) 100vw, 50vw"
-                            />
-                        ) : (
-                            <div className="flex h-full items-center justify-center text-muted-foreground">
-                                Ingen bilde
-                            </div>
-                        )}
+                        <EquipmentImage
+                            imgPath={item.img_path}
+                            imgType={item.img_type}
+                            alt={item.itemname}
+                            fill
+                            priority
+                            className="object-cover"
+                            sizes="(max-width: 1024px) 100vw, 50vw"
+                        />
                     </div>
                 </section>
 

@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import * as React from "react";
 import {
     Dialog,
@@ -18,6 +17,7 @@ import { PublicNavbar } from "@/components/public/public-navbar";
 import { PublicFooter } from "@/components/public/public-footer";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { EquipmentImage } from "@/components/equipment/equipment-image";
 
 type Item = {
     id: number;
@@ -116,23 +116,16 @@ export default function UtstyrClient({
                                         className="flex items-center gap-4 rounded-xl border p-4"
                                     >
                                         {/* Bilde */}
-                                        {res.item?.img_path ? (
-                                            <Image
-                                                src={
-                                                    process.env.NEXT_PUBLIC_SUPABASE_URL +
-                                                    "/storage/v1/object/public/items/" +
-                                                    res.item.img_path +
-                                                    "." +
-                                                    res.item.img_type
-                                                }
-                                                alt={res.item.itemname}
-                                                width={80}
-                                                height={80}
-                                                className="h-20 w-20 rounded-lg object-cover"
+                                        <div className="relative h-20 w-20 overflow-hidden rounded-lg bg-muted">
+                                            <EquipmentImage
+                                                imgPath={res.item?.img_path}
+                                                imgType={res.item?.img_type}
+                                                alt={res.item?.itemname ?? "Ukjent utstyr"}
+                                                fill
+                                                className="object-cover"
+                                                sizes="80px"
                                             />
-                                        ) : (
-                                            <div className="h-20 w-20 rounded-lg bg-muted" />
-                                        )}
+                                        </div>
 
                                         {/* Info */}
                                         <div className="flex-1 min-w-0">
@@ -191,23 +184,16 @@ export default function UtstyrClient({
                                     key={res.id}
                                     className="flex items-center gap-4 rounded-xl border p-4"
                                 >
-                                    {res.item?.img_path ? (
-                                        <Image
-                                            src={
-                                                process.env.NEXT_PUBLIC_SUPABASE_URL +
-                                                "/storage/v1/object/public/items/" +
-                                                res.item.img_path +
-                                                "." +
-                                                res.item.img_type
-                                            }
-                                            alt={res.item.itemname}
-                                            width={80}
-                                            height={80}
-                                            className="h-20 w-20 rounded-lg object-cover"
+                                    <div className="relative h-20 w-20 overflow-hidden rounded-lg bg-muted">
+                                        <EquipmentImage
+                                            imgPath={res.item?.img_path}
+                                            imgType={res.item?.img_type}
+                                            alt={res.item?.itemname ?? "Ukjent utstyr"}
+                                            fill
+                                            className="object-cover"
+                                            sizes="80px"
                                         />
-                                    ) : (
-                                        <div className="h-20 w-20 rounded-lg bg-muted" />
-                                    )}
+                                    </div>
 
                                     <div className="flex-1 min-w-0">
                                         <p className="font-medium truncate">
