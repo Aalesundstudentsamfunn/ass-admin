@@ -4,6 +4,10 @@ import DashboardShell from "./DashboardShell";
 import { canAccessDashboard } from "@/lib/privilege-checks";
 import { PRIVILEGE_LEVELS } from "@/lib/privilege-config";
 
+/**
+ * Renders dashboard layout.
+ *
+ */
 export default async function DashboardLayout({
   children,
 }: {
@@ -40,7 +44,9 @@ export default async function DashboardLayout({
 
   return (
     <DashboardShell
-      currentUser={{
+      dashboardSession={{
+        userId: user.id,
+        privilegeType,
         name: fullName || metaName || null,
         email: user.email,
       }}

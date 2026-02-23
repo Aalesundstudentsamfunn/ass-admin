@@ -6,7 +6,12 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { assertPermission } from "@/lib/server/assert-permission";
+import { logAdminAction } from "@/lib/server/admin-audit-log";
+import { getPasswordResetRedirectUrl } from "@/lib/auth/urls";
 
+/**
+ * Sends password reset emails for existing member accounts.
+ */
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
@@ -20,15 +25,33 @@ export async function POST(request: Request) {
     if (!permission.ok) {
       return permission.response;
     }
+    const { supabase, userId } = permission;
 
     const admin = createAdminClient();
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
-    const redirectTo = siteUrl ? `${siteUrl.replace(/\/$/, "")}/auth/callback?next=/auth/update-password` : undefined;
+    const redirectTo = getPasswordResetRedirectUrl();
 
     const { error } = await admin.auth.resetPasswordForEmail(email, { redirectTo });
     if (error) {
+      await logAdminAction(supabase, {
+        actorId: userId,
+        action: "member.password_reset.send",
+        targetTable: "members",
+        targetId: email,
+        status: "error",
+        errorMessage: error.message,
+        details: { email },
+      });
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
+
+    await logAdminAction(supabase, {
+      actorId: userId,
+      action: "member.password_reset.send",
+      targetTable: "members",
+      targetId: email,
+      status: "ok",
+      details: { email },
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {

@@ -1,12 +1,17 @@
 /**
  * POST /api/admin/members/ban
- * Sets ban status for a member in Supabase Auth and mirrors to public.members.is_banned.
+ * Sets ban status for a member in Supabase Auth.
+ * public.members.is_banned must be synced by DB trigger on auth.users.
  * Access is restricted by shared assertPermission guard (requirement: banMembers).
  */
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { assertPermission } from "@/lib/server/assert-permission";
+import { logAdminAction } from "@/lib/server/admin-audit-log";
 
+/**
+ * Applies ban/unban in Supabase Auth and verifies members-sync trigger output.
+ */
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
@@ -57,34 +62,83 @@ export async function POST(request: Request) {
     });
 
     if (authUpdateError) {
+      await logAdminAction(supabase, {
+        actorId: userId,
+        action: nextBanned ? "member.ban" : "member.unban",
+        targetTable: "members",
+        targetId: memberId,
+        status: "error",
+        errorMessage: authUpdateError.message,
+        details: { member_id: memberId, next_banned: nextBanned },
+      });
       return NextResponse.json({ error: authUpdateError.message }, { status: 400 });
     }
 
-    const { error: memberUpdateError } = await supabase
+    const { data: syncedMember, error: syncedError } = await supabase
       .from("members")
-      .update({
-        is_banned: nextBanned,
-        ...(nextBanned ? { is_membership_active: false } : {}),
-      })
-      .eq("id", memberId);
+      .select("is_banned, is_membership_active")
+      .eq("id", memberId)
+      .single();
 
-    if (memberUpdateError) {
-      // best-effort rollback in auth if DB update fails
-      await admin.auth.admin.updateUserById(memberId, {
-        ban_duration: targetMember.is_banned ? "876000h" : "none",
-        app_metadata: existingAppMetadata,
+    if (syncedError || !syncedMember) {
+      await logAdminAction(supabase, {
+        actorId: userId,
+        action: nextBanned ? "member.ban" : "member.unban",
+        targetTable: "members",
+        targetId: memberId,
+        status: "error",
+        errorMessage:
+          syncedError?.message ?? "Kunne ikke lese medlem etter auth-oppdatering.",
+        details: { member_id: memberId, next_banned: nextBanned },
       });
-      await supabase
-        .from("members")
-        .update({
-          is_banned: targetMember.is_banned ?? false,
-          is_membership_active: targetMember.is_membership_active ?? true,
-        })
-        .eq("id", memberId);
-      return NextResponse.json({ error: memberUpdateError.message }, { status: 400 });
+      return NextResponse.json(
+        { error: syncedError?.message ?? "Kunne ikke lese medlem etter auth-oppdatering." },
+        { status: 500 },
+      );
     }
 
-    return NextResponse.json({ ok: true, is_banned: nextBanned });
+    if (syncedMember.is_banned !== nextBanned) {
+      await logAdminAction(supabase, {
+        actorId: userId,
+        action: nextBanned ? "member.ban" : "member.unban",
+        targetTable: "members",
+        targetId: memberId,
+        status: "error",
+        errorMessage:
+          "Ban-status ble oppdatert i auth, men ikke synket til members. Sjekk triggeren på auth.users.",
+        details: { member_id: memberId, next_banned: nextBanned },
+      });
+      return NextResponse.json(
+        {
+          error:
+            "Ban-status ble oppdatert i auth, men ikke synket til members. Sjekk triggeren på auth.users.",
+        },
+        { status: 500 },
+      );
+    }
+
+    await logAdminAction(supabase, {
+      actorId: userId,
+      action: nextBanned ? "member.ban" : "member.unban",
+      targetTable: "members",
+      targetId: memberId,
+      status: "ok",
+      details: {
+        member_id: memberId,
+        is_banned: syncedMember.is_banned === true,
+        is_membership_active: syncedMember.is_membership_active,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      is_banned: syncedMember.is_banned === true,
+      is_membership_active: syncedMember.is_membership_active,
+      changed_from: {
+        is_banned: targetMember.is_banned ?? false,
+        is_membership_active: targetMember.is_membership_active ?? true,
+      },
+    });
   } catch (error: unknown) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Ukjent feil" }, { status: 500 });
   }

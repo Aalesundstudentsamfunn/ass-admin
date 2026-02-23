@@ -6,7 +6,11 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { assertPermission } from "@/lib/server/assert-permission";
+import { logAdminAction } from "@/lib/server/admin-audit-log";
 
+/**
+ * Updates member name in `members` and mirrors metadata to the auth user.
+ */
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
@@ -25,7 +29,7 @@ export async function POST(request: Request) {
     if (!permission.ok) {
       return permission.response;
     }
-    const { supabase } = permission;
+    const { supabase, userId } = permission;
 
     const { data: existingMember, error: existingError } = await supabase
       .from("members")
@@ -43,6 +47,15 @@ export async function POST(request: Request) {
       .eq("id", memberId);
 
     if (memberUpdateError) {
+      await logAdminAction(supabase, {
+        actorId: userId,
+        action: "member.rename",
+        targetTable: "members",
+        targetId: memberId,
+        status: "error",
+        errorMessage: memberUpdateError.message,
+        details: { firstname, lastname },
+      });
       return NextResponse.json({ error: memberUpdateError.message }, { status: 400 });
     }
 
@@ -59,6 +72,19 @@ export async function POST(request: Request) {
           lastname: existingMember.lastname,
         })
         .eq("id", memberId);
+      await logAdminAction(supabase, {
+        actorId: userId,
+        action: "member.rename",
+        targetTable: "members",
+        targetId: memberId,
+        status: "error",
+        errorMessage: authUserError.message,
+        details: {
+          firstname,
+          lastname,
+          rollback: "members.firstname/lastname restored",
+        },
+      });
       return NextResponse.json({ error: authUserError.message }, { status: 400 });
     }
 
@@ -80,8 +106,35 @@ export async function POST(request: Request) {
           lastname: existingMember.lastname,
         })
         .eq("id", memberId);
+      await logAdminAction(supabase, {
+        actorId: userId,
+        action: "member.rename",
+        targetTable: "members",
+        targetId: memberId,
+        status: "error",
+        errorMessage: authUpdateError.message,
+        details: {
+          firstname,
+          lastname,
+          rollback: "members.firstname/lastname restored",
+        },
+      });
       return NextResponse.json({ error: authUpdateError.message }, { status: 400 });
     }
+
+    await logAdminAction(supabase, {
+      actorId: userId,
+      action: "member.rename",
+      targetTable: "members",
+      targetId: memberId,
+      status: "ok",
+      details: {
+        previous_firstname: existingMember.firstname,
+        previous_lastname: existingMember.lastname,
+        firstname,
+        lastname,
+      },
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {

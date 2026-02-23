@@ -6,7 +6,11 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { assertPermission } from "@/lib/server/assert-permission";
+import { logAdminAction } from "@/lib/server/admin-audit-log";
 
+/**
+ * Extracts requested member ids from either `member_id` or `member_ids`.
+ */
 function normalizeIds(body: unknown) {
   const payload = (body ?? {}) as {
     member_id?: unknown;
@@ -19,6 +23,9 @@ function normalizeIds(body: unknown) {
   return Array.from(new Set(singleId ? [singleId, ...idsFromArray] : idsFromArray));
 }
 
+/**
+ * Deletes one or many members by deleting the linked auth users.
+ */
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
@@ -32,8 +39,9 @@ export async function POST(request: Request) {
     if (!permission.ok) {
       return permission.response;
     }
+    const { supabase, userId } = permission;
 
-    if (memberIds.includes(permission.userId)) {
+    if (memberIds.includes(userId)) {
       return NextResponse.json({ error: "Du kan ikke slette din egen bruker." }, { status: 400 });
     }
 
@@ -48,6 +56,19 @@ export async function POST(request: Request) {
     }
 
     if (failures.length > 0) {
+      await logAdminAction(supabase, {
+        actorId: userId,
+        action: "member.delete",
+        targetTable: "members",
+        targetId: memberIds.length === 1 ? memberIds[0] : null,
+        status: "error",
+        errorMessage: "Kunne ikke slette alle brukere.",
+        details: {
+          requested_count: memberIds.length,
+          deleted_count: memberIds.length - failures.length,
+          failed: failures,
+        },
+      });
       return NextResponse.json(
         {
           error: "Kunne ikke slette alle brukere.",
@@ -57,6 +78,19 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+
+    await logAdminAction(supabase, {
+      actorId: userId,
+      action: "member.delete",
+      targetTable: "members",
+      targetId: memberIds.length === 1 ? memberIds[0] : null,
+      status: "ok",
+      details: {
+        requested_count: memberIds.length,
+        deleted_count: memberIds.length,
+        member_ids: memberIds,
+      },
+    });
 
     return NextResponse.json({ ok: true, deleted: memberIds.length });
   } catch (error: unknown) {
