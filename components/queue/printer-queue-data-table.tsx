@@ -13,12 +13,11 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowUpDown, Filter, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowUpDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/ui/glass-panel";
+import { SearchFilterToolbar } from "@/components/table/search-filter-toolbar";
 import { TablePaginationControls } from "@/components/ui/table-pagination-controls";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
@@ -32,6 +31,12 @@ import { formatDate, getInvokerLabel, getStatusMeta, PrinterLogRow } from "./sha
 
 const DEFAULT_QUEUE_SORT: SortingState = [{ id: "created_at", desc: true }];
 
+/**
+ * Builds queue table columns for logs, status, and invoker.
+ *
+ * How: Uses hidden search/status sort columns plus formatted display cells for timestamps and badges.
+ * @returns ColumnDef<PrinterLogRow, unknown>[]
+ */
 function buildColumns(): ColumnDef<PrinterLogRow, unknown>[] {
   return [
     {
@@ -115,6 +120,11 @@ function buildColumns(): ColumnDef<PrinterLogRow, unknown>[] {
   ];
 }
 
+/**
+ * Interactive printer queue table with search, quick filters, sorting, pagination, and row details trigger.
+ *
+ * How: Uses TanStack table state for filtering/sorting and delegates details opening through `onRowClick`.
+ */
 export function PrinterQueueDataTable({
   data,
   defaultPageSize,
@@ -156,6 +166,7 @@ export function PrinterQueueDataTable({
     sorting.length === 1 &&
     sorting[0]?.id === DEFAULT_QUEUE_SORT[0].id &&
     sorting[0]?.desc === DEFAULT_QUEUE_SORT[0].desc;
+  const searchValue = (table.getColumn("search")?.getFilterValue() as string) ?? "";
   const applyQuickFilter = (preset: "latest" | "oldest" | "status" | "name" | "invoker" | "reset") => {
     switch (preset) {
       case "latest":
@@ -189,85 +200,30 @@ export function PrinterQueueDataTable({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 items-center gap-2">
-          <div className="relative w-full max-w-xs">
-            <Input
-              placeholder="Søk navn, e-post, invoker eller ref..."
-              value={(table.getColumn("search")?.getFilterValue() as string) ?? ""}
-              onChange={(event) => table.getColumn("search")?.setFilterValue(event.target.value)}
-              className="rounded-xl bg-background/60 pr-10"
-            />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className={cn(
-                    "absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 transition-colors",
-                    "hover:bg-muted/50",
-                    !isDefaultSort && "text-primary",
-                  )}
-                  aria-label="Filteranbefalinger"
-                >
-                  <Filter className="h-4 w-4" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-[14rem]">
-                <DropdownMenuItem onSelect={(event) => { event.preventDefault(); applyQuickFilter("latest"); }}>
-                  Nyeste oppføring først
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={(event) => { event.preventDefault(); applyQuickFilter("oldest"); }}>
-                  Eldste oppføring først
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={(event) => { event.preventDefault(); applyQuickFilter("status"); }}>
-                  Feilet først
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={(event) => { event.preventDefault(); applyQuickFilter("name"); }}>
-                  Navn A-Å
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={(event) => { event.preventDefault(); applyQuickFilter("invoker"); }}>
-                  Kjørt av A-Å
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={(event) => { event.preventDefault(); applyQuickFilter("reset"); }}>
-                  Nullstill anbefaling
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          {hasSearchFilter ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/70 px-2.5 py-1 text-xs">
-              Søk: {(table.getColumn("search")?.getFilterValue() as string) ?? ""}
-              <button
-                type="button"
-                className="rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label="Fjern søkefilter"
-                onClick={() => {
-                  table.getColumn("search")?.setFilterValue("");
-                  table.setPageIndex(0);
-                }}
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </span>
-          ) : null}
-          {activeQuickFilter ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/70 px-2.5 py-1 text-xs">
-              {activeQuickFilter}
-              <button
-                type="button"
-                className="rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label="Fjern hurtigfilter"
-                onClick={() => applyQuickFilter("reset")}
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </span>
-          ) : null}
-          <Button size="sm" variant="outline" className="rounded-xl" onClick={onRefresh}>
-            Oppdater
-          </Button>
-        </div>
-      </div>
+      <SearchFilterToolbar
+        searchValue={searchValue}
+        onSearchChange={(value) => table.getColumn("search")?.setFilterValue(value)}
+        searchPlaceholder="Søk navn, e-post, invoker eller ref..."
+        isDefaultSort={isDefaultSort}
+        quickFilters={[
+          { key: "latest", label: "Nyeste oppføring først" },
+          { key: "oldest", label: "Eldste oppføring først" },
+          { key: "status", label: "Feilet først" },
+          { key: "name", label: "Navn A-Å" },
+          { key: "invoker", label: "Kjørt av A-Å" },
+          { key: "reset", label: "Nullstill anbefaling" },
+        ]}
+        onQuickFilterSelect={(key) =>
+          applyQuickFilter(key as "latest" | "oldest" | "status" | "name" | "invoker" | "reset")
+        }
+        activeQuickFilter={activeQuickFilter}
+        onClearQuickFilter={() => applyQuickFilter("reset")}
+        onClearSearch={() => {
+          table.getColumn("search")?.setFilterValue("");
+          table.setPageIndex(0);
+        }}
+        onRefresh={onRefresh}
+      />
 
       <GlassPanel>
         <div className="overflow-x-auto rounded-2xl">
