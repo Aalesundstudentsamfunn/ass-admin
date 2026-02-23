@@ -135,7 +135,18 @@ export function AuditLogDetailsDialog({
                   <div className="min-w-0 text-right break-all">
                     {row.target_uuid ? <CopyableValue value={row.target_uuid} label="Target UUID" /> : "-"}
                   </div>
-                  {row.change ? (
+                  {row.change_items?.length ? (
+                    <>
+                      <div className="text-muted-foreground">Endring</div>
+                      <div className="min-w-0 text-right break-all">
+                        <div className="space-y-1">
+                          {row.change_items.map((item, index) => (
+                            <div key={`${row.id}-change-${index}`}>{item}</div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  ) : row.change ? (
                     <>
                       <div className="text-muted-foreground">Endring</div>
                       <div className="min-w-0 text-right break-all">{row.change}</div>
@@ -149,14 +160,22 @@ export function AuditLogDetailsDialog({
                 <div className="grid grid-cols-[9rem_minmax(0,1fr)] gap-y-2 gap-x-4">
                   <div className="text-muted-foreground">Bruker</div>
                   <div className="min-w-0 text-right break-all">{row.actor_label || "-"}</div>
-                  <div className="text-muted-foreground">Bruker-ID</div>
-                  <div className="min-w-0 text-right break-all">
-                    {row.actor_id ? <CopyableValue value={row.actor_id} label="Bruker-ID" /> : "-"}
-                  </div>
-                  <div className="text-muted-foreground">E-post</div>
-                  <div className="min-w-0 text-right break-all">
-                    {row.actor_email ? <CopyableValue value={row.actor_email} label="E-post" /> : "-"}
-                  </div>
+                  {row.actor_id ? (
+                    <>
+                      <div className="text-muted-foreground">Bruker-ID</div>
+                      <div className="min-w-0 text-right break-all">
+                        <CopyableValue value={row.actor_id} label="Bruker-ID" />
+                      </div>
+                    </>
+                  ) : null}
+                  {row.actor_email ? (
+                    <>
+                      <div className="text-muted-foreground">E-post</div>
+                      <div className="min-w-0 text-right break-all">
+                        <CopyableValue value={row.actor_email} label="E-post" />
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               </div>
             </div>

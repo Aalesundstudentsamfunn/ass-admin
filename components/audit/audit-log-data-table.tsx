@@ -106,6 +106,22 @@ function buildColumns(): ColumnDef<AuditLogRow, unknown>[] {
       cell: ({ row }) => <span>{String(row.getValue("target_name") || "-")}</span>,
     },
     {
+      accessorKey: "change",
+      header: ({ column }) => (
+        <button
+          className="inline-flex items-center gap-1"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Endring <ArrowUpDown className="h-3.5 w-3.5" />
+        </button>
+      ),
+      cell: ({ row }) => (
+        <span className="line-clamp-1 max-w-[22rem] break-all">
+          {String(row.getValue("change") || "-")}
+        </span>
+      ),
+    },
+    {
       id: "status",
       accessorFn: (row: AuditLogRow) => getAuditStatusMeta(row.status).sortValue,
       header: ({ column }) => (
