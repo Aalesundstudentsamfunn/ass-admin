@@ -200,23 +200,21 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
 
     return (
         <main className="space-y-6 text-foreground">
-            <div>
+            <header className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1">
+                    <h1 className="text-2xl font-semibold lg:text-3xl">Rediger og lei ut</h1>
+                    <p className="text-sm text-muted-foreground">
+                        Detaljer for valgt utstyr.
+                    </p>
+                </div>
                 <Button variant="outline" onClick={() => window.history.back()}>
                     ← Tilbake
                 </Button>
-            </div>
+            </header>
 
-            <div className="mb-6">
-                <h1 className="text-2xl font-semibold">Rediger og lei ut {item.itemname}</h1>
-                <p className="text-sm text-muted-foreground">
-                    Detaljer for valgt utstyr.
-                </p>
-            </div>
-
-            <div className="mx-auto max-w-6xl overflow-hidden rounded-2xl border border-border/60 bg-transparent lg:grid lg:grid-cols-2">
+            <div className="mx-auto grid max-w-6xl items-start gap-6 xl:grid-cols-[minmax(340px,1fr)_minmax(440px,1fr)]">
                 {/* VENSTRE SIDE – BILDE */}
-                <section className="bg-muted/20 lg:sticky lg:top-0 lg:h-screen lg:border-r lg:border-border/60">
-                    <div className="relative w-full aspect-[4/3] lg:h-full lg:aspect-auto">
+                <section className="relative aspect-[10/11] w-full overflow-hidden rounded-2xl border border-border/60 bg-muted/20">
                         <EquipmentImage
                             imgPath={item.img_path}
                             imgType={item.img_type}
@@ -224,19 +222,18 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
                             fill
                             priority
                             className="object-cover"
-                            sizes="(max-width: 1024px) 100vw, 50vw"
+                            sizes="(max-width: 1280px) 100vw, 480px"
                         />
-                    </div>
                 </section>
 
                 {/* HØYRE SIDE – INFO */}
-                <section className="lg:h-screen lg:overflow-y-auto">
-                    <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-6">
-                        <h1 className="text-2xl font-semibold lg:text-4xl">
+                <section className="rounded-2xl border border-border/60 bg-card/40 p-5 lg:p-7">
+                    <div className="space-y-6">
+                        <h2 className="text-2xl font-semibold lg:text-4xl">
                             {item.itemname}
-                        </h1>
+                        </h2>
 
-                        <div className="flex flex-row space-x-4">
+                        <div className="flex flex-wrap gap-3">
                             <div>
                                 <span
                                     className={`inline-block rounded-full px-4 py-1 text-sm ${item.is_active
@@ -287,7 +284,7 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
                         </div>
 
                         {/* Knapper */}
-                        <div className="flex gap-3 pt-4">
+                        <div className="grid gap-3 pt-4 sm:grid-cols-2">
                             <Dialog open={open} onOpenChange={setOpen}>
                                 <DialogTrigger asChild>
                                     <Button className="flex-1" disabled={!item.is_active || item.is_rented}>

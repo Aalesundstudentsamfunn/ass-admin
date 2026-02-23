@@ -156,7 +156,7 @@ export default function WrappedUtstyrPage({ items, groupId }: { items: ItemType[
                 {filtered?.map((item) => (
                     <Card key={item.id.toString()} className="overflow-hidden">
                         <CardHeader>
-                            <div className="relative h-48 w-full overflow-hidden rounded-md">
+                            <div className="relative aspect-square w-full overflow-hidden rounded-md">
                                 <EquipmentImage
                                     imgPath={item.img_path}
                                     imgType={item.img_type}
