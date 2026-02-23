@@ -21,6 +21,7 @@ import { TablePaginationControls } from "@/components/ui/table-pagination-contro
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { MEMBER_PAGE_SIZES } from "@/lib/table-settings";
+import { isMembershipActive, isVoluntaryOrHigher } from "@/lib/privilege-checks";
 import type { MemberRow, PrivilegeOption } from "./shared";
 import {
   filterMembersBySelectionPreset,
@@ -28,8 +29,93 @@ import {
   MEMBER_QUICK_FILTERS,
   MemberBulkActionsBar,
   MemberQuickSelectionBar,
+  isMemberRowFilterPreset,
+  isMemberSortPreset,
   type MemberQuickFilterPreset,
 } from "./member-data-table-controls";
+
+const DEFAULT_MEMBER_SORT: SortingState = [{ id: "created_at_sort", desc: true }];
+
+/**
+ * Maps current TanStack sorting state to a readable quick-filter label.
+ *
+ * How: Reads first active sort only (single-column sorting in this table).
+ * @returns string | null
+ */
+function getMemberSortLabel(sorting: SortingState): string | null {
+  if (sorting.length > 1) {
+    return `${sorting.length} sorteringer`;
+  }
+  if (sorting.length !== 1) {
+    return null;
+  }
+  const sort = sorting[0];
+  if (!sort) {
+    return null;
+  }
+  if (sort.id === "created_at_sort") {
+    return sort.desc ? null : "Eldste oppføring først";
+  }
+  if (sort.id === "lastname") {
+    return sort.desc ? "Etternavn Å-A" : "Etternavn A-Å";
+  }
+  if (sort.id === "email") {
+    return sort.desc ? "E-post Å-A" : "E-post A-Å";
+  }
+  if (sort.id === "firstname") {
+    return sort.desc ? "Fornavn Å-A" : "Fornavn A-Å";
+  }
+  if (sort.id === "privilege_type") {
+    return sort.desc ? "Høyeste tilgang først" : "Laveste tilgang først";
+  }
+  return sort.desc ? `Sortering: ${sort.id} Å-A` : `Sortering: ${sort.id} A-Å`;
+}
+
+/**
+ * Converts sorting state into quick-filter keys to show checked states in dropdown.
+ *
+ * How: Maps known sort ids/directions to existing quick-filter option keys.
+ * @returns string[]
+ */
+function getMemberSortQuickFilterKeys(sorting: SortingState): string[] {
+  return sorting.flatMap((sort) => {
+    if (sort.id === "created_at_sort") {
+      return [sort.desc ? "latest" : "oldest"];
+    }
+    if (sort.id === "lastname") {
+      return [sort.desc ? "lastname_desc" : "lastname_asc"];
+    }
+    if (sort.id === "email") {
+      return [sort.desc ? "email_desc" : "email_asc"];
+    }
+    if (sort.id === "privilege_type") {
+      return [sort.desc ? "privilege_desc" : "privilege_asc"];
+    }
+    return [];
+  });
+}
+
+/**
+ * Maps active sorting rules to dropdown keys with priority order.
+ *
+ * How: Priority value equals sort index + 1 from TanStack sorting state.
+ * @returns Record<string, number>
+ */
+function getMemberSortPriorityByKey(sorting: SortingState): Record<string, number> {
+  const keys = getMemberSortQuickFilterKeys(sorting);
+  const priorityByKey: Record<string, number> = {};
+  keys.forEach((key, index) => {
+    priorityByKey[key] = index + 1;
+  });
+  return priorityByKey;
+}
+
+/**
+ * Returns true when sorting state is exactly the default table sort.
+ */
+function isDefaultMemberSort(sorting: SortingState): boolean {
+  return sorting.length === 1 && sorting[0]?.id === "created_at_sort" && sorting[0]?.desc === true;
+}
 
 /**
  * Shared table shell used by members/frivillige pages.
@@ -81,23 +167,52 @@ export function MemberDataTable({
   searchParamKey?: string;
   searchPlaceholder?: string;
 }) {
-  const [sorting, setSorting] = React.useState<SortingState>([{ id: "created_at_sort", desc: true }]);
+  const [sorting, setSorting] = React.useState<SortingState>(DEFAULT_MEMBER_SORT);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({ search: false, created_at_sort: false });
   const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: defaultPageSize });
   const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({});
   const [selectionMode, setSelectionMode] = React.useState(false);
   const [bulkPrivilege, setBulkPrivilege] = React.useState<string>("");
-  const [activeQuickFilter, setActiveQuickFilter] = React.useState<string | null>(null);
+  const [roleFilter, setRoleFilter] = React.useState<"all" | "voluntary" | "member">("all");
+  const [membershipFilter, setMembershipFilter] = React.useState<"all" | "active" | "inactive">("all");
   const pageSizeOptions = MEMBER_PAGE_SIZES;
   const searchParams = useSearchParams();
   const initializedFilter = React.useRef(false);
+  const onSortingChange = React.useCallback((updater: React.SetStateAction<SortingState>) => {
+    setSorting((previous) => {
+      const next = typeof updater === "function" ? updater(previous) : updater;
+      if (!next.length) {
+        return DEFAULT_MEMBER_SORT;
+      }
+      return next;
+    });
+  }, []);
+  const filteredData = React.useMemo(
+    () =>
+      data.filter((member) => {
+        if (roleFilter === "voluntary" && !isVoluntaryOrHigher(member.privilege_type)) {
+          return false;
+        }
+        if (roleFilter === "member" && isVoluntaryOrHigher(member.privilege_type)) {
+          return false;
+        }
+        if (membershipFilter === "active" && !isMembershipActive(member.is_membership_active)) {
+          return false;
+        }
+        if (membershipFilter === "inactive" && isMembershipActive(member.is_membership_active)) {
+          return false;
+        }
+        return true;
+      }),
+    [data, membershipFilter, roleFilter],
+  );
 
   const table = useReactTable({
-    data,
+    data: filteredData,
     columns,
     state: { sorting, columnFilters, columnVisibility, pagination, rowSelection },
-    onSortingChange: setSorting,
+    onSortingChange,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange: setPagination,
@@ -140,18 +255,119 @@ export function MemberDataTable({
   const selectedMembers = selectedRows.map((row) => row.original as MemberRow);
   const hasSelection = selectedMembers.length > 0;
   const hasSearchFilter = Boolean(table.getColumn("search")?.getFilterValue());
-  const isDefaultSort = sorting.length === 1 && sorting[0]?.id === "created_at_sort" && sorting[0]?.desc === true;
+  const hasDefaultSort = isDefaultMemberSort(sorting);
+  const isDefaultSort = hasDefaultSort && roleFilter === "all" && membershipFilter === "all";
   const searchValue = (table.getColumn("search")?.getFilterValue() as string) ?? "";
+  const currentSortLabel = React.useMemo(() => getMemberSortLabel(sorting), [sorting]);
+  const activeSortKeys = React.useMemo(() => getMemberSortQuickFilterKeys(sorting), [sorting]);
+  const sortPriorityByKey = React.useMemo(() => getMemberSortPriorityByKey(sorting), [sorting]);
+  const activeQuickFilters = React.useMemo(() => {
+    const pills: Array<{ key: string; label: string }> = [];
+    if (currentSortLabel) {
+      pills.push({ key: "sort", label: currentSortLabel });
+    }
+    if (roleFilter === "voluntary") {
+      pills.push({ key: "role_voluntary", label: "Kun frivillige" });
+    } else if (roleFilter === "member") {
+      pills.push({ key: "role_member", label: "Kun medlemmer" });
+    }
+    if (membershipFilter === "active") {
+      pills.push({ key: "membership_active", label: "Kun aktive medlemskap" });
+    } else if (membershipFilter === "inactive") {
+      pills.push({ key: "membership_inactive", label: "Kun inaktive medlemskap" });
+    }
+    return pills;
+  }, [currentSortLabel, membershipFilter, roleFilter]);
+  const activeQuickFilterKeys = React.useMemo(() => {
+    const keys = [...activeSortKeys];
+    if (roleFilter === "voluntary") {
+      keys.push("role_voluntary");
+    } else if (roleFilter === "member") {
+      keys.push("role_member");
+    }
+    if (membershipFilter === "active") {
+      keys.push("membership_active");
+    } else if (membershipFilter === "inactive") {
+      keys.push("membership_inactive");
+    }
+    return keys;
+  }, [activeSortKeys, membershipFilter, roleFilter]);
+  const activeFilterCount =
+    new Set([
+      ...activeQuickFilterKeys,
+      ...(searchValue ? ["__search"] : []),
+    ]).size;
 
   /**
    * Applies one of the recommended quick-filter presets from the toolbar menu.
    */
   const applyQuickFilter = (preset: MemberQuickFilterPreset) => {
-    const next = getMemberQuickFilterState(preset);
-    setSorting(next.sorting);
-    setActiveQuickFilter(next.activeQuickFilter);
-    if (next.clearSearch) {
+    if (preset === "reset") {
+      setSorting(DEFAULT_MEMBER_SORT);
+      setRoleFilter("all");
+      setMembershipFilter("all");
       table.getColumn("search")?.setFilterValue("");
+      table.setPageIndex(0);
+      return;
+    }
+
+    if (isMemberSortPreset(preset)) {
+      const next = getMemberQuickFilterState(preset);
+      setSorting((previous) => {
+        if (!next.sorting.length) {
+          return previous;
+        }
+        const nextSort = next.sorting[0];
+        if (!nextSort) {
+          return previous;
+        }
+        const existingIndex = previous.findIndex((item) => item.id === nextSort.id);
+        if (existingIndex >= 0) {
+          const existing = previous[existingIndex];
+          if (existing?.desc === nextSort.desc) {
+            const removed = previous.filter((item) => item.id !== nextSort.id);
+            return removed.length ? removed : DEFAULT_MEMBER_SORT;
+          }
+          return previous.map((item) =>
+            item.id === nextSort.id ? nextSort : item,
+          );
+        }
+        return [...previous, nextSort];
+      });
+      table.setPageIndex(0);
+      return;
+    }
+
+    if (isMemberRowFilterPreset(preset)) {
+      if (preset === "role_voluntary") {
+        setRoleFilter((previous) => (previous === "voluntary" ? "all" : "voluntary"));
+      } else if (preset === "role_member") {
+        setRoleFilter((previous) => (previous === "member" ? "all" : "member"));
+      } else if (preset === "membership_active") {
+        setMembershipFilter((previous) => (previous === "active" ? "all" : "active"));
+      } else if (preset === "membership_inactive") {
+        setMembershipFilter((previous) => (previous === "inactive" ? "all" : "inactive"));
+      }
+      table.setPageIndex(0);
+    }
+  };
+
+  /**
+   * Clears one active quick-filter pill without resetting all other active filters.
+   */
+  const clearQuickFilter = (key?: string) => {
+    if (!key || key === "__single") {
+      applyQuickFilter("reset");
+      return;
+    }
+    if (key === "sort") {
+      setSorting(DEFAULT_MEMBER_SORT);
+    } else if (key === "role_voluntary" || key === "role_member") {
+      setRoleFilter("all");
+    } else if (key === "membership_active" || key === "membership_inactive") {
+      setMembershipFilter("all");
+    } else {
+      applyQuickFilter("reset");
     }
     table.setPageIndex(0);
   };
@@ -195,8 +411,13 @@ export function MemberDataTable({
         isDefaultSort={isDefaultSort}
         quickFilters={[...MEMBER_QUICK_FILTERS]}
         onQuickFilterSelect={(key) => applyQuickFilter(key as MemberQuickFilterPreset)}
-        activeQuickFilter={activeQuickFilter}
-        onClearQuickFilter={() => applyQuickFilter("reset")}
+        activeQuickFilter={null}
+        activeQuickFilters={activeQuickFilters}
+        activeQuickFilterKeys={activeQuickFilterKeys}
+        sortPriorityByKey={sortPriorityByKey}
+        activeFilterCount={activeFilterCount}
+        showActivePills={false}
+        onClearQuickFilter={clearQuickFilter}
         onClearSearch={() => {
           table.getColumn("search")?.setFilterValue("");
           table.setPageIndex(0);

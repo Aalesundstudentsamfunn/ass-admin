@@ -31,6 +31,103 @@ import { formatDate, getInvokerLabel, getStatusMeta, PrinterLogRow } from "./sha
 
 const DEFAULT_QUEUE_SORT: SortingState = [{ id: "created_at", desc: true }];
 
+type QueueQuickFilterPreset =
+  | "latest"
+  | "oldest"
+  | "name_asc"
+  | "name_desc"
+  | "invoker_asc"
+  | "invoker_desc"
+  | "status_failed"
+  | "status_pending"
+  | "status_done"
+  | "reset";
+
+function getQueueStatusKey(row: PrinterLogRow): "failed" | "pending" | "done" {
+  if (row.error_msg) {
+    return "failed";
+  }
+  if (row.completed) {
+    return "done";
+  }
+  return "pending";
+}
+
+/**
+ * Maps sorting state to a readable active sort label.
+ *
+ * How: Interprets first active sorting rule and keeps default newest-first unlabeled.
+ * @returns string | null
+ */
+function getQueueSortLabel(sorting: SortingState): string | null {
+  if (sorting.length > 1) {
+    return `${sorting.length} sorteringer`;
+  }
+  if (sorting.length !== 1) {
+    return null;
+  }
+  const sort = sorting[0];
+  if (!sort) {
+    return null;
+  }
+  if (sort.id === "created_at") {
+    return sort.desc ? null : "Eldste oppføring først";
+  }
+  if (sort.id === "name") {
+    return sort.desc ? "Navn Å-A" : "Navn A-Å";
+  }
+  if (sort.id === "invoker") {
+    return sort.desc ? "Kjørt av Å-A" : "Kjørt av A-Å";
+  }
+  if (sort.id === "email") {
+    return sort.desc ? "E-post Å-A" : "E-post A-Å";
+  }
+  if (sort.id === "status") {
+    return sort.desc ? "Status høyest først" : "Status lavest først";
+  }
+  return sort.desc ? `Sortering: ${sort.id} Å-A` : `Sortering: ${sort.id} A-Å`;
+}
+
+/**
+ * Maps sorting state to quick-filter keys for checked marks in dropdown.
+ */
+function getQueueSortQuickFilterKeys(sorting: SortingState): string[] {
+  return sorting.flatMap((sort) => {
+    if (sort.id === "created_at") {
+      return [sort.desc ? "latest" : "oldest"];
+    }
+    if (sort.id === "name") {
+      return [sort.desc ? "name_desc" : "name_asc"];
+    }
+    if (sort.id === "invoker") {
+      return [sort.desc ? "invoker_desc" : "invoker_asc"];
+    }
+    return [];
+  });
+}
+
+/**
+ * Maps current sort keys to explicit priority labels shown in the dropdown.
+ */
+function getQueueSortPriorityByKey(sorting: SortingState): Record<string, number> {
+  const keys = getQueueSortQuickFilterKeys(sorting);
+  const priorityByKey: Record<string, number> = {};
+  keys.forEach((key, index) => {
+    priorityByKey[key] = index + 1;
+  });
+  return priorityByKey;
+}
+
+/**
+ * Keeps default sort as fallback whenever no custom sorting is active.
+ */
+function normalizeQueueSorting(next: SortingState): SortingState {
+  if (!next.length) {
+    return DEFAULT_QUEUE_SORT;
+  }
+  return next;
+}
+
 /**
  * Builds queue table columns for logs, status, and invoker.
  *
@@ -59,7 +156,7 @@ function buildColumns(): ColumnDef<PrinterLogRow, unknown>[] {
       accessorKey: "created_at",
       sortingFn: sortByDateValue,
       header: ({ column }) => (
-        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc", true)}>
           Tidspunkt <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
@@ -69,7 +166,7 @@ function buildColumns(): ColumnDef<PrinterLogRow, unknown>[] {
       id: "name",
       accessorFn: (row: PrinterLogRow) => `${row.firstname ?? ""} ${row.lastname ?? ""}`.trim(),
       header: ({ column }) => (
-        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc", true)}>
           Navn <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
@@ -78,7 +175,7 @@ function buildColumns(): ColumnDef<PrinterLogRow, unknown>[] {
     {
       accessorKey: "email",
       header: ({ column }) => (
-        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc", true)}>
           E-post <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
@@ -88,7 +185,7 @@ function buildColumns(): ColumnDef<PrinterLogRow, unknown>[] {
       id: "status",
       accessorFn: (row: PrinterLogRow) => getStatusMeta(row).sortValue,
       header: ({ column }) => (
-        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc", true)}>
           Status <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
@@ -105,7 +202,7 @@ function buildColumns(): ColumnDef<PrinterLogRow, unknown>[] {
       id: "invoker",
       accessorFn: (row: PrinterLogRow) => getInvokerLabel(row),
       header: ({ column }) => (
-        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc", true)}>
           Kjørt av <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
@@ -141,13 +238,54 @@ export function PrinterQueueDataTable({
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({ search: false });
   const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: defaultPageSize });
-  const [activeQuickFilter, setActiveQuickFilter] = React.useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = React.useState<"all" | "failed" | "pending" | "done">("all");
+  const onSortingChange = React.useCallback((updater: React.SetStateAction<SortingState>) => {
+    setSorting((previous) => {
+      const next = typeof updater === "function" ? updater(previous) : updater;
+      return normalizeQueueSorting(next);
+    });
+  }, []);
+  const filteredData = React.useMemo(
+    () =>
+      data.filter((row) =>
+        statusFilter === "all" ? true : getQueueStatusKey(row) === statusFilter,
+      ),
+    [data, statusFilter],
+  );
+  const currentSortLabel = React.useMemo(() => getQueueSortLabel(sorting), [sorting]);
+  const activeSortKeys = React.useMemo(() => getQueueSortQuickFilterKeys(sorting), [sorting]);
+  const sortPriorityByKey = React.useMemo(() => getQueueSortPriorityByKey(sorting), [sorting]);
+  const activeQuickFilters = React.useMemo(() => {
+    const pills: Array<{ key: string; label: string }> = [];
+    if (currentSortLabel) {
+      pills.push({ key: "sort", label: currentSortLabel });
+    }
+    if (statusFilter === "failed") {
+      pills.push({ key: "status_failed", label: "Kun feilet" });
+    } else if (statusFilter === "pending") {
+      pills.push({ key: "status_pending", label: "Kun pending" });
+    } else if (statusFilter === "done") {
+      pills.push({ key: "status_done", label: "Kun ferdig" });
+    }
+    return pills;
+  }, [currentSortLabel, statusFilter]);
+  const activeQuickFilterKeys = React.useMemo(() => {
+    const keys = [...activeSortKeys];
+    if (statusFilter === "failed") {
+      keys.push("status_failed");
+    } else if (statusFilter === "pending") {
+      keys.push("status_pending");
+    } else if (statusFilter === "done") {
+      keys.push("status_done");
+    }
+    return keys;
+  }, [activeSortKeys, statusFilter]);
 
   const table = useReactTable({
-    data,
+    data: filteredData,
     columns,
     state: { sorting, columnFilters, columnVisibility, pagination },
-    onSortingChange: setSorting,
+    onSortingChange,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange: setPagination,
@@ -165,35 +303,79 @@ export function PrinterQueueDataTable({
   const isDefaultSort =
     sorting.length === 1 &&
     sorting[0]?.id === DEFAULT_QUEUE_SORT[0].id &&
-    sorting[0]?.desc === DEFAULT_QUEUE_SORT[0].desc;
+    sorting[0]?.desc === DEFAULT_QUEUE_SORT[0].desc &&
+    statusFilter === "all";
   const searchValue = (table.getColumn("search")?.getFilterValue() as string) ?? "";
-  const applyQuickFilter = (preset: "latest" | "oldest" | "status" | "name" | "invoker" | "reset") => {
+  const activeFilterCount =
+    new Set([
+      ...activeQuickFilterKeys,
+      ...(searchValue ? ["__search"] : []),
+    ]).size;
+  const applyQuickFilter = (preset: QueueQuickFilterPreset) => {
+    const toggleSort = (id: string, desc: boolean) => {
+      setSorting((previous) => {
+        const normalized = normalizeQueueSorting(previous);
+        const existingIndex = normalized.findIndex((item) => item.id === id);
+        if (existingIndex >= 0) {
+          const existing = normalized[existingIndex];
+          if (existing?.desc === desc) {
+            const removed = normalized.filter((item) => item.id !== id);
+            return normalizeQueueSorting(removed);
+          }
+          return normalized.map((item) => (item.id === id ? { id, desc } : item));
+        }
+        return normalizeQueueSorting([...normalized, { id, desc }]);
+      });
+    };
+
     switch (preset) {
       case "latest":
-        setSorting(DEFAULT_QUEUE_SORT);
-        setActiveQuickFilter(null);
+        toggleSort("created_at", true);
         break;
       case "oldest":
-        setSorting([{ id: "created_at", desc: false }]);
-        setActiveQuickFilter("Eldste oppføring først");
+        toggleSort("created_at", false);
         break;
-      case "status":
-        setSorting([{ id: "status", desc: true }]);
-        setActiveQuickFilter("Feilet først");
+      case "name_asc":
+        toggleSort("name", false);
         break;
-      case "name":
-        setSorting([{ id: "name", desc: false }]);
-        setActiveQuickFilter("Navn A-Å");
+      case "name_desc":
+        toggleSort("name", true);
         break;
-      case "invoker":
-        setSorting([{ id: "invoker", desc: false }]);
-        setActiveQuickFilter("Kjørt av A-Å");
+      case "invoker_asc":
+        toggleSort("invoker", false);
+        break;
+      case "invoker_desc":
+        toggleSort("invoker", true);
+        break;
+      case "status_failed":
+        setStatusFilter((prev) => (prev === "failed" ? "all" : "failed"));
+        break;
+      case "status_pending":
+        setStatusFilter((prev) => (prev === "pending" ? "all" : "pending"));
+        break;
+      case "status_done":
+        setStatusFilter((prev) => (prev === "done" ? "all" : "done"));
         break;
       default:
         setSorting(DEFAULT_QUEUE_SORT);
+        setStatusFilter("all");
         table.getColumn("search")?.setFilterValue("");
-        setActiveQuickFilter(null);
         break;
+    }
+    table.setPageIndex(0);
+  };
+
+  const clearQuickFilter = (key?: string) => {
+    if (!key || key === "__single") {
+      applyQuickFilter("reset");
+      return;
+    }
+    if (key === "sort") {
+      setSorting(DEFAULT_QUEUE_SORT);
+    } else if (key === "status_failed" || key === "status_pending" || key === "status_done") {
+      setStatusFilter("all");
+    } else {
+      applyQuickFilter("reset");
     }
     table.setPageIndex(0);
   };
@@ -208,16 +390,23 @@ export function PrinterQueueDataTable({
         quickFilters={[
           { key: "latest", label: "Nyeste oppføring først" },
           { key: "oldest", label: "Eldste oppføring først" },
-          { key: "status", label: "Feilet først" },
-          { key: "name", label: "Navn A-Å" },
-          { key: "invoker", label: "Kjørt av A-Å" },
-          { key: "reset", label: "Nullstill anbefaling" },
+          { key: "name_asc", label: "Navn A-Å" },
+          { key: "name_desc", label: "Navn Å-A" },
+          { key: "invoker_asc", label: "Kjørt av A-Å" },
+          { key: "invoker_desc", label: "Kjørt av Å-A" },
+          { key: "status_failed", label: "Kun feilet" },
+          { key: "status_pending", label: "Kun pending" },
+          { key: "status_done", label: "Kun ferdig" },
+          { key: "reset", label: "Nullstill hurtigfiltre" },
         ]}
-        onQuickFilterSelect={(key) =>
-          applyQuickFilter(key as "latest" | "oldest" | "status" | "name" | "invoker" | "reset")
-        }
-        activeQuickFilter={activeQuickFilter}
-        onClearQuickFilter={() => applyQuickFilter("reset")}
+        onQuickFilterSelect={(key) => applyQuickFilter(key as QueueQuickFilterPreset)}
+        activeQuickFilter={null}
+        activeQuickFilters={activeQuickFilters}
+        activeQuickFilterKeys={activeQuickFilterKeys}
+        sortPriorityByKey={sortPriorityByKey}
+        activeFilterCount={activeFilterCount}
+        showActivePills={false}
+        onClearQuickFilter={clearQuickFilter}
         onClearSearch={() => {
           table.getColumn("search")?.setFilterValue("");
           table.setPageIndex(0);

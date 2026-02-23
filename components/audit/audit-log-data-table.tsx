@@ -42,6 +42,92 @@ import {
 
 const DEFAULT_AUDIT_SORT: SortingState = [{ id: "created_at", desc: true }];
 
+type AuditQuickFilterPreset =
+  | "latest"
+  | "oldest"
+  | "event_asc"
+  | "event_desc"
+  | "target_asc"
+  | "target_desc"
+  | "status_error"
+  | "status_ok"
+  | "reset";
+
+/**
+ * Maps current audit sorting to a readable label.
+ *
+ * How: Uses first sorting rule and keeps default newest-first without pill.
+ * @returns string | null
+ */
+function getAuditSortLabel(sorting: SortingState): string | null {
+  if (sorting.length > 1) {
+    return `${sorting.length} sorteringer`;
+  }
+  if (sorting.length !== 1) {
+    return null;
+  }
+  const sort = sorting[0];
+  if (!sort) {
+    return null;
+  }
+  if (sort.id === "created_at") {
+    return sort.desc ? null : "Eldste oppføring først";
+  }
+  if (sort.id === "event") {
+    return sort.desc ? "Hendelse Å-A" : "Hendelse A-Å";
+  }
+  if (sort.id === "target_name") {
+    return sort.desc ? "Mål Å-A" : "Mål A-Å";
+  }
+  if (sort.id === "change") {
+    return sort.desc ? "Endring Å-A" : "Endring A-Å";
+  }
+  if (sort.id === "status") {
+    return sort.desc ? "Status høyest først" : "Status lavest først";
+  }
+  return sort.desc ? `Sortering: ${sort.id} Å-A` : `Sortering: ${sort.id} A-Å`;
+}
+
+/**
+ * Maps sorting state to quick-filter keys used in the dropdown checkmarks.
+ */
+function getAuditSortQuickFilterKeys(sorting: SortingState): string[] {
+  return sorting.flatMap((sort) => {
+    if (sort.id === "created_at") {
+      return [sort.desc ? "latest" : "oldest"];
+    }
+    if (sort.id === "event") {
+      return [sort.desc ? "event_desc" : "event_asc"];
+    }
+    if (sort.id === "target_name") {
+      return [sort.desc ? "target_desc" : "target_asc"];
+    }
+    return [];
+  });
+}
+
+/**
+ * Maps active sort keys to explicit priority labels shown in filter dropdown.
+ */
+function getAuditSortPriorityByKey(sorting: SortingState): Record<string, number> {
+  const keys = getAuditSortQuickFilterKeys(sorting);
+  const priorityByKey: Record<string, number> = {};
+  keys.forEach((key, index) => {
+    priorityByKey[key] = index + 1;
+  });
+  return priorityByKey;
+}
+
+/**
+ * Keeps default newest-first sort as fallback when no custom sort rules remain.
+ */
+function normalizeAuditSorting(next: SortingState): SortingState {
+  if (!next.length) {
+    return DEFAULT_AUDIT_SORT;
+  }
+  return next;
+}
+
 /**
  * Column configuration for audit table.
  * Search is implemented via a hidden aggregated `search` column.
@@ -74,7 +160,7 @@ function buildColumns(): ColumnDef<AuditLogRow, unknown>[] {
       header: ({ column }) => (
         <button
           className="inline-flex items-center gap-1"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc", true)}
         >
           Tidspunkt <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
@@ -86,7 +172,7 @@ function buildColumns(): ColumnDef<AuditLogRow, unknown>[] {
       header: ({ column }) => (
         <button
           className="inline-flex items-center gap-1"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc", true)}
         >
           Hendelse <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
@@ -98,7 +184,7 @@ function buildColumns(): ColumnDef<AuditLogRow, unknown>[] {
       header: ({ column }) => (
         <button
           className="inline-flex items-center gap-1"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc", true)}
         >
           Mål <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
@@ -110,7 +196,7 @@ function buildColumns(): ColumnDef<AuditLogRow, unknown>[] {
       header: ({ column }) => (
         <button
           className="inline-flex items-center gap-1"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc", true)}
         >
           Endring <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
@@ -127,7 +213,7 @@ function buildColumns(): ColumnDef<AuditLogRow, unknown>[] {
       header: ({ column }) => (
         <button
           className="inline-flex items-center gap-1"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc", true)}
         >
           Status <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
@@ -183,15 +269,50 @@ export function AuditLogDataTable({
     pageIndex: 0,
     pageSize: defaultPageSize,
   });
-  const [activeQuickFilter, setActiveQuickFilter] = React.useState<string | null>(
-    null
+  const [statusFilter, setStatusFilter] = React.useState<"all" | "ok" | "error">("all");
+  const onSortingChange = React.useCallback((updater: React.SetStateAction<SortingState>) => {
+    setSorting((previous) => {
+      const next = typeof updater === "function" ? updater(previous) : updater;
+      return normalizeAuditSorting(next);
+    });
+  }, []);
+  const currentSortLabel = React.useMemo(() => getAuditSortLabel(sorting), [sorting]);
+  const activeSortKeys = React.useMemo(() => getAuditSortQuickFilterKeys(sorting), [sorting]);
+  const sortPriorityByKey = React.useMemo(() => getAuditSortPriorityByKey(sorting), [sorting]);
+  const filteredData = React.useMemo(
+    () =>
+      data.filter((row) =>
+        statusFilter === "all" ? true : row.status === statusFilter,
+      ),
+    [data, statusFilter],
   );
+  const activeQuickFilters = React.useMemo(() => {
+    const pills: Array<{ key: string; label: string }> = [];
+    if (currentSortLabel) {
+      pills.push({ key: "sort", label: currentSortLabel });
+    }
+    if (statusFilter === "error") {
+      pills.push({ key: "status_error", label: "Kun feilet" });
+    } else if (statusFilter === "ok") {
+      pills.push({ key: "status_ok", label: "Kun OK" });
+    }
+    return pills;
+  }, [currentSortLabel, statusFilter]);
+  const activeQuickFilterKeys = React.useMemo(() => {
+    const keys = [...activeSortKeys];
+    if (statusFilter === "error") {
+      keys.push("status_error");
+    } else if (statusFilter === "ok") {
+      keys.push("status_ok");
+    }
+    return keys;
+  }, [activeSortKeys, statusFilter]);
 
   const table = useReactTable({
-    data,
+    data: filteredData,
     columns,
     state: { sorting, columnFilters, columnVisibility, pagination },
-    onSortingChange: setSorting,
+    onSortingChange,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange: setPagination,
@@ -209,38 +330,79 @@ export function AuditLogDataTable({
   const isDefaultSort =
     sorting.length === 1 &&
     sorting[0]?.id === DEFAULT_AUDIT_SORT[0].id &&
-    sorting[0]?.desc === DEFAULT_AUDIT_SORT[0].desc;
+    sorting[0]?.desc === DEFAULT_AUDIT_SORT[0].desc &&
+    statusFilter === "all";
   const searchValue = (table.getColumn("search")?.getFilterValue() as string) ?? "";
+  const activeFilterCount =
+    new Set([
+      ...activeQuickFilterKeys,
+      ...(searchValue ? ["__search"] : []),
+    ]).size;
 
   const applyQuickFilter = (
-    preset: "latest" | "oldest" | "status" | "event" | "actor" | "reset"
+    preset: AuditQuickFilterPreset
   ) => {
+    const toggleSort = (id: string, desc: boolean) => {
+      setSorting((previous) => {
+        const normalized = normalizeAuditSorting(previous);
+        const existingIndex = normalized.findIndex((item) => item.id === id);
+        if (existingIndex >= 0) {
+          const existing = normalized[existingIndex];
+          if (existing?.desc === desc) {
+            const removed = normalized.filter((item) => item.id !== id);
+            return normalizeAuditSorting(removed);
+          }
+          return normalized.map((item) => (item.id === id ? { id, desc } : item));
+        }
+        return normalizeAuditSorting([...normalized, { id, desc }]);
+      });
+    };
+
     switch (preset) {
       case "latest":
-        setSorting(DEFAULT_AUDIT_SORT);
-        setActiveQuickFilter(null);
+        toggleSort("created_at", true);
         break;
       case "oldest":
-        setSorting([{ id: "created_at", desc: false }]);
-        setActiveQuickFilter("Eldste oppføring først");
+        toggleSort("created_at", false);
         break;
-      case "status":
-        setSorting([{ id: "status", desc: true }]);
-        setActiveQuickFilter("Feilet først");
+      case "event_asc":
+        toggleSort("event", false);
         break;
-      case "event":
-        setSorting([{ id: "event", desc: false }]);
-        setActiveQuickFilter("Hendelse A-Å");
+      case "event_desc":
+        toggleSort("event", true);
         break;
-      case "actor":
-        setSorting([{ id: "target_name", desc: false }]);
-        setActiveQuickFilter("Mål A-Å");
+      case "target_asc":
+        toggleSort("target_name", false);
+        break;
+      case "target_desc":
+        toggleSort("target_name", true);
+        break;
+      case "status_error":
+        setStatusFilter((previous) => (previous === "error" ? "all" : "error"));
+        break;
+      case "status_ok":
+        setStatusFilter((previous) => (previous === "ok" ? "all" : "ok"));
         break;
       default:
         setSorting(DEFAULT_AUDIT_SORT);
+        setStatusFilter("all");
         table.getColumn("search")?.setFilterValue("");
-        setActiveQuickFilter(null);
         break;
+    }
+    table.setPageIndex(0);
+  };
+
+  const clearQuickFilter = (key?: string) => {
+    if (!key || key === "__single") {
+      applyQuickFilter("reset");
+      return;
+    }
+    if (key === "sort") {
+      setSorting(DEFAULT_AUDIT_SORT);
+    } else if (key === "status_ok" || key === "status_error") {
+      setStatusFilter("all");
+    } else {
+      applyQuickFilter("reset");
     }
     table.setPageIndex(0);
   };
@@ -255,16 +417,22 @@ export function AuditLogDataTable({
         quickFilters={[
           { key: "latest", label: "Nyeste oppføring først" },
           { key: "oldest", label: "Eldste oppføring først" },
-          { key: "status", label: "Feilet først" },
-          { key: "event", label: "Hendelse A-Å" },
-          { key: "actor", label: "Mål A-Å" },
-          { key: "reset", label: "Nullstill anbefaling" },
+          { key: "event_asc", label: "Hendelse A-Å" },
+          { key: "event_desc", label: "Hendelse Å-A" },
+          { key: "target_asc", label: "Mål A-Å" },
+          { key: "target_desc", label: "Mål Å-A" },
+          { key: "status_error", label: "Kun feilet" },
+          { key: "status_ok", label: "Kun OK" },
+          { key: "reset", label: "Nullstill hurtigfiltre" },
         ]}
-        onQuickFilterSelect={(key) =>
-          applyQuickFilter(key as "latest" | "oldest" | "status" | "event" | "actor" | "reset")
-        }
-        activeQuickFilter={activeQuickFilter}
-        onClearQuickFilter={() => applyQuickFilter("reset")}
+        onQuickFilterSelect={(key) => applyQuickFilter(key as AuditQuickFilterPreset)}
+        activeQuickFilter={null}
+        activeQuickFilters={activeQuickFilters}
+        activeQuickFilterKeys={activeQuickFilterKeys}
+        sortPriorityByKey={sortPriorityByKey}
+        activeFilterCount={activeFilterCount}
+        showActivePills={false}
+        onClearQuickFilter={clearQuickFilter}
         onClearSearch={() => {
           table.getColumn("search")?.setFilterValue("");
           table.setPageIndex(0);

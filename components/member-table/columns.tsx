@@ -48,7 +48,7 @@ function SortableHeader({
   return (
     <button
       className="inline-flex items-center gap-1"
-      onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      onClick={() => column.toggleSorting(column.getIsSorted() === "asc", true)}
     >
       {label} <ArrowUpDown className="h-3.5 w-3.5" />
     </button>
