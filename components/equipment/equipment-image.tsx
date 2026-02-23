@@ -32,7 +32,12 @@ function buildEquipmentImageUrl(
   }
 
   const normalizedBucketPath = bucketPath.replace(/^\/+|\/+$/g, "");
-  return `${baseUrl}/storage/v1/object/public/${normalizedBucketPath}/${imgPath}.${imgType}`;
+  const encodedPath = imgPath
+    .split("/")
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+
+  return `${baseUrl}/storage/v1/object/public/${normalizedBucketPath}/${encodedPath}.${encodeURIComponent(imgType)}`;
 }
 
 /**
@@ -72,6 +77,7 @@ export function EquipmentImage({
       width={width}
       height={height}
       priority={priority}
+      unoptimized={src !== PLACEHOLDER_SRC}
       onError={() => {
         if (src !== PLACEHOLDER_SRC) {
           setSrc(PLACEHOLDER_SRC);
@@ -80,4 +86,3 @@ export function EquipmentImage({
     />
   );
 }
-
