@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 /**
  * Shared public footer used on homepage and `/utstyr`.
  */
@@ -11,12 +13,12 @@ export function PublicFooter() {
           <a href="https://astudent.no" className="hover:text-foreground">
             astudent.no
           </a>
-          <a href="#personvern" className="hover:text-foreground">
+          <Link href="/personvern" className="hover:text-foreground">
             Personvern
-          </a>
-          <a href="#kontakt" className="hover:text-foreground">
+          </Link>
+          <Link href="/kontakt" className="hover:text-foreground">
             Kontakt
-          </a>
+          </Link>
         </div>
       </div>
     </footer>
