@@ -62,7 +62,7 @@ export default async function UtstyrPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/auth/login");
+    redirect("/auth/login?next=%2Futstyr");
   }
 
   const { data: member } = await supabase

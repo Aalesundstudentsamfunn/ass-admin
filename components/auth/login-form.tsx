@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const GENERIC_LOGIN_BLOCKED_MESSAGE = "Kunne ikke logge inn. Sjekk opplysningene dine eller kontakt it@astudent.no.";
@@ -25,6 +25,25 @@ function isBannedAuthError(error: unknown) {
 }
 
 /**
+ * Returns a safe in-app redirect target from the `next` query param.
+ */
+function getSafeRedirectTarget(nextValue: string | null) {
+  if (!nextValue) {
+    return null;
+  }
+  if (!nextValue.startsWith("/")) {
+    return null;
+  }
+  if (nextValue.startsWith("//")) {
+    return null;
+  }
+  if (nextValue.startsWith("/auth/login")) {
+    return null;
+  }
+  return nextValue;
+}
+
+/**
  * Renders login form.
  */
 export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
@@ -33,6 +52,8 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTarget = getSafeRedirectTarget(searchParams.get("next"));
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -56,8 +77,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
         password,
       });
       if (error) throw error;
-      // Update this route to redirect to an authenticated route. The user already has an active session.
-      router.push("/dashboard");
+      router.push(redirectTarget ?? "/dashboard");
     } catch (error: unknown) {
       if (isBannedAuthError(error)) {
         setError(GENERIC_LOGIN_BLOCKED_MESSAGE);

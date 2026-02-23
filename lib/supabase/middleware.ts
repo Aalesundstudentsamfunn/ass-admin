@@ -55,9 +55,11 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith("/login") &&
     !request.nextUrl.pathname.startsWith("/auth")
   ) {
-    // no user, potentially respond by redirecting the user to the login page
+    // No user: redirect to login and preserve intended destination.
     const url = request.nextUrl.clone();
+    const nextTarget = `${request.nextUrl.pathname}${request.nextUrl.search}`;
     url.pathname = "/auth/login";
+    url.searchParams.set("next", nextTarget);
     return NextResponse.redirect(url);
   }
 
