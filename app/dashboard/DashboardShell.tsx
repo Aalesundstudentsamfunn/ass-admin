@@ -143,7 +143,7 @@ export default function DashboardShell({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const Sidebar = ({ mobile = false }: { mobile?: boolean }) => (
-    <div className={cn("flex h-full flex-col gap-4", mobile ? "w-full" : "w-full p-3")}>
+    <div className={cn("flex h-full flex-col gap-4", mobile ? "w-full" : "w-full")}>
       <GlassPanel className={cn("p-4", !mobile && sidebarCollapsed && "px-3 py-3")}>
         <div className={cn("flex items-center gap-3", !mobile && sidebarCollapsed && "justify-center")}>
           <button
@@ -220,7 +220,7 @@ export default function DashboardShell({
         </GlassPanel>
       </div>
 
-      <div className="mx-auto flex w-full max-w-[1400px] flex-1 gap-3 px-3 pb-6 lg:pt-6">
+      <div className="mx-auto flex w-full max-w-[1400px] flex-1 items-start gap-3 px-3 pb-6 lg:pt-6">
         {/* Desktop sidebar */}
         <aside className={cn("relative hidden shrink-0 transition-[width] duration-300 lg:block", sidebarCollapsed ? "w-20" : "w-72")}>
           <Sidebar />
