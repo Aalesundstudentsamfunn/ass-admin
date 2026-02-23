@@ -9,13 +9,7 @@ import { cn } from "@/lib/utils";
 /**
  * Renders logout button.
  */
-export function LogoutButton({
-  compact = false,
-  className,
-}: {
-  compact?: boolean;
-  className?: string;
-}) {
+export function LogoutButton({ compact = false, className }: { compact?: boolean; className?: string }) {
   const router = useRouter();
 
   const logout = async () => {
@@ -26,14 +20,7 @@ export function LogoutButton({
 
   if (compact) {
     return (
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={logout}
-        title="Logout"
-        aria-label="Logout"
-        className={cn("h-9 w-9", className)}
-      >
+      <Button variant="ghost" size="icon" onClick={logout} title="Logg ut" aria-label="Logg ut" className={cn("h-9 w-9", className)}>
         <LogOut className="h-4 w-4" />
       </Button>
     );
@@ -41,7 +28,7 @@ export function LogoutButton({
 
   return (
     <Button onClick={logout} className={className}>
-      Logout
+      Logg ut
     </Button>
   );
 }

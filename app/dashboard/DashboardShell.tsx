@@ -4,7 +4,7 @@ import type React from "react";
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Users, Printer, Heart, Package, Building2, Menu, Settings, Award, FileText, ChevronLeft, ChevronRight, ShieldCheck } from "lucide-react";
 import Image from "next/image";
 import Logo from "@/app/logo.png";
@@ -157,7 +157,7 @@ export default function DashboardShell({
             </div>
             <div className={cn("overflow-hidden whitespace-nowrap transition-[max-width,opacity,transform] duration-300", mobile || !sidebarCollapsed ? "max-w-[180px] opacity-100 translate-x-0" : "max-w-0 opacity-0 translate-x-1")}>
               <div className="text-base font-semibold tracking-tight">Admin Panel</div>
-              <div className="text-xs text-foreground/70">Overview</div>
+              <div className="text-xs text-foreground/70">Oversikt</div>
             </div>
           </button>
         </div>
@@ -204,10 +204,11 @@ export default function DashboardShell({
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl">
                   <Menu className="h-5 w-5" />
-                  <span className="sr-only">Open navigation</span>
+                  <span className="sr-only">Åpne navigasjonsmeny</span>
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="p-3 bg-transparent border-0">
+                <SheetTitle className="sr-only">Navigasjonsmeny</SheetTitle>
                 <Sidebar mobile />
               </SheetContent>
             </Sheet>
