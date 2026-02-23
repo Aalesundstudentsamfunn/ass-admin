@@ -118,21 +118,59 @@ function isDefaultMemberSort(sorting: SortingState): boolean {
 }
 
 /**
- * Keeps default sort as fallback and demotes created_at to tie-breaker when multi-sort is active.
+ * Normalizes member sorting payload.
+ *
+ * How: Deduplicates by column id (first wins) and keeps default fallback when empty.
  */
 function normalizeMemberSorting(next: SortingState): SortingState {
   if (!next.length) {
     return DEFAULT_MEMBER_SORT;
   }
-  if (next.length === 1) {
-    return next;
+  const seen = new Set<string>();
+  const deduped: SortingState = [];
+  next.forEach((item) => {
+    if (seen.has(item.id)) {
+      return;
+    }
+    seen.add(item.id);
+    deduped.push(item);
+  });
+  return deduped.length ? deduped : DEFAULT_MEMBER_SORT;
+}
+
+/**
+ * Finds which sort id changed between previous and next state.
+ *
+ * How: Prioritizes newly added ids, then direction changes.
+ */
+function getChangedSortId(previous: SortingState, next: SortingState): string | null {
+  const previousMap = new Map(previous.map((item) => [item.id, item.desc] as const));
+  for (const item of next) {
+    if (!previousMap.has(item.id)) {
+      return item.id;
+    }
   }
-  const withoutCreatedAt = next.filter((item) => item.id !== "created_at_sort");
-  const createdAt = next.find((item) => item.id === "created_at_sort");
-  if (!createdAt) {
-    return next;
+  for (const item of next) {
+    const prevDesc = previousMap.get(item.id);
+    if (typeof prevDesc === "boolean" && prevDesc !== item.desc) {
+      return item.id;
+    }
   }
-  return [...withoutCreatedAt, createdAt];
+  return null;
+}
+
+/**
+ * Upserts one sort rule as highest priority.
+ * Clicking an already-primary identical rule removes it.
+ */
+function upsertSortAsPrimary(previous: SortingState, nextSort: { id: string; desc: boolean }): SortingState {
+  const primary = previous[0];
+  if (primary && primary.id === nextSort.id && primary.desc === nextSort.desc) {
+    const removed = previous.filter((item) => item.id !== nextSort.id);
+    return normalizeMemberSorting(removed);
+  }
+  const withoutSame = previous.filter((item) => item.id !== nextSort.id);
+  return normalizeMemberSorting([nextSort, ...withoutSame]);
 }
 
 /**
@@ -199,8 +237,18 @@ export function MemberDataTable({
   const initializedFilter = React.useRef(false);
   const onSortingChange = React.useCallback((updater: React.SetStateAction<SortingState>) => {
     setSorting((previous) => {
-      const next = typeof updater === "function" ? updater(previous) : updater;
-      return normalizeMemberSorting(next);
+      const raw = typeof updater === "function" ? updater(previous) : updater;
+      const next = normalizeMemberSorting(raw);
+      const changedId = getChangedSortId(previous, next);
+      if (!changedId) {
+        return next;
+      }
+      const changed = next.find((item) => item.id === changedId);
+      if (!changed) {
+        return next;
+      }
+      const rest = next.filter((item) => item.id !== changedId);
+      return [changed, ...rest];
     });
   }, []);
   const filteredData = React.useMemo(
@@ -336,18 +384,7 @@ export function MemberDataTable({
         if (!nextSort) {
           return previous;
         }
-        const existingIndex = previous.findIndex((item) => item.id === nextSort.id);
-        if (existingIndex >= 0) {
-          const existing = previous[existingIndex];
-          if (existing?.desc === nextSort.desc) {
-            const removed = previous.filter((item) => item.id !== nextSort.id);
-            return normalizeMemberSorting(removed);
-          }
-          return normalizeMemberSorting(previous.map((item) =>
-            item.id === nextSort.id ? nextSort : item,
-          ));
-        }
-        return normalizeMemberSorting([...previous, nextSort]);
+        return upsertSortAsPrimary(previous, nextSort);
       });
       table.setPageIndex(0);
       return;

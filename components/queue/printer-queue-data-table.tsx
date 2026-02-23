@@ -125,15 +125,49 @@ function normalizeQueueSorting(next: SortingState): SortingState {
   if (!next.length) {
     return DEFAULT_QUEUE_SORT;
   }
-  if (next.length === 1) {
-    return next;
+  const seen = new Set<string>();
+  const deduped: SortingState = [];
+  next.forEach((item) => {
+    if (seen.has(item.id)) {
+      return;
+    }
+    seen.add(item.id);
+    deduped.push(item);
+  });
+  return deduped.length ? deduped : DEFAULT_QUEUE_SORT;
+}
+
+/**
+ * Finds which sort id changed between previous and next sorting state.
+ */
+function getChangedSortId(previous: SortingState, next: SortingState): string | null {
+  const previousMap = new Map(previous.map((item) => [item.id, item.desc] as const));
+  for (const item of next) {
+    if (!previousMap.has(item.id)) {
+      return item.id;
+    }
   }
-  const withoutCreatedAt = next.filter((item) => item.id !== "created_at");
-  const createdAt = next.find((item) => item.id === "created_at");
-  if (!createdAt) {
-    return next;
+  for (const item of next) {
+    const prevDesc = previousMap.get(item.id);
+    if (typeof prevDesc === "boolean" && prevDesc !== item.desc) {
+      return item.id;
+    }
   }
-  return [...withoutCreatedAt, createdAt];
+  return null;
+}
+
+/**
+ * Upserts one sort rule as highest priority.
+ * Clicking an already-primary identical rule removes it.
+ */
+function upsertSortAsPrimary(previous: SortingState, nextSort: { id: string; desc: boolean }): SortingState {
+  const primary = previous[0];
+  if (primary && primary.id === nextSort.id && primary.desc === nextSort.desc) {
+    const removed = previous.filter((item) => item.id !== nextSort.id);
+    return normalizeQueueSorting(removed);
+  }
+  const withoutSame = previous.filter((item) => item.id !== nextSort.id);
+  return normalizeQueueSorting([nextSort, ...withoutSame]);
 }
 
 /**
@@ -249,8 +283,18 @@ export function PrinterQueueDataTable({
   const [statusFilter, setStatusFilter] = React.useState<"all" | "failed" | "pending" | "done">("all");
   const onSortingChange = React.useCallback((updater: React.SetStateAction<SortingState>) => {
     setSorting((previous) => {
-      const next = typeof updater === "function" ? updater(previous) : updater;
-      return normalizeQueueSorting(next);
+      const raw = typeof updater === "function" ? updater(previous) : updater;
+      const next = normalizeQueueSorting(raw);
+      const changedId = getChangedSortId(previous, next);
+      if (!changedId) {
+        return next;
+      }
+      const changed = next.find((item) => item.id === changedId);
+      if (!changed) {
+        return next;
+      }
+      const rest = next.filter((item) => item.id !== changedId);
+      return [changed, ...rest];
     });
   }, []);
   const filteredData = React.useMemo(
@@ -322,17 +366,7 @@ export function PrinterQueueDataTable({
   const applyQuickFilter = (preset: QueueQuickFilterPreset) => {
     const toggleSort = (id: string, desc: boolean) => {
       setSorting((previous) => {
-        const normalized = normalizeQueueSorting(previous);
-        const existingIndex = normalized.findIndex((item) => item.id === id);
-        if (existingIndex >= 0) {
-          const existing = normalized[existingIndex];
-          if (existing?.desc === desc) {
-            const removed = normalized.filter((item) => item.id !== id);
-            return normalizeQueueSorting(removed);
-          }
-          return normalized.map((item) => (item.id === id ? { id, desc } : item));
-        }
-        return normalizeQueueSorting([...normalized, { id, desc }]);
+        return upsertSortAsPrimary(previous, { id, desc });
       });
     };
 
