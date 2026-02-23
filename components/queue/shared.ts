@@ -13,6 +13,12 @@ export type PrinterLogRow = {
   ref_invoker_name: string | null;
 };
 
+/**
+ * Formats queue timestamps for table/details display.
+ *
+ * How: Returns `-` for null, falls back to raw value for invalid date strings.
+ * @returns string
+ */
 export function formatDate(value: string | null) {
   if (!value) {
     return "-";
@@ -24,6 +30,12 @@ export function formatDate(value: string | null) {
   return date.toLocaleString();
 }
 
+/**
+ * Maps queue row state to display metadata used by status badges and sorting.
+ *
+ * How: Prioritizes error > completed > pending and returns label/class/sort rank.
+ * @returns { label: string; className: string; sortValue: number }
+ */
 export function getStatusMeta(row: PrinterLogRow) {
   if (row.error_msg) {
     return {
@@ -46,6 +58,12 @@ export function getStatusMeta(row: PrinterLogRow) {
   };
 }
 
+/**
+ * Resolves who triggered the queue entry for UI display.
+ *
+ * How: Uses joined `ref_invoker_name`, defaults to "Ukjent".
+ * @returns string
+ */
 export function getInvokerLabel(row: PrinterLogRow) {
   return row.ref_invoker_name ?? "Ukjent";
 }

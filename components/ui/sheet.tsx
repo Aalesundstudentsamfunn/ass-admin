@@ -6,28 +6,48 @@ import { XIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * Renders sheet.
+ *
+ */
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />
 }
 
+/**
+ * Renders sheet trigger.
+ *
+ */
 function SheetTrigger({
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Trigger>) {
   return <SheetPrimitive.Trigger data-slot="sheet-trigger" {...props} />
 }
 
+/**
+ * Renders sheet close.
+ *
+ */
 function SheetClose({
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Close>) {
   return <SheetPrimitive.Close data-slot="sheet-close" {...props} />
 }
 
+/**
+ * Renders sheet portal.
+ *
+ */
 function SheetPortal({
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Portal>) {
   return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />
 }
 
+/**
+ * Renders sheet overlay.
+ *
+ */
 function SheetOverlay({
   className,
   ...props
@@ -44,6 +64,10 @@ function SheetOverlay({
   )
 }
 
+/**
+ * Renders sheet content.
+ *
+ */
 function SheetContent({
   className,
   children,
@@ -81,6 +105,10 @@ function SheetContent({
   )
 }
 
+/**
+ * Renders sheet header.
+ *
+ */
 function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -91,6 +119,10 @@ function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+/**
+ * Renders sheet footer.
+ *
+ */
 function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -101,6 +133,10 @@ function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+/**
+ * Renders sheet title.
+ *
+ */
 function SheetTitle({
   className,
   ...props
@@ -114,6 +150,10 @@ function SheetTitle({
   )
 }
 
+/**
+ * Renders sheet description.
+ *
+ */
 function SheetDescription({
   className,
   ...props

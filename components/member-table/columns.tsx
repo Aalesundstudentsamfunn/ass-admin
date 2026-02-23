@@ -35,6 +35,9 @@ type PrivilegeColumnOptions = {
   onPrivilegeChange: (member: MemberRow, next: number) => void;
 };
 
+/**
+ * Renders sortable header.
+ */
 function SortableHeader({
   column,
   label,
@@ -85,6 +88,12 @@ export function createMemberCreatedAtSortColumn(): ColumnDef<MemberRow, unknown>
   };
 }
 
+/**
+ * Creates member identity columns.
+ *
+ * How: Uses deterministic transforms over the provided inputs.
+ * @returns ColumnDef<MemberRow, unknown>[]
+ */
 export function createMemberIdentityColumns(): ColumnDef<MemberRow, unknown>[] {
   return [
     {

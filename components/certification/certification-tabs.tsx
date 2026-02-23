@@ -7,6 +7,11 @@ import CertificationCard, { AppShape } from "./certification-card"
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fix later
 type ActionsRenderer = (app: any) => React.ReactNode
 
+/**
+ * Tabbed certification list that switches between unprocessed and processed applications.
+ *
+ * How: Tracks active tab locally and auto-jumps to hashed application ids (`#app-<id>`) when present.
+ */
 export default function CertificationTabs({
   processed,
   unprocessed,

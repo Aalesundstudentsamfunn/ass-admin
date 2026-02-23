@@ -40,6 +40,12 @@ const base = "https://api.github.com";
 
 
 
+/**
+ * Returns latest commits fetch.
+ *
+ * How: Uses deterministic transforms over the provided inputs.
+ * @returns Promise<unknown>
+ */
 export async function getLatestCommitsFetch(owner: string, repo: string) {
     const url = `${base}/repos/${owner}/${repo}/commits?per_page=5`;
 
@@ -59,6 +65,10 @@ export async function getLatestCommitsFetch(owner: string, repo: string) {
     })) as GitHubCommit[];
 }
 
+/**
+ * Renders dashboard page.
+ *
+ */
 export default function DashboardPage({ initialData }: { initialData: Stats[] }) {
     const [commits, setCommits] = useState<GitHubCommit[]>([]);
 

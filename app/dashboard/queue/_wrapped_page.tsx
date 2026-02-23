@@ -1,7 +1,9 @@
 "use client";
 
 /**
- * Client queue page that renders table view and details dialog state.
+ * Client queue page wrapper for table + details dialog state.
+ *
+ * How: Receives server-provided rows, handles row selection, and triggers route refresh.
  */
 
 import * as React from "react";
@@ -14,6 +16,10 @@ import type { PrinterLogRow } from "@/components/queue/shared";
 
 export type { PrinterLogRow };
 
+/**
+ * Renders printer queue logs page.
+ *
+ */
 export default function PrinterQueueLogsPage({ initialData }: { initialData: PrinterLogRow[] }) {
   const router = useRouter();
   const defaultPageSize = useMemberPageSizeDefault();

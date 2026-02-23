@@ -3,6 +3,10 @@
 import { User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+/**
+ * Renders current user badge.
+ *
+ */
 export function CurrentUserBadge({ compact = false, prominent = false, name, email, className }: { compact?: boolean; prominent?: boolean; name?: string | null; email?: string | null; className?: string }) {
   const safeName = (name ?? "").trim();
   const safeEmail = (email ?? "").trim();

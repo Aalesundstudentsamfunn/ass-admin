@@ -81,6 +81,12 @@ function normalizeRelation<T>(value: RelationMaybeArray<T> | undefined): T | nul
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
+/**
+ * Normalizes one raw certificate row (with nested relation shape) to flat UI shape.
+ *
+ * How: Collapses `holder`/`type` relation arrays to a single object or `null`.
+ * @returns CertificateRow
+ */
 function normalizeCertificateRow(row: CertificateDbRow): CertificateRow {
   return {
     id: row.id,
@@ -91,6 +97,12 @@ function normalizeCertificateRow(row: CertificateDbRow): CertificateRow {
   };
 }
 
+/**
+ * Loads certificates with holder/type relations from Supabase.
+ *
+ * How: Queries `certificate`, orders by creation time, and maps each row with `normalizeCertificateRow`.
+ * @returns Promise<CertificateRow[]>
+ */
 async function fetchCertificates(client: SupabaseClient): Promise<CertificateRow[]> {
   const { data, error } = await client
     .from("certificate")
@@ -105,6 +117,12 @@ async function fetchCertificates(client: SupabaseClient): Promise<CertificateRow
   return (data ?? []).map((row) => normalizeCertificateRow(row as unknown as CertificateDbRow));
 }
 
+/**
+ * Filters certificates by holder name or email.
+ *
+ * How: Applies case-insensitive match over firstname, lastname, full name, and email.
+ * @returns CertificateRow[]
+ */
 function filterCertificates(rows: CertificateRow[], search: string): CertificateRow[] {
   const query = search.trim().toLowerCase();
   if (!query) {
@@ -125,6 +143,11 @@ function filterCertificates(rows: CertificateRow[], search: string): Certificate
   });
 }
 
+/**
+ * Row-level destructive action cell for certificate deletion.
+ *
+ * How: Uses a confirmation dialog before invoking `onDelete`.
+ */
 function ActionsCell({
   cert,
   onDelete,
@@ -174,6 +197,12 @@ function ActionsCell({
   );
 }
 
+/**
+ * Builds certification table columns with optional action column.
+ *
+ * How: Uses a stable column model and injects `ActionsCell` only when delete is allowed.
+ * @returns ColumnDef<CertificateRow>[]
+ */
 function buildColumns(onDelete?: (id: number) => Promise<void>): ColumnDef<CertificateRow>[] {
   const columns: ColumnDef<CertificateRow>[] = [
     {
@@ -243,6 +272,11 @@ function buildColumns(onDelete?: (id: number) => Promise<void>): ColumnDef<Certi
   return columns;
 }
 
+/**
+ * Generic table wrapper for certificate rows.
+ *
+ * How: Owns TanStack sorting/filtering/pagination state and renders shared pagination controls.
+ */
 function DataTable({
   columns,
   data,
@@ -323,6 +357,11 @@ function DataTable({
   );
 }
 
+/**
+ * Certification dashboard page.
+ *
+ * How: Loads rows from Supabase, applies client search filter, and enables delete actions for authorized roles.
+ */
 export default function CertificationPage() {
   const supabase = React.useMemo(() => createClient(), []);
   const [rows, setRows] = React.useState<CertificateRow[]>([]);

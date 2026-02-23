@@ -2,6 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { PRIVILEGE_LEVELS } from "@/lib/privilege-config";
 import DataTable from "./_wrapped_page";
 
+/**
+ * Renders members page.
+ */
 export default async function MembersPage() {
   const supabase = await createClient();
   const { data: rows, error } = await supabase

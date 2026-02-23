@@ -7,6 +7,10 @@ type AuthHashHandlerProps = {
   redirectPath?: string;
 };
 
+/**
+ * Renders auth hash handler.
+ *
+ */
 export function AuthHashHandler({ redirectPath = "/auth/update-password" }: AuthHashHandlerProps) {
   useEffect(() => {
     const hash = window.location.hash;

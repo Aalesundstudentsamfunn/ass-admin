@@ -19,6 +19,11 @@ type TablePaginationControlsProps = {
   onPageSizeChange?: (pageSize: number) => void;
 };
 
+/**
+ * Renders get bounded page index.
+ *
+ * How: Uses deterministic transforms over the provided inputs.
+ */
 function getBoundedPageIndex(rawValue: string, pageCount: number) {
   const page = Number(rawValue) - 1;
   if (Number.isNaN(page)) {
@@ -27,6 +32,9 @@ function getBoundedPageIndex(rawValue: string, pageCount: number) {
   return Math.max(0, Math.min(page, Math.max(0, pageCount - 1)));
 }
 
+/**
+ * Renders table pagination controls.
+ */
 export function TablePaginationControls({
   rowCount,
   filteredCount,

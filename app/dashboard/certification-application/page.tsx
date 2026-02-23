@@ -19,6 +19,12 @@ const APPLICATION_SELECT = `
   verified_by_profile:profiles!verified_by ( id, firstname, lastname, email )
 `;
 
+/**
+ * Returns signed certificate url.
+ *
+ * How: Uses deterministic transforms over the provided inputs.
+ * @returns Promise<unknown>
+ */
 async function getSignedCertificateUrl(
   client: SupabaseClient,
   path: string | null | undefined,
@@ -39,6 +45,12 @@ async function getSignedCertificateUrl(
   return data?.signedUrl ?? null;
 }
 
+/**
+ * Executes fetch applications logic.
+ *
+ * How: Encapsulates the operation in one reusable function.
+ * @returns Promise<AppShape[]>
+ */
 async function fetchApplications(client: SupabaseClient): Promise<AppShape[]> {
   const { data, error } = await client
     .from("certification_application")
@@ -59,6 +71,10 @@ async function fetchApplications(client: SupabaseClient): Promise<AppShape[]> {
   );
 }
 
+/**
+ * Renders certification application page.
+ *
+ */
 export default function CertificationApplicationPage() {
   const supabase = React.useMemo(() => createClient(), []);
   const [applications, setApplications] = React.useState<AppShape[]>([]);

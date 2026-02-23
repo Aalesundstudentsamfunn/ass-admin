@@ -1,7 +1,16 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
+/**
+ * Renders not voluntary page.
+ */
 export default function NotVoluntaryPage() {
+    /**
+     * Handles logout.
+     *
+     * How: Applies guards, performs side effects, and updates related state.
+     * @returns Promise<void>
+     */
     async function handleLogout() {
         "use server";
         const supabase = await createClient();

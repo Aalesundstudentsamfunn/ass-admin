@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+/**
+ * Renders logout button.
+ */
 export function LogoutButton({
   compact = false,
   className,

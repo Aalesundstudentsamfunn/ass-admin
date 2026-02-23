@@ -5,6 +5,10 @@ import Link from "next/link"
 import GroupCard from "./_groupcard"
 import { createClient } from "@/lib/supabase/server"
 
+/**
+ * Renders equipment page.
+ *
+ */
 export default async function EquipmentPage() {
   const supabase = await createClient();
   const groups = await supabase.from('activity_group').select('*')

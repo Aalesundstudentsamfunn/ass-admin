@@ -12,12 +12,21 @@ import { useEffect, useState } from "react";
 
 const GENERIC_LOGIN_BLOCKED_MESSAGE = "Kunne ikke logge inn. Sjekk opplysningene dine eller kontakt it@astudent.no.";
 
+/**
+ * Checks whether is banned auth error.
+ *
+ * How: Evaluates provided input using local business rules.
+ * @returns boolean
+ */
 function isBannedAuthError(error: unknown) {
   const rawMessage = typeof error === "object" && error !== null && "message" in error ? String((error as { message?: unknown }).message ?? "") : String(error ?? "");
   const message = rawMessage.toLowerCase();
   return message.includes("user is banned");
 }
 
+/**
+ * Renders login form.
+ */
 export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

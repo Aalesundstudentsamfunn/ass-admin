@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   title: "Activity Groups",
 }
 
-// ---- Types ------------------------------------------------------------------
+// Types 
 interface ActivityGroup {
   id: number
   created_at: string
@@ -24,7 +24,9 @@ interface ActivityGroup {
 }
 
 
-// ---- Liquid Glass primitives ------------------------------------------------
+/**
+ * Renders Liquid Glass glass.
+ */
 function Glass({ className = "", children }: React.PropsWithChildren<{ className?: string }>) {
   return (
     <div
@@ -40,7 +42,9 @@ function Glass({ className = "", children }: React.PropsWithChildren<{ className
   )
 }
 
-// Fallback logo as inline SVG using initials
+/**
+ * Renders fallback logo.
+ */
 function FallbackLogo({ name }: { name?: string | null }) {
   const safe = (name?.trim() || "Aktivitetsgruppe").toUpperCase()
   const initials = safe
@@ -83,6 +87,9 @@ function FallbackLogo({ name }: { name?: string | null }) {
   )
 }
 
+/**
+ * Renders safe image.
+ */
 function SafeImage({ src, alt }: { src?: string | null; alt: string }) {
   if (!src) return <FallbackLogo name={alt} />
   try {
@@ -98,6 +105,12 @@ function SafeImage({ src, alt }: { src?: string | null; alt: string }) {
   }
 }
 
+/**
+ * Normalizes url.
+ *
+ * How: Uses deterministic transforms over the provided inputs.
+ * @returns trimmed url | null
+ */
 function normalizeUrl(u?: string | null) {
   if (!u) return null
   const trimmed = u.trim()
@@ -106,7 +119,10 @@ function normalizeUrl(u?: string | null) {
   return `https://${trimmed}`
 }
 
-// ---- Page (Server Component) -----------------------------------------------
+
+/**
+ * Renders activity groups page.
+ */
 export default async function ActivityGroupsPage() {
   const supabase = await createClient()
   const { data, error } = await supabase

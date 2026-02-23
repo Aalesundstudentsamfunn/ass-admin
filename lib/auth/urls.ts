@@ -4,6 +4,12 @@
 
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, "");
 
+/**
+ * Returns configured site url.
+ *
+ * How: Uses deterministic transforms over the provided inputs.
+ * @returns unknown
+ */
 export function getConfiguredSiteUrl() {
   const raw =
     process.env.NEXT_PUBLIC_SITE_URL ?? process.env.NEXT_PUBLIC_VERCEL_URL;
@@ -14,6 +20,12 @@ export function getConfiguredSiteUrl() {
   return trimTrailingSlash(withProtocol);
 }
 
+/**
+ * Builds auth redirect.
+ *
+ * How: Uses deterministic transforms over the provided inputs.
+ * @returns unknown
+ */
 export function buildAuthRedirect(pathWithQuery: string) {
   const base = getConfiguredSiteUrl();
   if (!base) {

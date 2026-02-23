@@ -28,10 +28,61 @@ import { createClient } from "@/lib/supabase/client";
 import { ItemType } from "./page";
 import { useRouter } from "next/navigation";
 
-function cn(...classes: Array<string | false | null | undefined>) {
-    return classes.filter(Boolean).join(" ");
+
+/**
+ * Formats date.
+ *
+ * How: Uses deterministic transforms over the provided inputs.
+ * @returns unknown
+ */
+function formatDate(iso: string) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleString("nb-NO");
 }
 
+/**
+ * Renders badge.
+ *
+ */
+function Badge({
+    children,
+    variant = "default",
+}: {
+    children: React.ReactNode;
+    variant?: "default" | "success" | "muted";
+}) {
+    const classes =
+        variant === "success"
+            ? "bg-emerald-100 text-emerald-800"
+            : variant === "muted"
+                ? "bg-muted text-muted-foreground"
+                : "bg-primary/10 text-primary";
+
+    return (
+        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${classes}`}>
+            {children}
+        </span>
+    );
+}
+
+/**
+ * Renders row.
+ *
+ */
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
+    return (
+        <div className="grid grid-cols-3 gap-3 py-2">
+            <div className="text-sm text-muted-foreground">{label}</div>
+            <div className="col-span-2 text-sm">{value}</div>
+        </div>
+    );
+}
+
+/**
+ * Renders wrapped item page.
+ *
+ */
 export default function WrappedItemPage({ item }: { item: ItemType }) {
     const [open, setOpen] = React.useState(false);
 

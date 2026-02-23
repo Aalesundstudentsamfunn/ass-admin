@@ -2,6 +2,9 @@
 
 import { Toaster } from "sonner"
 
+/**
+ * Renders app toaster.
+ */
 export function AppToaster() {
   return (
     <Toaster

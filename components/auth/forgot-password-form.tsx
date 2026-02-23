@@ -15,6 +15,9 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useState } from "react";
 
+/**
+ * Renders forgot password form.
+ */
 export function ForgotPasswordForm({
   className,
   ...props
