@@ -31,6 +31,12 @@ export const PRIVILEGE_OPTIONS: PrivilegeOption[] = SHARED_PRIVILEGE_OPTIONS;
 
 const PRIVILEGE_LABELS = new Map(PRIVILEGE_OPTIONS.map((option) => [option.value, option.label]));
 
+/**
+ * Returns privilege label.
+ *
+ * How: Uses deterministic transforms over the provided inputs.
+ * @returns unknown
+ */
 export function getPrivilegeLabel(value: number | null | undefined) {
   if (typeof value !== "number") {
     return "Ukjent";
@@ -52,6 +58,12 @@ export function getBulkPrivilegeOptions(allowedMax: number | null) {
   return PRIVILEGE_OPTIONS.filter((option) => option.value <= allowedMax);
 }
 
+/**
+ * Executes copy to clipboard logic.
+ *
+ * How: Encapsulates the operation in one reusable function.
+ * @returns Promise<unknown>
+ */
 export async function copyToClipboard(value: string, label: string) {
   try {
     await navigator.clipboard.writeText(value);
