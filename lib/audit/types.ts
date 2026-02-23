@@ -7,12 +7,14 @@
 export type AuditLogRow = {
   id: string;
   created_at: string | null;
+  action_key: string | null;
   event: string;
   target: string | null;
   target_name: string | null;
   target_uuid: string | null;
   target_email: string | null;
   change: string | null;
+  change_items: string[];
   actor_label: string;
   actor_id: string | null;
   actor_email: string | null;

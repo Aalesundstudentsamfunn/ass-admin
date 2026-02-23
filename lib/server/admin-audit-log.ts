@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type AdminAuditStatus = "ok" | "error";
 
@@ -11,6 +12,92 @@ type LogAdminActionParams = {
   errorMessage?: string | null;
   details?: Record<string, unknown> | null;
 };
+
+const SPECIFIC_MEMBER_UPDATE_ACTIONS = new Set([
+  "member.activate",
+  "member.privilege.update",
+  "member.membership_status.update",
+  "member.rename",
+  "member.ban",
+  "member.unban",
+]);
+
+/**
+ * Reads non-empty string from unknown value.
+ */
+function asString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+/**
+ * Extracts updated member ids for cleanup of generic `member.update` rows.
+ */
+function extractMemberIdsForCleanup(params: LogAdminActionParams): string[] {
+  const ids = new Set<string>();
+  const targetId = asString(params.targetId);
+  if (targetId) {
+    ids.add(targetId);
+  }
+
+  const details = params.details ?? {};
+  const detailsMemberId = asString((details as Record<string, unknown>).member_id);
+  if (detailsMemberId) {
+    ids.add(detailsMemberId);
+  }
+
+  const detailsMemberIds = (details as Record<string, unknown>).member_ids;
+  if (Array.isArray(detailsMemberIds)) {
+    for (const value of detailsMemberIds) {
+      const normalized = asString(value);
+      if (normalized) {
+        ids.add(normalized);
+      }
+    }
+  }
+
+  return Array.from(ids);
+}
+
+/**
+ * Removes duplicate generic member.update rows written by DB-level triggers.
+ *
+ * We keep the specific action and prune generic updates for the same actor/target
+ * in a short time window around the specific action.
+ */
+async function pruneGenericMemberUpdateDuplicates(params: LogAdminActionParams) {
+  if (!SPECIFIC_MEMBER_UPDATE_ACTIONS.has(params.action)) {
+    return;
+  }
+  if (params.status && params.status !== "ok") {
+    return;
+  }
+  if (params.targetTable !== "members") {
+    return;
+  }
+
+  const memberIds = extractMemberIdsForCleanup(params);
+  if (!memberIds.length) {
+    return;
+  }
+
+  const admin = createAdminClient();
+  const now = Date.now();
+  const from = new Date(now - 10_000).toISOString();
+  const to = new Date(now + 2_000).toISOString();
+
+  await admin
+    .from("admin_audit_log")
+    .delete()
+    .eq("actor_id", params.actorId)
+    .eq("action", "member.update")
+    .in("target_id", memberIds)
+    .gte("created_at", from)
+    .lte("created_at", to);
+}
 
 /**
  * Writes an application-level admin audit event.
@@ -39,7 +126,7 @@ export async function logAdminAction(
     details = null,
   } = params;
 
-  return supabase.from("admin_audit_log").insert({
+  const result = await supabase.from("admin_audit_log").insert({
     actor_id: actorId,
     action,
     target_table: targetTable,
@@ -48,4 +135,22 @@ export async function logAdminAction(
     error_message: errorMessage,
     details: details ?? {},
   });
+
+  if (!result.error) {
+    try {
+      await pruneGenericMemberUpdateDuplicates({
+        actorId,
+        action,
+        targetTable,
+        targetId,
+        status,
+        errorMessage,
+        details: details ?? {},
+      });
+    } catch {
+      // Best effort cleanup only.
+    }
+  }
+
+  return result;
 }

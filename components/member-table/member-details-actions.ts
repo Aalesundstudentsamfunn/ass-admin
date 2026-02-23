@@ -1,13 +1,38 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
+type ClientActionError = {
+  message: string;
+};
+
+/**
+ * Normalizes API error payloads to a stable `{ message }` shape.
+ */
+function toClientActionError(payload: unknown, fallback: string): ClientActionError {
+  const maybePayload = payload as { error?: unknown } | null | undefined;
+  const message =
+    typeof maybePayload?.error === "string" && maybePayload.error.trim()
+      ? maybePayload.error
+      : fallback;
+  return { message };
+}
 
 /**
  * Updates one member's privilege in `members`.
  */
 export async function updateMemberPrivilege(memberId: string | number, nextPrivilege: number) {
-  const supabase = createClient();
-  return supabase.from("members").update({ privilege_type: nextPrivilege }).eq("id", memberId);
+  const response = await fetch("/api/admin/members/privilege", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ member_id: String(memberId), privilege_type: nextPrivilege }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    return {
+      data: null,
+      error: toClientActionError(payload, "Kunne ikke oppdatere tilgangsnivå."),
+    };
+  }
+  return { data: payload, error: null };
 }
 
 /**
@@ -71,4 +96,3 @@ export async function updateMemberBanStatus(
   const payload = await response.json().catch(() => ({}));
   return { response, payload };
 }
-

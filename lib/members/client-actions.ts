@@ -1,16 +1,35 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
+type ClientActionError = {
+  message: string;
+};
+
+/**
+ * Normalizes API error payloads to a shape compatible with existing callers.
+ */
+function toClientActionError(payload: unknown, fallback: string): ClientActionError {
+  const maybePayload = payload as { error?: unknown } | null | undefined;
+  const message =
+    typeof maybePayload?.error === "string" && maybePayload.error.trim()
+      ? maybePayload.error
+      : fallback;
+  return { message };
+}
 
 /**
  * Updates privilege_type for a single member row.
  */
 export async function updateMemberPrivilege(memberId: string, nextPrivilege: number) {
-  const supabase = createClient();
-  return supabase
-    .from("members")
-    .update({ privilege_type: nextPrivilege })
-    .eq("id", memberId);
+  const response = await fetch("/api/admin/members/privilege", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ member_id: memberId, privilege_type: nextPrivilege }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    return { data: null, error: toClientActionError(payload, "Kunne ikke oppdatere tilgangsnivå.") };
+  }
+  return { data: payload, error: null };
 }
 
 /**
@@ -20,11 +39,16 @@ export async function bulkUpdateMemberPrivilege(
   memberIds: string[],
   nextPrivilege: number,
 ) {
-  const supabase = createClient();
-  return supabase
-    .from("members")
-    .update({ privilege_type: nextPrivilege })
-    .in("id", memberIds);
+  const response = await fetch("/api/admin/members/privilege", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ member_ids: memberIds, privilege_type: nextPrivilege }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    return { data: null, error: toClientActionError(payload, "Kunne ikke oppdatere tilgangsnivå.") };
+  }
+  return { data: payload, error: null };
 }
 
 /**

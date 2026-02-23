@@ -21,6 +21,8 @@ type DbMemberRow = {
   email: string | null;
 };
 
+type DetailsObject = Record<string, unknown>;
+
 type ResolvedTarget = {
   targetName: string | null;
   targetUuid: string | null;
@@ -31,6 +33,7 @@ const ACTION_LABELS: Record<string, string> = {
   "member.create": "Opprettet medlem",
   "member.activate": "Aktiverte medlemskap",
   "member.rename": "Oppdaterte navn",
+  "member.privilege.update": "Oppdaterte tilgang",
   "member.delete": "Slettet medlem",
   "member.ban": "Utestengte bruker",
   "member.unban": "Opphevet utestenging",
@@ -39,16 +42,19 @@ const ACTION_LABELS: Record<string, string> = {
   "member.update": "Oppdaterte medlem",
 };
 
-const SPECIFIC_MEMBER_UPDATE_ACTIONS = new Set([
-  "member.membership_status.update",
-  "member.rename",
-  "member.ban",
-  "member.unban",
-]);
-
 const PRIVILEGE_LABELS = new Map(
   PRIVILEGE_OPTIONS.map((option) => [option.value, option.label] as const),
 );
+
+const FIELD_LABELS: Record<string, string> = {
+  privilege_type: "Tilgang",
+  is_membership_active: "Aktivt medlemskap",
+  is_banned: "Kontostatus",
+  firstname: "Fornavn",
+  lastname: "Etternavn",
+  email: "E-post",
+  password_set_at: "Passord satt",
+};
 
 /**
  * Converts unknown values to trimmed strings.
@@ -142,6 +148,20 @@ function detailsOf(row: DbAuditRow): Record<string, unknown> {
 }
 
 /**
+ * Returns a nested details object when present.
+ *
+ * How: Reads `details[key]` and keeps only plain object-like payloads.
+ * @returns DetailsObject
+ */
+function nestedDetailsObject(details: Record<string, unknown>, key: string): DetailsObject {
+  const value = details[key];
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as DetailsObject;
+  }
+  return {};
+}
+
+/**
  * Reads optional string arrays from details payload.
  *
  * How: Keeps only non-empty string entries.
@@ -183,6 +203,110 @@ function yesNo(value: unknown): string | null {
     return null;
   }
   return value ? "Ja" : "Nei";
+}
+
+/**
+ * Formats privilege values for diff labels.
+ *
+ * How: maps known privilege numbers to configured labels.
+ * @returns string | null
+ */
+function privilegeLabel(value: unknown): string | null {
+  const numeric = asNumber(value);
+  if (numeric === null) {
+    return null;
+  }
+  return PRIVILEGE_LABELS.get(numeric) ?? String(numeric);
+}
+
+/**
+ * Converts raw detail values into display values per field type.
+ *
+ * How: Handles booleans, privilege levels, and null-ish values.
+ * @returns string | null
+ */
+function formatFieldValue(field: string, value: unknown): string | null {
+  if (field === "privilege_type") {
+    return privilegeLabel(value);
+  }
+  if (field === "is_membership_active") {
+    return yesNo(value);
+  }
+  if (field === "is_banned") {
+    if (typeof value !== "boolean") {
+      return null;
+    }
+    return value ? "Bannlyst" : "OK";
+  }
+  if (typeof value === "boolean") {
+    return yesNo(value);
+  }
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  return String(value);
+}
+
+/**
+ * Reads previous value keys for a field from details payload.
+ *
+ * How: Checks common key variants used by API handlers.
+ * @returns unknown
+ */
+function previousFieldValue(details: Record<string, unknown>, field: string): unknown {
+  const oldDetails = nestedDetailsObject(details, "old");
+  return details[`previous_${field}`] ?? details[`prev_${field}`] ?? details[`old_${field}`] ?? oldDetails[field];
+}
+
+/**
+ * Reads next/current value keys for a field from details payload.
+ *
+ * How: Checks common key variants used by API handlers.
+ * @returns unknown
+ */
+function nextFieldValue(details: Record<string, unknown>, field: string): unknown {
+  const newDetails = nestedDetailsObject(details, "new");
+  return details[`next_${field}`] ?? details[field] ?? newDetails[field];
+}
+
+/**
+ * Compares two raw values with json fallback.
+ *
+ * How: Uses strict equality first and falls back to stringified payload compare.
+ * @returns boolean
+ */
+function valuesEqual(left: unknown, right: unknown): boolean {
+  if (left === right) {
+    return true;
+  }
+  try {
+    return JSON.stringify(left) === JSON.stringify(right);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Builds a single `before -> after` line for a known field when data exists.
+ *
+ * How: formats values by field type and emits stable human-readable output.
+ * @returns string | null
+ */
+function buildFieldDiffLine(details: Record<string, unknown>, field: string): string | null {
+  const label = FIELD_LABELS[field] ?? field;
+  const before = formatFieldValue(field, previousFieldValue(details, field));
+  const after = formatFieldValue(field, nextFieldValue(details, field));
+
+  if (before === null && after === null) {
+    return null;
+  }
+  if (before !== null && after !== null && before !== after) {
+    return `${label}: ${before} -> ${after}`;
+  }
+  if (after !== null) {
+    return `${label}: ${after}`;
+  }
+  return `${label}: ${before ?? "-"}`;
 }
 
 /**
@@ -412,6 +536,9 @@ function buildEventLabel(row: DbAuditRow): string {
   if (!action) {
     return "Ukjent hendelse";
   }
+  if (action === "member.update" && !normalizeId(asString(row.actor_id))) {
+    return "Synkroniserte medlem fra Auth";
+  }
   return ACTION_LABELS[action] ?? action;
 }
 
@@ -435,12 +562,13 @@ function buildTargetLabel(
  * How: Parses structured `details` by action and emits one-liners.
  * @returns string | null
  */
-function buildChangeLabel(row: DbAuditRow): string | null {
+function buildChangeLines(row: DbAuditRow): string[] {
   const action = asString(row.action);
   const details = detailsOf(row);
+  const lines: string[] = [];
 
   if (!action) {
-    return null;
+    return lines;
   }
 
   if (action === "member.membership_status.update") {
@@ -452,9 +580,16 @@ function buildChangeLabel(row: DbAuditRow): string | null {
           ? !next
           : null;
     if (typeof prev === "boolean" && typeof next === "boolean") {
-      return `Aktivt medlemskap: ${yesNo(prev)} -> ${yesNo(next)}`;
+      lines.push(`Aktivt medlemskap: ${yesNo(prev)} -> ${yesNo(next)}`);
+    } else if (typeof next === "boolean") {
+      lines.push(`Aktivt medlemskap: ${yesNo(next)}`);
     }
-    return null;
+
+    const updatedCount = asNumber(details.updated_count);
+    if (updatedCount !== null && updatedCount > 1) {
+      lines.push(`Antall oppdatert: ${updatedCount}`);
+    }
+    return lines;
   }
 
   if (action === "member.rename") {
@@ -465,9 +600,31 @@ function buildChangeLabel(row: DbAuditRow): string | null {
     const prevName = `${prevFirst ?? ""} ${prevLast ?? ""}`.trim();
     const nextName = `${nextFirst ?? ""} ${nextLast ?? ""}`.trim();
     if (prevName && nextName && prevName !== nextName) {
-      return `Navn: ${prevName} -> ${nextName}`;
+      lines.push(`Navn: ${prevName} -> ${nextName}`);
+      return lines;
     }
-    return nextName ? `Navn: ${nextName}` : null;
+    if (nextName) {
+      lines.push(`Navn: ${nextName}`);
+    }
+    return lines;
+  }
+
+  if (action === "member.privilege.update") {
+    const previous = privilegeLabel(details.previous_privilege_type);
+    const next = privilegeLabel(details.privilege_type);
+    if (previous && next && previous !== next) {
+      lines.push(`Tilgang: ${previous} -> ${next}`);
+      return lines;
+    }
+    if (next) {
+      lines.push(`Tilgang: ${next}`);
+      return lines;
+    }
+    const updatedCount = asNumber(details.updated_count);
+    if (updatedCount !== null && updatedCount > 1) {
+      lines.push(`Tilgang oppdatert for ${updatedCount} medlemmer`);
+    }
+    return lines;
   }
 
   if (action === "member.ban" || action === "member.unban") {
@@ -478,71 +635,77 @@ function buildChangeLabel(row: DbAuditRow): string | null {
           ? details.next_banned
           : null;
     if (typeof bannedValue === "boolean") {
-      return `Kontostatus: ${bannedValue ? "Bannlyst" : "OK"}`;
+      lines.push(`Kontostatus: ${bannedValue ? "Bannlyst" : "OK"}`);
     }
-    return null;
+    const membershipValue = yesNo(details.is_membership_active);
+    if (membershipValue) {
+      lines.push(`Aktivt medlemskap: ${membershipValue}`);
+    }
+    return lines;
   }
 
   if (action === "member.create" || action === "member.activate") {
-    const privilege = asNumber(details.privilege_type);
-    if (typeof privilege === "number") {
-      return `Tilgang: ${PRIVILEGE_LABELS.get(privilege) ?? privilege}`;
+    const privilege = privilegeLabel(details.privilege_type);
+    if (privilege) {
+      lines.push(`Tilgang: ${privilege}`);
     }
-    return null;
+    const activeMembership = yesNo(details.is_membership_active);
+    if (activeMembership) {
+      lines.push(`Aktivt medlemskap: ${activeMembership}`);
+    }
+    return lines;
   }
 
   if (action === "member.delete") {
     const count = asNumber(details.deleted_count) ?? asNumber(details.count);
     if (count && count > 1) {
-      return `Slettet ${count} medlemmer`;
+      lines.push(`Slettet ${count} medlemmer`);
+      return lines;
     }
-    return null;
+    lines.push("Slettet medlem");
+    return lines;
   }
 
   if (action === "member.password_reset.send") {
-    return "Passordlenke sendt";
+    lines.push("Passordlenke sendt");
+    return lines;
   }
 
   if (action === "member.update") {
     const changedFields = readStringArray(details, "changed_fields");
-    if (changedFields.length > 0) {
-      return `Felter: ${changedFields.join(", ")}`;
+    const oldDetails = nestedDetailsObject(details, "old");
+    const newDetails = nestedDetailsObject(details, "new");
+    const oldNewKeys = Array.from(new Set([...Object.keys(oldDetails), ...Object.keys(newDetails)]));
+    const inferredFields = oldNewKeys.filter((field) => !valuesEqual(oldDetails[field], newDetails[field]));
+    const fieldsToInspect = changedFields.length
+      ? changedFields
+      : inferredFields.length
+        ? inferredFields
+        : ["privilege_type", "is_membership_active", "firstname", "lastname", "is_banned"];
+
+    if (fieldsToInspect.length > 0) {
+      for (const field of fieldsToInspect) {
+        const diffLine = buildFieldDiffLine(details, field);
+        if (diffLine) {
+          lines.push(diffLine);
+        }
+      }
+      if (lines.length === 0) {
+        if (changedFields.length) {
+          lines.push(`Felter: ${changedFields.join(", ")}`);
+        } else {
+          lines.push(
+            normalizeId(asString(row.actor_id))
+              ? "Oppdaterte medlem"
+              : "Synkroniserte medlemsdata fra Auth",
+          );
+        }
+      }
+      return lines;
     }
   }
 
-  return null;
-}
-
-/**
- * Hides noisy generic `member.update` rows when a specific action exists.
- *
- * How: Suppresses `member.update` when same target + timestamp has a specific update action.
- * @returns boolean
- */
-function shouldSuppressGenericMemberUpdate(
-  row: DbAuditRow,
-  index: number,
-  allRows: DbAuditRow[],
-): boolean {
-  if (row.action !== "member.update") {
-    return false;
-  }
-
-  const targetId = asString(row.target_id);
-  const createdAt = asString(row.created_at);
-  if (!targetId || !createdAt) {
-    return false;
-  }
-
-  return allRows.some((candidate, candidateIndex) => {
-    if (candidateIndex === index) {
-      return false;
-    }
-    if (candidate.target_id !== row.target_id || candidate.created_at !== row.created_at) {
-      return false;
-    }
-    return SPECIFIC_MEMBER_UPDATE_ACTIONS.has(candidate.action ?? "");
-  });
+  return lines;
 }
 
 /**
@@ -572,9 +735,7 @@ export async function fetchAuditRows(
   }
 
   const dbRows = (data ?? []) as DbAuditRow[];
-  const filteredRows = dbRows.filter(
-    (row, rowIndex, allRows) => !shouldSuppressGenericMemberUpdate(row, rowIndex, allRows),
-  );
+  const filteredRows = dbRows;
 
   const actorIds = Array.from(
     new Set(
@@ -598,16 +759,19 @@ export async function fetchAuditRows(
     const target = resolveTarget(row, membersById, membersByEmail);
     const details = detailsOf(row);
     const source = "app.admin";
+    const changeItems = buildChangeLines(row);
 
     return {
       id: String(row.id ?? ""),
       created_at: row.created_at,
+      action_key: asString(row.action),
       event: buildEventLabel(row),
       target: buildTargetLabel(target.targetName, target.targetUuid, target.targetEmail),
       target_name: target.targetName,
       target_uuid: target.targetUuid,
       target_email: target.targetEmail,
-      change: buildChangeLabel(row),
+      change: changeItems.length ? (changeItems.length === 1 ? changeItems[0] : `${changeItems[0]} (+${changeItems.length - 1})`) : null,
+      change_items: changeItems,
       actor_label: toActorLabel(actor),
       actor_id: actorId,
       actor_email: actor?.email ?? null,
