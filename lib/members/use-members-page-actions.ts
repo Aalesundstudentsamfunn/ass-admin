@@ -174,6 +174,7 @@ export function useMembersPageActions({
       // Skip unchanged/invalid requests before any permission checks.
       const currentValue = memberPrivilege(member.privilege_type);
       if (!Number.isFinite(next) || next === currentValue) {
+        toast.error("Medlemmet har allerede dette tilgangsnivået.");
         return;
       }
 
@@ -263,12 +264,27 @@ export function useMembersPageActions({
         toast.error("Ugyldig tilgangsnivå for din rolle.");
         return;
       }
-      const eligibleIds = members
-        .filter((member) =>
-          canAssignPrivilege(currentPrivilege, next, memberPrivilege(member.privilege_type)),
-        )
-        .map((member) => idOf(member.id));
+      const unchangedIds: string[] = [];
+      const blockedIds: string[] = [];
+      const eligibleIds: string[] = [];
+      for (const member of members) {
+        const currentValue = memberPrivilege(member.privilege_type);
+        const memberId = idOf(member.id);
+        if (currentValue === next) {
+          unchangedIds.push(memberId);
+          continue;
+        }
+        if (!canAssignPrivilege(currentPrivilege, next, currentValue)) {
+          blockedIds.push(memberId);
+          continue;
+        }
+        eligibleIds.push(memberId);
+      }
       if (!eligibleIds.length) {
+        if (unchangedIds.length > 0 && blockedIds.length === 0) {
+          toast.error("Alle valgte medlemmer har allerede dette tilgangsnivået.");
+          return;
+        }
         toast.error("Ingen valgte medlemmer kan oppdateres med dette nivået.");
         return;
       }
@@ -285,7 +301,28 @@ export function useMembersPageActions({
       }
 
       patchMembersByIds(setRows, setSelectedMember, eligibleIds, { privilege_type: next });
-      toast.success("Tilgangsnivå oppdatert.", { id: toastId, duration: 6000 });
+      const skippedCount = unchangedIds.length + blockedIds.length;
+      if (skippedCount > 0) {
+        const parts: string[] = [];
+        if (unchangedIds.length > 0) {
+          parts.push(`${unchangedIds.length} uendret`);
+        }
+        if (blockedIds.length > 0) {
+          parts.push(`${blockedIds.length} uten tilgang`);
+        }
+        toast.warning("Noen valgte medlemmer ble hoppet over.", {
+          description: parts.join(" · "),
+          duration: 7000,
+        });
+      }
+      toast.success("Tilgangsnivå oppdatert.", {
+        id: toastId,
+        description:
+          skippedCount > 0 || members.length > 1
+            ? `Oppdatert ${eligibleIds.length}, hoppet over ${skippedCount}.`
+            : undefined,
+        duration: 6000,
+      });
     },
     [canEditPrivileges, currentPrivilege, setRows, setSelectedMember],
   );
@@ -318,7 +355,15 @@ export function useMembersPageActions({
       }
 
       patchMembersByIds(setRows, setSelectedMember, ids, { is_membership_active: isActive });
-      toast.success("Medlemsstatus oppdatert.", { id: toastId, duration: 6000 });
+      const updatedCount =
+        typeof payload?.updated === "number" && Number.isFinite(payload.updated)
+          ? payload.updated
+          : ids.length;
+      toast.success("Medlemsstatus oppdatert.", {
+        id: toastId,
+        description: members.length > 1 ? `Oppdatert ${updatedCount} medlemmer.` : undefined,
+        duration: 6000,
+      });
     },
     [canManageMembership, setRows, setSelectedMember],
   );

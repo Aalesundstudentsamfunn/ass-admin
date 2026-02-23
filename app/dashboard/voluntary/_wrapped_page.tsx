@@ -140,6 +140,7 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
     async (member: UserRow, next: number) => {
       const currentValue = memberPrivilege(member.privilege_type);
       if (!Number.isFinite(next) || next === currentValue) {
+        toast.error("Medlemmet har allerede dette tilgangsnivået.");
         return;
       }
       if (!canEditPrivileges) {
@@ -186,16 +187,27 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
         toast.error("Ugyldig tilgangsnivå for din rolle.");
         return;
       }
-      const eligibleIds = members
-        .filter((member) =>
-          canAssignPrivilege(
-            currentPrivilege,
-            next,
-            memberPrivilege(member.privilege_type),
-          ),
-        )
-        .map((member) => String(member.id));
+      const unchangedIds: string[] = [];
+      const blockedIds: string[] = [];
+      const eligibleIds: string[] = [];
+      for (const member of members) {
+        const currentValue = memberPrivilege(member.privilege_type);
+        const memberId = String(member.id);
+        if (currentValue === next) {
+          unchangedIds.push(memberId);
+          continue;
+        }
+        if (!canAssignPrivilege(currentPrivilege, next, currentValue)) {
+          blockedIds.push(memberId);
+          continue;
+        }
+        eligibleIds.push(memberId);
+      }
       if (!eligibleIds.length) {
+        if (unchangedIds.length > 0 && blockedIds.length === 0) {
+          toast.error("Alle valgte medlemmer har allerede dette tilgangsnivået.");
+          return;
+        }
         toast.error("Ingen valgte medlemmer kan oppdateres med dette nivået.");
         return;
       }
@@ -208,7 +220,28 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
       }
 
       applyPrivilegeToRows(eligibleIds, next);
-      toast.success("Tilgangsnivå oppdatert.", { id: toastId, duration: 6000 });
+      const skippedCount = unchangedIds.length + blockedIds.length;
+      if (skippedCount > 0) {
+        const parts: string[] = [];
+        if (unchangedIds.length > 0) {
+          parts.push(`${unchangedIds.length} uendret`);
+        }
+        if (blockedIds.length > 0) {
+          parts.push(`${blockedIds.length} uten tilgang`);
+        }
+        toast.warning("Noen valgte medlemmer ble hoppet over.", {
+          description: parts.join(" · "),
+          duration: 7000,
+        });
+      }
+      toast.success("Tilgangsnivå oppdatert.", {
+        id: toastId,
+        description:
+          skippedCount > 0 || members.length > 1
+            ? `Oppdatert ${eligibleIds.length}, hoppet over ${skippedCount}.`
+            : undefined,
+        duration: 6000,
+      });
     },
     [applyPrivilegeToRows, canEditPrivileges, currentPrivilege],
   );

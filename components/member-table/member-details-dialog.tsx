@@ -156,6 +156,7 @@ export function MemberDetailsDialog({
     }
     const next = Number(value);
     if (!Number.isFinite(next) || next === targetPrivilege) {
+      toast.error("Medlemmet har allerede dette tilgangsnivået.");
       return;
     }
     if (isSelf && !canSetOwnPrivilege(currentPrivilege, next)) {
