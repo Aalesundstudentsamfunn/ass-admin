@@ -235,6 +235,49 @@ function readDeletedMemberSnapshots(details: Record<string, unknown>): DeletedMe
 }
 
 /**
+ * Parses one member snapshot object (e.g. `details.old` / `details.new`).
+ *
+ * How: accepts row-like objects that include UUID id and optional name/email fields.
+ * @returns DeletedMemberSnapshot | null
+ */
+function readMemberSnapshot(value: unknown): DeletedMemberSnapshot | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const row = value as Record<string, unknown>;
+  const id = normalizeId(asString(row.id));
+  if (!isUuid(id)) {
+    return null;
+  }
+  return {
+    id,
+    firstname: asString(row.firstname),
+    lastname: asString(row.lastname),
+    email: normalizeEmail(asString(row.email)),
+  };
+}
+
+/**
+ * Reads inline snapshots from generic audit payloads (`old`/`new`).
+ *
+ * How: supports legacy trigger payloads that only store old/new row data.
+ * @returns DeletedMemberSnapshot[]
+ */
+function readInlineMemberSnapshots(details: Record<string, unknown>): DeletedMemberSnapshot[] {
+  const snapshots = [
+    readMemberSnapshot(details.old),
+    readMemberSnapshot(details.new),
+    readMemberSnapshot(details.member),
+  ].filter((snapshot): snapshot is DeletedMemberSnapshot => Boolean(snapshot));
+
+  const deduped = new Map<string, DeletedMemberSnapshot>();
+  for (const snapshot of snapshots) {
+    deduped.set(snapshot.id, snapshot);
+  }
+  return Array.from(deduped.values());
+}
+
+/**
  * Converts booleans to `Ja`/`Nei`.
  *
  * How: Returns `null` for unknown states.
@@ -514,6 +557,10 @@ function getTargetLookupIds(row: DbAuditRow): string[] {
     values.push(snapshot.id);
   }
 
+  for (const snapshot of readInlineMemberSnapshots(details)) {
+    values.push(snapshot.id);
+  }
+
   return Array.from(new Set(values));
 }
 
@@ -538,6 +585,13 @@ function getTargetLookupEmails(row: DbAuditRow): string[] {
   }
 
   for (const snapshot of readDeletedMemberSnapshots(details)) {
+    const snapshotEmail = normalizeEmail(snapshot.email);
+    if (isEmail(snapshotEmail)) {
+      values.push(snapshotEmail);
+    }
+  }
+
+  for (const snapshot of readInlineMemberSnapshots(details)) {
     const snapshotEmail = normalizeEmail(snapshot.email);
     if (isEmail(snapshotEmail)) {
       values.push(snapshotEmail);
@@ -586,13 +640,16 @@ function resolveTarget(
     };
   }
 
-  const deletedSnapshots = readDeletedMemberSnapshots(details);
-  if (deletedSnapshots.length > 0) {
+  const detailsSnapshots = [
+    ...readDeletedMemberSnapshots(details),
+    ...readInlineMemberSnapshots(details),
+  ];
+  if (detailsSnapshots.length > 0) {
     const targetId = normalizeId(asString(row.target_id));
     const directMatch = targetId
-      ? deletedSnapshots.find((snapshot) => snapshot.id === targetId)
+      ? detailsSnapshots.find((snapshot) => snapshot.id === targetId)
       : null;
-    const picked = directMatch ?? deletedSnapshots[0];
+    const picked = directMatch ?? detailsSnapshots[0];
     if (picked) {
       const name = `${picked.firstname ?? ""} ${picked.lastname ?? ""}`.trim();
       return {
@@ -730,8 +787,10 @@ function getAuditTargetMemberIds(
   }
 
   const snapshotIds = readDeletedMemberSnapshots(details).map((snapshot) => snapshot.id);
-  if (snapshotIds.length > 0) {
-    return Array.from(new Set(snapshotIds));
+  const inlineSnapshotIds = readInlineMemberSnapshots(details).map((snapshot) => snapshot.id);
+  const allSnapshotIds = [...snapshotIds, ...inlineSnapshotIds];
+  if (allSnapshotIds.length > 0) {
+    return Array.from(new Set(allSnapshotIds));
   }
 
   if (targetUuid && isUuid(targetUuid)) {
@@ -762,8 +821,10 @@ function buildTargetItems(
   const bannedIds = new Set(readStringArray(details, "blocked_banned_ids"));
   const invalidIds = new Set(readStringArray(details, "invalid_member_ids"));
   const blockedIds = new Set([...bannedIds, ...invalidIds]);
-  const deletedSnapshotById = new Map(
-    readDeletedMemberSnapshots(details).map((snapshot) => [snapshot.id, snapshot] as const),
+  const snapshotById = new Map(
+    [...readDeletedMemberSnapshots(details), ...readInlineMemberSnapshots(details)].map(
+      (snapshot) => [snapshot.id, snapshot] as const,
+    ),
   );
 
   const hasExplicitUpdated = updatedIds.size > 0;
@@ -771,16 +832,16 @@ function buildTargetItems(
 
   const items = targetIds.map((id) => {
     const member = membersById.get(id);
-    const deletedSnapshot = deletedSnapshotById.get(id);
-    const fallbackName = deletedSnapshot
-      ? `${deletedSnapshot.firstname ?? ""} ${deletedSnapshot.lastname ?? ""}`.trim()
+    const snapshot = snapshotById.get(id);
+    const fallbackName = snapshot
+      ? `${snapshot.firstname ?? ""} ${snapshot.lastname ?? ""}`.trim()
       : null;
     const label =
       toMemberLabel(member) ??
       fallbackName ??
-      deletedSnapshot?.email ??
+      snapshot?.email ??
       id;
-    const email = member?.email ?? deletedSnapshot?.email ?? null;
+    const email = member?.email ?? snapshot?.email ?? null;
 
     if (blockedIds.has(id)) {
       return {
