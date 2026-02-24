@@ -14,7 +14,6 @@ import {
   copyToClipboard,
   getPrivilegeLabel,
   getPrivilegePillClass,
-  PILL_CLASS,
   PRIVILEGE_OPTIONS,
   type PrivilegeOption,
 } from "@/components/member-table/shared";

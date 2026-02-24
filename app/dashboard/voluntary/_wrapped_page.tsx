@@ -260,6 +260,7 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
             columns={columns}
             data={rows}
             defaultPageSize={defaultPageSize}
+            defaultSorting={[{ id: "privilege_type", desc: true }]}
             onBulkPrivilege={handleBulkPrivilege}
             canEditPrivileges={canEditPrivileges}
             bulkOptions={bulkOptions}

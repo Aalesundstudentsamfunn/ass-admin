@@ -113,8 +113,15 @@ function getMemberSortPriorityByKey(sorting: SortingState): Record<string, numbe
 /**
  * Returns true when sorting state is exactly the default table sort.
  */
-function isDefaultMemberSort(sorting: SortingState): boolean {
-  return sorting.length === 1 && sorting[0]?.id === "created_at_sort" && sorting[0]?.desc === true;
+function isDefaultMemberSort(sorting: SortingState, defaultSorting: SortingState): boolean {
+  if (sorting.length !== defaultSorting.length) {
+    return false;
+  }
+  return sorting.every(
+    (item, index) =>
+      item.id === defaultSorting[index]?.id &&
+      item.desc === defaultSorting[index]?.desc,
+  );
 }
 
 /**
@@ -122,9 +129,12 @@ function isDefaultMemberSort(sorting: SortingState): boolean {
  *
  * How: Deduplicates by column id (first wins) and keeps default fallback when empty.
  */
-function normalizeMemberSorting(next: SortingState): SortingState {
+function normalizeMemberSorting(
+  next: SortingState,
+  fallback: SortingState = DEFAULT_MEMBER_SORT,
+): SortingState {
   if (!next.length) {
-    return DEFAULT_MEMBER_SORT;
+    return fallback;
   }
   const seen = new Set<string>();
   const deduped: SortingState = [];
@@ -135,7 +145,7 @@ function normalizeMemberSorting(next: SortingState): SortingState {
     seen.add(item.id);
     deduped.push(item);
   });
-  return deduped.length ? deduped : DEFAULT_MEMBER_SORT;
+  return deduped.length ? deduped : fallback;
 }
 
 /**
@@ -163,14 +173,18 @@ function getChangedSortId(previous: SortingState, next: SortingState): string | 
  * Upserts one sort rule as highest priority.
  * Clicking an already-primary identical rule removes it.
  */
-function upsertSortAsPrimary(previous: SortingState, nextSort: { id: string; desc: boolean }): SortingState {
+function upsertSortAsPrimary(
+  previous: SortingState,
+  nextSort: { id: string; desc: boolean },
+  fallback: SortingState,
+): SortingState {
   const primary = previous[0];
   if (primary && primary.id === nextSort.id && primary.desc === nextSort.desc) {
     const removed = previous.filter((item) => item.id !== nextSort.id);
-    return normalizeMemberSorting(removed);
+    return normalizeMemberSorting(removed, fallback);
   }
   const withoutSame = previous.filter((item) => item.id !== nextSort.id);
-  return normalizeMemberSorting([nextSort, ...withoutSame]);
+  return normalizeMemberSorting([nextSort, ...withoutSame], fallback);
 }
 
 /**
@@ -202,6 +216,7 @@ export function MemberDataTable({
   toolbarActions,
   searchParamKey,
   searchPlaceholder = "Søk navn eller e-post…",
+  defaultSorting,
 }: {
   columns: ColumnDef<MemberRow, unknown>[];
   data: MemberRow[];
@@ -222,8 +237,17 @@ export function MemberDataTable({
   toolbarActions?: React.ReactNode;
   searchParamKey?: string;
   searchPlaceholder?: string;
+  defaultSorting?: SortingState;
 }) {
-  const [sorting, setSorting] = React.useState<SortingState>(DEFAULT_MEMBER_SORT);
+  const resolvedDefaultSorting = React.useMemo(
+    () =>
+      normalizeMemberSorting(
+        defaultSorting?.length ? defaultSorting : DEFAULT_MEMBER_SORT,
+        DEFAULT_MEMBER_SORT,
+      ),
+    [defaultSorting],
+  );
+  const [sorting, setSorting] = React.useState<SortingState>(resolvedDefaultSorting);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({ search: false, created_at_sort: false });
   const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: defaultPageSize });
@@ -238,7 +262,7 @@ export function MemberDataTable({
   const onSortingChange = React.useCallback((updater: React.SetStateAction<SortingState>) => {
     setSorting((previous) => {
       const raw = typeof updater === "function" ? updater(previous) : updater;
-      const next = normalizeMemberSorting(raw);
+      const next = normalizeMemberSorting(raw, resolvedDefaultSorting);
       const changedId = getChangedSortId(previous, next);
       if (!changedId) {
         return next;
@@ -250,7 +274,7 @@ export function MemberDataTable({
       const rest = next.filter((item) => item.id !== changedId);
       return [changed, ...rest];
     });
-  }, []);
+  }, [resolvedDefaultSorting]);
   const filteredData = React.useMemo(
     () =>
       data.filter((member) => {
@@ -318,7 +342,7 @@ export function MemberDataTable({
   const selectedMembers = selectedRows.map((row) => row.original as MemberRow);
   const hasSelection = selectedMembers.length > 0;
   const hasSearchFilter = Boolean(table.getColumn("search")?.getFilterValue());
-  const hasDefaultSort = isDefaultMemberSort(sorting);
+  const hasDefaultSort = isDefaultMemberSort(sorting, resolvedDefaultSorting);
   const isDefaultSort = hasDefaultSort && roleFilter === "all" && membershipFilter === "all";
   const searchValue = (table.getColumn("search")?.getFilterValue() as string) ?? "";
   const currentSortLabel = React.useMemo(() => getMemberSortLabel(sorting), [sorting]);
@@ -366,7 +390,7 @@ export function MemberDataTable({
    */
   const applyQuickFilter = (preset: MemberQuickFilterPreset) => {
     if (preset === "reset") {
-      setSorting(DEFAULT_MEMBER_SORT);
+      setSorting(resolvedDefaultSorting);
       setRoleFilter("all");
       setMembershipFilter("all");
       table.getColumn("search")?.setFilterValue("");
@@ -384,7 +408,7 @@ export function MemberDataTable({
         if (!nextSort) {
           return previous;
         }
-        return upsertSortAsPrimary(previous, nextSort);
+        return upsertSortAsPrimary(previous, nextSort, resolvedDefaultSorting);
       });
       table.setPageIndex(0);
       return;
@@ -413,7 +437,7 @@ export function MemberDataTable({
       return;
     }
     if (key === "sort") {
-      setSorting(DEFAULT_MEMBER_SORT);
+      setSorting(resolvedDefaultSorting);
     } else if (key === "role_voluntary" || key === "role_member") {
       setRoleFilter("all");
     } else if (key === "membership_active" || key === "membership_inactive") {
