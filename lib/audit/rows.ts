@@ -1029,21 +1029,7 @@ function buildChangeLines(row: DbAuditRow): string[] {
   }
 
   if (action === "member.password_bootstrap.send") {
-    const updatedCount = asNumber(details.updated_count);
-    if (updatedCount !== null && updatedCount > 1) {
-      lines.push(`Engangspassord sendt til ${updatedCount} medlemmer`);
-    } else {
-      lines.push("Engangspassord sendt");
-    }
-
-    const failedCount = asNumber(details.failed_count);
-    if (failedCount !== null && failedCount > 0) {
-      lines.push(`Feilet: ${failedCount}`);
-    }
-    const skippedUnavailable = asNumber(details.skipped_unavailable_count);
-    if (skippedUnavailable !== null && skippedUnavailable > 0) {
-      lines.push(`Hoppet over utilgjengelig: ${skippedUnavailable}`);
-    }
+    lines.push("Engangspassord sendt");
     return lines;
   }
 
