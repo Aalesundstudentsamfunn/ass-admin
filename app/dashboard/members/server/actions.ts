@@ -365,23 +365,12 @@ export async function addNewMember(
         targetId: normalizedEmail,
         status: "error",
         errorMessage: insertError?.message ?? "Failed to add new member.",
-        details: { email: normalizedEmail, privilege_type: privilegeType },
+        details: { email: normalizedEmail },
       });
       return { ok: false, error: insertError?.message ?? "Failed to add new member." };
     }
 
     if (!autoPrint) {
-      await logMemberAction(sb, {
-        actorId: createdBy,
-        action: "member.create",
-        targetId: newMember.id,
-        details: {
-          email: newMember.email,
-          privilege_type: privilegeType,
-          auto_print: false,
-          auth_user_id: userId,
-        },
-      });
       revalidatePath("/dashboard/members");
       return { ok: true, autoPrint: false };
     }
@@ -396,32 +385,18 @@ export async function addNewMember(
     if (queueError) {
       await logMemberAction(sb, {
         actorId: createdBy,
-        action: "member.create",
+        action: "member.card_print.enqueue",
         targetId: newMember.id,
         status: "error",
         errorMessage: `added user but failed to add to printer queue: ${queueError.message}`,
         details: {
           email: newMember.email,
-          privilege_type: privilegeType,
           auto_print: true,
           auth_user_id: userId,
         },
       });
       return { ok: false, error: `added user but failed to add to printer queue: ${queueError.message}` };
     }
-
-    await logMemberAction(sb, {
-      actorId: createdBy,
-      action: "member.create",
-      targetId: newMember.id,
-      details: {
-        email: newMember.email,
-        privilege_type: privilegeType,
-        auto_print: true,
-        auth_user_id: userId,
-        queue_id: queueRow?.id ?? null,
-      },
-    });
 
     revalidatePath("/dashboard/members");
     return {
@@ -435,4 +410,3 @@ export async function addNewMember(
     return { ok: false, error: String(error) };
   }
 }
-
