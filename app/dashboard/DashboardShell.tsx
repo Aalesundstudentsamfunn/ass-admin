@@ -232,9 +232,9 @@ export default function DashboardShell({
         </aside>
 
         {/* Main content area */}
-        <main className="relative z-0 flex min-h-[70vh] flex-1 flex-col pt-5">
+        <main className="relative z-0 flex min-h-[70vh] min-w-0 flex-1 flex-col pt-5">
           <GlassPanel className="flex min-h-[70vh] flex-1 p-4 md:p-6">
-            <div className="flex-1 overflow-auto">{children}</div>
+            <div className="flex-1 min-w-0 overflow-auto">{children}</div>
           </GlassPanel>
         </main>
       </div>

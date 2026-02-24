@@ -54,6 +54,31 @@ type AuditQuickFilterPreset =
   | "reset";
 
 /**
+ * Compacts change summary for table view.
+ *
+ * How: If change string contains `old → new`, table shows only `new`.
+ * Full before/after remains available in details dialog/raw data.
+ * @returns string
+ */
+function compactChangeForTable(value: string | null | undefined) {
+  const raw = String(value ?? "").trim();
+  if (!raw) {
+    return "-";
+  }
+  const arrowMatch = raw.match(/(->|→|=>)/);
+  if (!arrowMatch) {
+    return raw;
+  }
+  const arrow = arrowMatch[0];
+  const [labelPart, rightPart] = raw.split(arrow);
+  const label = labelPart?.includes(":")
+    ? `${labelPart.split(":")[0]?.trim()}: `
+    : "";
+  const nextValue = rightPart?.trim() ?? "";
+  return `${label}${nextValue}`.trim();
+}
+
+/**
  * Maps current audit sorting to a readable label.
  *
  * How: Uses first sorting rule and keeps default newest-first without pill.
@@ -207,7 +232,11 @@ function buildColumns(): ColumnDef<AuditLogRow, unknown>[] {
           Tidspunkt <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
-      cell: ({ row }) => <span>{formatAuditDate(row.original.created_at)}</span>,
+      cell: ({ row }) => (
+        <span className="block truncate">
+          {formatAuditDate(row.original.created_at)}
+        </span>
+      ),
     },
     {
       accessorKey: "event",
@@ -219,7 +248,9 @@ function buildColumns(): ColumnDef<AuditLogRow, unknown>[] {
           Hendelse <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
-      cell: ({ row }) => <span>{String(row.getValue("event") || "-")}</span>,
+      cell: ({ row }) => (
+        <span className="block truncate">{String(row.getValue("event") || "-")}</span>
+      ),
     },
     {
       accessorKey: "target_name",
@@ -231,7 +262,9 @@ function buildColumns(): ColumnDef<AuditLogRow, unknown>[] {
           Mål <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
-      cell: ({ row }) => <span>{String(row.getValue("target_name") || "-")}</span>,
+      cell: ({ row }) => (
+        <span className="block truncate">{String(row.getValue("target_name") || "-")}</span>
+      ),
     },
     {
       accessorKey: "change",
@@ -244,8 +277,8 @@ function buildColumns(): ColumnDef<AuditLogRow, unknown>[] {
         </button>
       ),
       cell: ({ row }) => (
-        <span className="line-clamp-1 max-w-[22rem] break-all">
-          {String(row.getValue("change") || "-")}
+        <span className="block truncate">
+          {compactChangeForTable(String(row.getValue("change") || "-"))}
         </span>
       ),
     },
@@ -483,13 +516,23 @@ export function AuditLogDataTable({
       />
 
       <GlassPanel>
-        <div className="overflow-x-auto rounded-2xl">
-          <Table>
+        <div className="min-w-0 overflow-hidden rounded-2xl">
+          <Table className="table-fixed">
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id} className="whitespace-nowrap">
+                    <TableHead
+                      key={header.id}
+                      className={cn(
+                        "whitespace-nowrap",
+                        header.column.id === "created_at" && "w-[11.75rem]",
+                        header.column.id === "event" && "w-[12.5rem]",
+                        header.column.id === "target_name" && "w-[12.5rem]",
+                        header.column.id === "change" && "w-[13rem]",
+                        header.column.id === "status" && "w-[7rem]",
+                      )}
+                    >
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -525,7 +568,15 @@ export function AuditLogDataTable({
                       )}
                     >
                       {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id} className="align-middle">
+                        <TableCell
+                          key={cell.id}
+                          className={cn(
+                            "align-middle",
+                            cell.column.id === "status"
+                              ? "whitespace-nowrap text-right"
+                              : "whitespace-normal overflow-hidden",
+                          )}
+                        >
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
                         </TableCell>
                       ))}

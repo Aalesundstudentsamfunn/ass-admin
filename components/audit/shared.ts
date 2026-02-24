@@ -29,6 +29,28 @@ export function formatAuditDate(value: string | null) {
 }
 
 /**
+ * Formats audit timestamps as `dd/mm, hh:mm:ss` for compact table rendering.
+ *
+ * How: Same parser as full formatter, but omits year to save column width.
+ * @returns string
+ */
+export function formatAuditDateCompact(value: string | null) {
+  if (!value) {
+    return "-";
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  const day = String(parsed.getDate()).padStart(2, "0");
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const hours = String(parsed.getHours()).padStart(2, "0");
+  const minutes = String(parsed.getMinutes()).padStart(2, "0");
+  const seconds = String(parsed.getSeconds()).padStart(2, "0");
+  return `${day}/${month}, ${hours}:${minutes}:${seconds}`;
+}
+
+/**
  * Maps audit status values to badge label/style + sort rank.
  *
  * How: Returns a stable display tuple for `ok`, `error`, and unknown statuses.
