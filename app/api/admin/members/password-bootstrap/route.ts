@@ -155,6 +155,7 @@ export async function POST(request: Request) {
       const { error: resetMarkerError } = await supabase
         .from("members")
         .update({ password_set_at: null })
+        .not("password_set_at", "is", null)
         .in("id", updatedMemberIds);
 
       if (resetMarkerError) {

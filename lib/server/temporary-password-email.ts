@@ -69,7 +69,7 @@ async function sendTemporaryPasswordWithResend({ email, firstname, lastname, tem
   const replyTo = String(process.env.RESEND_REPLY_TO_EMAIL ?? "").trim();
   const supportEmail = String(process.env.TEMP_PASSWORD_SUPPORT_EMAIL ?? "it@astudent.no").trim();
   const loginUrl = getTemporaryPasswordLoginUrl();
-  const siteUrl = "https://astudent.no";
+  const siteUrl = "https://admin.astudent.no";
   const fullName = `${firstname ?? ""} ${lastname ?? ""}`.trim();
 
   const body: Record<string, unknown> = {
