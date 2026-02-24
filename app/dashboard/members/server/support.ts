@@ -17,6 +17,15 @@ type AuthUserLike = {
 };
 
 /**
+ * Feature toggle for sending invite emails on member creation.
+ *
+ * - true: creates auth user via invite flow (email is sent)
+ * - false: creates auth user silently (no email is sent)
+ */
+const shouldSendInviteEmailOnCreate = () =>
+  String(process.env.MEMBER_AUTH_SEND_INVITE_EMAILS ?? "true").toLowerCase() === "true";
+
+/**
  * Normalizes member emails for stable lookups across members/auth tables.
  */
 export const normalizeMemberEmail = (value: string) => value.trim().toLowerCase();
@@ -144,35 +153,46 @@ export async function ensureAuthUser(email: string, firstname: string, lastname:
 
   const temporaryPassword = generateTemporaryPassword();
   const name = `${firstname} ${lastname}`.trim();
+  const userMetadata = {
+    full_name: name,
+    firstname,
+    lastname,
+    temporary_password: temporaryPassword,
+    temporary_password_created_at: new Date().toISOString(),
+  };
 
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(normalizedEmail, {
-    redirectTo: getInviteRedirectUrl(),
-    data: {
-      full_name: name,
-      firstname,
-      lastname,
-      temporary_password: temporaryPassword,
-    },
+  if (shouldSendInviteEmailOnCreate()) {
+    const { data, error } = await admin.auth.admin.inviteUserByEmail(normalizedEmail, {
+      redirectTo: getInviteRedirectUrl(),
+      data: userMetadata,
+    });
+
+    if (error || !data?.user) {
+      throw error ?? new Error("Kunne ikke sende invitasjon.");
+    }
+
+    const { error: updateError } = await admin.auth.admin.updateUserById(data.user.id, {
+      password: temporaryPassword,
+      email_confirm: true,
+      user_metadata: userMetadata,
+    });
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    return { userId: data.user.id, temporaryPassword };
+  }
+
+  const { data, error } = await admin.auth.admin.createUser({
+    email: normalizedEmail,
+    password: temporaryPassword,
+    email_confirm: true,
+    user_metadata: userMetadata,
   });
 
   if (error || !data?.user) {
-    throw error ?? new Error("Kunne ikke sende invitasjon.");
-  }
-
-  const { error: updateError } = await admin.auth.admin.updateUserById(data.user.id, {
-    password: temporaryPassword,
-    email_confirm: true,
-    user_metadata: {
-      full_name: name,
-      firstname,
-      lastname,
-      temporary_password: temporaryPassword,
-      temporary_password_created_at: new Date().toISOString(),
-    },
-  });
-
-  if (updateError) {
-    throw updateError;
+    throw error ?? new Error("Kunne ikke opprette auth-bruker.");
   }
 
   return { userId: data.user.id, temporaryPassword };
