@@ -15,6 +15,7 @@ import { enqueuePrinterQueue, watchPrinterQueueStatus } from "@/lib/printer-queu
 import {
   canAssignPrivilege,
   canSetOwnPrivilege,
+  isMembershipActive,
   isVoluntaryOrHigher,
   memberPrivilege,
 } from "@/lib/privilege-checks";
@@ -303,24 +304,16 @@ export function useMembersPageActions({
       patchMembersByIds(setRows, setSelectedMember, eligibleIds, { privilege_type: next });
       const skippedCount = unchangedIds.length + blockedIds.length;
       if (skippedCount > 0) {
-        const parts: string[] = [];
-        if (unchangedIds.length > 0) {
-          parts.push(`${unchangedIds.length} uendret`);
-        }
-        if (blockedIds.length > 0) {
-          parts.push(`${blockedIds.length} uten tilgang`);
-        }
         toast.warning("Noen valgte medlemmer ble hoppet over.", {
-          description: parts.join(" · "),
+          id: toastId,
+          description: `Oppdatert ${eligibleIds.length}, hoppet over ${skippedCount}.`,
           duration: 7000,
         });
+        return;
       }
       toast.success("Tilgangsnivå oppdatert.", {
         id: toastId,
-        description:
-          skippedCount > 0 || members.length > 1
-            ? `Oppdatert ${eligibleIds.length}, hoppet over ${skippedCount}.`
-            : undefined,
+        description: members.length > 1 ? `Oppdatert ${eligibleIds.length} medlemmer.` : undefined,
         duration: 6000,
       });
     },
@@ -342,9 +335,37 @@ export function useMembersPageActions({
         return;
       }
 
-      const ids = members.map((member) => idOf(member.id));
+      const unchangedIds: string[] = [];
+      const blockedIds: string[] = [];
+      const eligibleIds: string[] = [];
+      for (const member of members) {
+        const currentIsActive = isMembershipActive(member.is_membership_active);
+        const memberId = idOf(member.id);
+        if (currentIsActive === isActive) {
+          unchangedIds.push(memberId);
+          continue;
+        }
+        if (isActive && member.is_banned === true) {
+          blockedIds.push(memberId);
+          continue;
+        }
+        eligibleIds.push(memberId);
+      }
+      if (!eligibleIds.length) {
+        if (unchangedIds.length > 0 && blockedIds.length === 0) {
+          toast.error(
+            isActive
+              ? "Alle valgte medlemmer er allerede aktive."
+              : "Alle valgte medlemmer er allerede inaktive.",
+          );
+          return;
+        }
+        toast.error("Ingen valgte medlemmer kan oppdateres.");
+        return;
+      }
+
       const toastId = toast.loading("Oppdaterer medlemsstatus...", { duration: 10000 });
-      const { response, payload } = await updateMembershipStatus(ids, isActive);
+      const { response, payload } = await updateMembershipStatus(eligibleIds, isActive);
       if (!response.ok) {
         toast.error("Kunne ikke oppdatere medlemsstatus.", {
           id: toastId,
@@ -354,11 +375,20 @@ export function useMembersPageActions({
         return;
       }
 
-      patchMembersByIds(setRows, setSelectedMember, ids, { is_membership_active: isActive });
+      patchMembersByIds(setRows, setSelectedMember, eligibleIds, { is_membership_active: isActive });
       const updatedCount =
         typeof payload?.updated === "number" && Number.isFinite(payload.updated)
           ? payload.updated
-          : ids.length;
+          : eligibleIds.length;
+      const skippedCount = unchangedIds.length + blockedIds.length;
+      if (skippedCount > 0) {
+        toast.warning("Noen valgte medlemmer ble hoppet over.", {
+          id: toastId,
+          description: `Oppdatert ${updatedCount}, hoppet over ${skippedCount}.`,
+          duration: 7000,
+        });
+        return;
+      }
       toast.success("Medlemsstatus oppdatert.", {
         id: toastId,
         description: members.length > 1 ? `Oppdatert ${updatedCount} medlemmer.` : undefined,

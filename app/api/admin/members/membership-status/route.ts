@@ -55,24 +55,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: existingRowsError.message }, { status: 400 });
     }
 
-    const previousById = new Map(
-      (existingRows ?? []).map((row) => [row.id, row.is_membership_active]),
+    const currentById = new Map(
+      (existingRows ?? []).map((row) => [String(row.id), row.is_membership_active === true]),
     );
-    const previousActiveCount = (existingRows ?? []).filter(
-      (row) => row.is_membership_active === true,
-    ).length;
-    const previousInactiveCount = (existingRows ?? []).filter(
-      (row) => row.is_membership_active !== true,
-    ).length;
-    const previousSingleValue =
-      memberIds.length === 1 ? previousById.get(memberIds[0]) ?? null : null;
+    const unchangedIds: string[] = [];
+    let idsToUpdate: string[] = [];
+    for (const id of memberIds) {
+      if (!currentById.has(id)) {
+        continue;
+      }
+      if (currentById.get(id) === isActive) {
+        unchangedIds.push(id);
+        continue;
+      }
+      idsToUpdate.push(id);
+    }
 
     // Guard: banned users must not be re-activated through membership endpoint.
+    let blockedIds: string[] = [];
     if (isActive) {
       const { data: bannedRows, error: bannedCheckError } = await supabase
         .from("members")
         .select("id")
-        .in("id", memberIds)
+        .in("id", idsToUpdate)
         .eq("is_banned", true);
 
       if (bannedCheckError) {
@@ -86,36 +91,36 @@ export async function POST(request: Request) {
           details: {
             member_ids: memberIds,
             is_active: isActive,
+            unchanged_member_ids: unchangedIds,
           },
           });
         return NextResponse.json({ error: bannedCheckError.message }, { status: 400 });
       }
 
-      if ((bannedRows ?? []).length > 0) {
-        await logAdminAction(supabase, {
-          actorId: userId,
-          action: "member.membership_status.update",
-          targetTable: "members",
-          targetId: memberIds.length === 1 ? memberIds[0] : null,
-          status: "error",
-          errorMessage: "Én eller flere brukere kan ikke aktiveres.",
-          details: {
-            member_ids: memberIds,
-            is_active: isActive,
-            blocked_banned_ids: (bannedRows ?? []).map((row) => row.id),
-          },
-          });
-        return NextResponse.json(
-          { error: "Én eller flere brukere kan ikke aktiveres." },
-          { status: 400 },
-        );
+      blockedIds = (bannedRows ?? []).map((row) => String(row.id));
+      if (blockedIds.length > 0) {
+        const blockedSet = new Set(blockedIds);
+        idsToUpdate = idsToUpdate.filter((id) => !blockedSet.has(id));
       }
     }
+
+    if (!idsToUpdate.length) {
+      return NextResponse.json({
+        ok: true,
+        updated: 0,
+        skipped: unchangedIds.length + blockedIds.length,
+      });
+    }
+
+    const previousActiveCount = idsToUpdate.filter((id) => currentById.get(id) === true).length;
+    const previousInactiveCount = idsToUpdate.length - previousActiveCount;
+    const previousSingleValue =
+      idsToUpdate.length === 1 ? currentById.get(idsToUpdate[0]) ?? null : null;
 
     const { error } = await supabase
       .from("members")
       .update({ is_membership_active: isActive })
-      .in("id", memberIds);
+      .in("id", idsToUpdate);
 
     if (error) {
       await logAdminAction(supabase, {
@@ -126,11 +131,14 @@ export async function POST(request: Request) {
         status: "error",
         errorMessage: error.message,
         details: {
-          member_ids: memberIds,
+          member_ids: idsToUpdate,
+          requested_member_ids: memberIds,
           is_active: isActive,
           previous_is_active: previousSingleValue,
           previous_active_count: previousActiveCount,
           previous_inactive_count: previousInactiveCount,
+          skipped_unchanged_count: unchangedIds.length,
+          skipped_unavailable_count: blockedIds.length,
         },
       });
       return NextResponse.json({ error: error.message }, { status: 400 });
@@ -143,16 +151,23 @@ export async function POST(request: Request) {
       targetId: memberIds.length === 1 ? memberIds[0] : null,
       status: "ok",
       details: {
-        member_ids: memberIds,
+        member_ids: idsToUpdate,
+        requested_member_ids: memberIds,
         is_active: isActive,
         previous_is_active: previousSingleValue,
         previous_active_count: previousActiveCount,
         previous_inactive_count: previousInactiveCount,
-        updated_count: memberIds.length,
+        updated_count: idsToUpdate.length,
+        skipped_unchanged_count: unchangedIds.length,
+        skipped_unavailable_count: blockedIds.length,
       },
     });
 
-    return NextResponse.json({ ok: true, updated: memberIds.length });
+    return NextResponse.json({
+      ok: true,
+      updated: idsToUpdate.length,
+      skipped: unchangedIds.length + blockedIds.length,
+    });
   } catch (error: unknown) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Ukjent feil" }, { status: 500 });
   }

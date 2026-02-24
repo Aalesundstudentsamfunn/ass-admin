@@ -222,24 +222,16 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
       applyPrivilegeToRows(eligibleIds, next);
       const skippedCount = unchangedIds.length + blockedIds.length;
       if (skippedCount > 0) {
-        const parts: string[] = [];
-        if (unchangedIds.length > 0) {
-          parts.push(`${unchangedIds.length} uendret`);
-        }
-        if (blockedIds.length > 0) {
-          parts.push(`${blockedIds.length} uten tilgang`);
-        }
         toast.warning("Noen valgte medlemmer ble hoppet over.", {
-          description: parts.join(" · "),
+          id: toastId,
+          description: `Oppdatert ${eligibleIds.length}, hoppet over ${skippedCount}.`,
           duration: 7000,
         });
+        return;
       }
       toast.success("Tilgangsnivå oppdatert.", {
         id: toastId,
-        description:
-          skippedCount > 0 || members.length > 1
-            ? `Oppdatert ${eligibleIds.length}, hoppet over ${skippedCount}.`
-            : undefined,
+        description: members.length > 1 ? `Oppdatert ${eligibleIds.length} medlemmer.` : undefined,
         duration: 6000,
       });
     },
