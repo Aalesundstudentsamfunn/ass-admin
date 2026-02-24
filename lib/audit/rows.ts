@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PRIVILEGE_OPTIONS } from "@/lib/privilege-config";
-import type { AuditLogRow } from "@/lib/audit/types";
+import type { AuditLogRow, AuditTargetItem } from "@/lib/audit/types";
 
 type DbAuditRow = {
   id: string | number | null;
@@ -314,14 +314,35 @@ function buildFieldDiffLine(details: Record<string, unknown>, field: string): st
 /**
  * Maps raw audit status values to UI status union.
  *
- * How: Supports `ok`, `error`, and fallback `unknown`.
- * @returns "ok" | "error" | "unknown"
+ * How: Supports `ok`, `error`, `partial`, and fallback `unknown`.
+ * @returns "ok" | "error" | "partial" | "unknown"
  */
-function toStatus(value: string | null): AuditLogRow["status"] {
-  if (value === "ok") {
+function toStatus(row: DbAuditRow): AuditLogRow["status"] {
+  const statusValue = asString(row.status);
+  const details = detailsOf(row);
+
+  const updatedFromCount = asNumber(details.updated_count) ?? 0;
+  const updatedFromIds = readStringArray(details, "updated_member_ids").length;
+  const updatedCount = Math.max(updatedFromCount, updatedFromIds);
+
+  const skippedFromCount =
+    (asNumber(details.skipped_unavailable_count) ?? 0) +
+    (asNumber(details.skipped_unchanged_count) ?? 0) +
+    (asNumber(details.unchanged_count) ?? 0);
+  const skippedFromIds = new Set([
+    ...readStringArray(details, "unchanged_member_ids"),
+    ...readStringArray(details, "blocked_banned_ids"),
+    ...readStringArray(details, "invalid_member_ids"),
+  ]).size;
+  const skippedCount = Math.max(skippedFromCount, skippedFromIds);
+
+  if (updatedCount > 0 && skippedCount > 0) {
+    return "partial";
+  }
+  if (statusValue === "ok") {
     return "ok";
   }
-  if (value === "error") {
+  if (statusValue === "error") {
     return "error";
   }
   return "unknown";
@@ -603,6 +624,124 @@ function getBulkMemberCount(details: Record<string, unknown>): number | null {
 }
 
 /**
+ * Returns ordered member ids involved in one audit row.
+ *
+ * How: prefers explicit requested list, then member list, then resolved target uuid.
+ * @returns string[]
+ */
+function getAuditTargetMemberIds(
+  details: Record<string, unknown>,
+  targetUuid: string | null,
+): string[] {
+  const requested = readStringArray(details, "requested_member_ids").filter((id) =>
+    isUuid(normalizeId(id)),
+  );
+  if (requested.length > 0) {
+    return Array.from(new Set(requested));
+  }
+
+  const memberIds = readStringArray(details, "member_ids").filter((id) =>
+    isUuid(normalizeId(id)),
+  );
+  if (memberIds.length > 0) {
+    return Array.from(new Set(memberIds));
+  }
+
+  if (targetUuid && isUuid(targetUuid)) {
+    return [targetUuid];
+  }
+
+  return [];
+}
+
+/**
+ * Builds per-target status rows for bulk audit actions.
+ *
+ * How: classifies each target as updated/skipped/error from detail id lists.
+ * @returns AuditTargetItem[]
+ */
+function buildTargetItems(
+  details: Record<string, unknown>,
+  targetIds: string[],
+  membersById: Map<string, DbMemberRow>,
+  changeItems: string[],
+): AuditTargetItem[] {
+  if (!targetIds.length) {
+    return [];
+  }
+
+  const updatedIds = new Set(readStringArray(details, "updated_member_ids"));
+  const unchangedIds = new Set(readStringArray(details, "unchanged_member_ids"));
+  const bannedIds = new Set(readStringArray(details, "blocked_banned_ids"));
+  const invalidIds = new Set(readStringArray(details, "invalid_member_ids"));
+  const blockedIds = new Set([...bannedIds, ...invalidIds]);
+
+  const hasExplicitUpdated = updatedIds.size > 0;
+  const primaryChange = changeItems[0] ?? null;
+
+  const items = targetIds.map((id) => {
+    const member = membersById.get(id);
+    const label = toMemberLabel(member) ?? id;
+    const email = member?.email ?? null;
+
+    if (blockedIds.has(id)) {
+      return {
+        id,
+        name: label,
+        email,
+        status: "error" as const,
+        reason: bannedIds.has(id)
+          ? "Bruker er utestengt."
+          : invalidIds.has(id)
+            ? "Ingen tilgang til å oppdatere dette medlemmet."
+            : "Kunne ikke oppdateres.",
+        change: null,
+      };
+    }
+
+    if (unchangedIds.has(id)) {
+      return {
+        id,
+        name: label,
+        email,
+        status: "skipped" as const,
+        reason: "Ingen endring.",
+        change: null,
+      };
+    }
+
+    if (hasExplicitUpdated && !updatedIds.has(id)) {
+      return {
+        id,
+        name: label,
+        email,
+        status: "skipped" as const,
+        reason: "Hoppet over.",
+        change: null,
+      };
+    }
+
+    return {
+      id,
+      name: label,
+      email,
+      status: "ok" as const,
+      reason: null,
+      change: primaryChange,
+    };
+  });
+
+  return items.sort((left, right) => {
+    const rank = (value: AuditTargetItem["status"]) => {
+      if (value === "error") return 0;
+      if (value === "skipped") return 1;
+      return 2;
+    };
+    return rank(left.status) - rank(right.status);
+  });
+}
+
+/**
  * Builds concise human-readable change descriptions.
  *
  * How: Parses structured `details` by action and emits one-liners.
@@ -634,6 +773,14 @@ function buildChangeLines(row: DbAuditRow): string[] {
     const updatedCount = asNumber(details.updated_count);
     if (updatedCount !== null && updatedCount > 1) {
       lines.push(`Antall oppdatert: ${updatedCount}`);
+    }
+    const skippedUnavailable = asNumber(details.skipped_unavailable_count);
+    if (skippedUnavailable !== null && skippedUnavailable > 0) {
+      lines.push(`Hoppet over utilgjengelig: ${skippedUnavailable}`);
+    }
+    const skippedUnchanged = asNumber(details.skipped_unchanged_count);
+    if (skippedUnchanged !== null && skippedUnchanged > 0) {
+      lines.push(`Hoppet over uendret: ${skippedUnchanged}`);
     }
     return lines;
   }
@@ -922,6 +1069,8 @@ export async function fetchAuditRows(
         : targetBase;
     const source = "app.admin";
     const changeItems = buildChangeLines(row);
+    const targetIds = getAuditTargetMemberIds(details, target.targetUuid);
+    const targetItems = buildTargetItems(details, targetIds, membersById, changeItems);
 
     return {
       id: String(row.id ?? ""),
@@ -932,13 +1081,14 @@ export async function fetchAuditRows(
       target_name: targetDisplay,
       target_uuid: target.targetUuid,
       target_email: target.targetEmail,
+      target_items: targetItems,
       change: changeItems.length ? (changeItems.length === 1 ? changeItems[0] : `${changeItems[0]} (+${changeItems.length - 1})`) : null,
       change_items: changeItems,
       actor_label: toActorLabel(actor),
       actor_id: actorId,
       actor_email: actor?.email ?? null,
       ip_address: null,
-      status: toStatus(asString(row.status)),
+      status: toStatus(row),
       error_message: row.error_message ?? null,
       source,
       raw: {

@@ -43,6 +43,14 @@ export function getAuditStatusMeta(status: AuditLogRow["status"]) {
       sortValue: 2,
     };
   }
+  if (status === "partial") {
+    return {
+      label: "Delvis",
+      className:
+        "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-300",
+      sortValue: 1.5,
+    };
+  }
   if (status === "ok") {
     return {
       label: "OK",

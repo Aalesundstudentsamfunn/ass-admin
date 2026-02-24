@@ -105,11 +105,32 @@ export async function POST(request: Request) {
     }
 
     if (!idsToUpdate.length) {
-      return NextResponse.json({
-        ok: true,
-        updated: 0,
-        skipped: unchangedIds.length + blockedIds.length,
+      const skippedUnavailableCount = blockedIds.length;
+      const skippedUnchangedCount = unchangedIds.length;
+      await logAdminAction(supabase, {
+        actorId: userId,
+        action: "member.membership_status.update",
+        targetTable: "members",
+        targetId: memberIds.length === 1 ? memberIds[0] : null,
+        status: "error",
+        errorMessage: "Ingen medlemmer kunne oppdateres.",
+        details: {
+          requested_member_ids: memberIds,
+          unchanged_member_ids: unchangedIds,
+          is_active: isActive,
+          updated_count: 0,
+          skipped_unchanged_count: skippedUnchangedCount,
+          skipped_unavailable_count: skippedUnavailableCount,
+          blocked_banned_ids: blockedIds,
+        },
       });
+      return NextResponse.json({
+        ok: false,
+        updated: 0,
+        skipped: skippedUnchangedCount + skippedUnavailableCount,
+        updated_member_ids: [],
+        error: "Ingen valgte medlemmer kunne oppdateres.",
+      }, { status: 400 });
     }
 
     const previousActiveCount = idsToUpdate.filter((id) => currentById.get(id) === true).length;
@@ -133,6 +154,8 @@ export async function POST(request: Request) {
         details: {
           member_ids: idsToUpdate,
           requested_member_ids: memberIds,
+          updated_member_ids: idsToUpdate,
+          unchanged_member_ids: unchangedIds,
           is_active: isActive,
           previous_is_active: previousSingleValue,
           previous_active_count: previousActiveCount,
@@ -153,6 +176,8 @@ export async function POST(request: Request) {
       details: {
         member_ids: idsToUpdate,
         requested_member_ids: memberIds,
+        updated_member_ids: idsToUpdate,
+        unchanged_member_ids: unchangedIds,
         is_active: isActive,
         previous_is_active: previousSingleValue,
         previous_active_count: previousActiveCount,
@@ -160,6 +185,7 @@ export async function POST(request: Request) {
         updated_count: idsToUpdate.length,
         skipped_unchanged_count: unchangedIds.length,
         skipped_unavailable_count: blockedIds.length,
+        blocked_banned_ids: blockedIds,
       },
     });
 
@@ -167,6 +193,7 @@ export async function POST(request: Request) {
       ok: true,
       updated: idsToUpdate.length,
       skipped: unchangedIds.length + blockedIds.length,
+      updated_member_ids: idsToUpdate,
     });
   } catch (error: unknown) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Ukjent feil" }, { status: 500 });

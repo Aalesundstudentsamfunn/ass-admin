@@ -360,12 +360,12 @@ export function useMembersPageActions({
           );
           return;
         }
-        toast.error("Ingen valgte medlemmer kan oppdateres.");
-        return;
+        // Send request anyway when there are unavailable targets, so the attempt is auditable.
       }
 
       const toastId = toast.loading("Oppdaterer medlemsstatus...", { duration: 10000 });
-      const { response, payload } = await updateMembershipStatus(eligibleIds, isActive);
+      const requestedIds = members.map((member) => idOf(member.id));
+      const { response, payload } = await updateMembershipStatus(requestedIds, isActive);
       if (!response.ok) {
         toast.error("Kunne ikke oppdatere medlemsstatus.", {
           id: toastId,
@@ -375,12 +375,23 @@ export function useMembersPageActions({
         return;
       }
 
-      patchMembersByIds(setRows, setSelectedMember, eligibleIds, { is_membership_active: isActive });
+      const updatedIdsFromApi = Array.isArray(payload?.updated_member_ids)
+        ? payload.updated_member_ids
+            .map((value: unknown) => String(value ?? "").trim())
+            .filter((value: string): value is string => Boolean(value))
+        : [];
+      const idsToPatch = updatedIdsFromApi.length ? updatedIdsFromApi : eligibleIds;
+      if (idsToPatch.length > 0) {
+        patchMembersByIds(setRows, setSelectedMember, idsToPatch, { is_membership_active: isActive });
+      }
       const updatedCount =
         typeof payload?.updated === "number" && Number.isFinite(payload.updated)
           ? payload.updated
-          : eligibleIds.length;
-      const skippedCount = unchangedIds.length + blockedIds.length;
+          : idsToPatch.length;
+      const skippedCount =
+        typeof payload?.skipped === "number" && Number.isFinite(payload.skipped)
+          ? payload.skipped
+          : unchangedIds.length + blockedIds.length;
       if (skippedCount > 0) {
         toast.warning("Noen valgte medlemmer ble hoppet over.", {
           id: toastId,

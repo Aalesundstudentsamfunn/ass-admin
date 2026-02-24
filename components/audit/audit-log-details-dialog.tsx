@@ -85,13 +85,20 @@ export function AuditLogDetailsDialog({
 
   const status = row ? getAuditStatusMeta(row.status) : null;
   const [rawOpen, setRawOpen] = React.useState(false);
+  const [targetsOpen, setTargetsOpen] = React.useState(false);
+  const hasBulkTargets = (row?.target_items?.length ?? 0) > 1;
+  const failedTargets = (row?.target_items ?? []).filter((item) => item.status === "error");
+  const skippedTargets = (row?.target_items ?? []).filter((item) => item.status === "skipped");
+  const updatedTargets = (row?.target_items ?? []).filter((item) => item.status === "ok");
 
   React.useEffect(() => {
     if (!open) {
       setRawOpen(false);
+      setTargetsOpen(false);
       return;
     }
     setRawOpen(false);
+    setTargetsOpen(false);
   }, [open, row?.id]);
 
   return (
@@ -124,18 +131,51 @@ export function AuditLogDetailsDialog({
 
               <div className="space-y-3">
                 <div className="text-xs font-semibold uppercase tracking-wide text-foreground/80">Mål</div>
+                {hasBulkTargets ? (
+                  <div className="rounded-xl border border-border bg-muted/25 px-3 py-3 text-xs shadow-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="space-y-1">
+                        <p className="font-medium text-foreground">
+                          Bulk handling ({row?.target_items.length} mål)
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                          <span className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-emerald-300">
+                            Oppdatert: {updatedTargets.length}
+                          </span>
+                          <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-amber-300">
+                            Hoppet over: {skippedTargets.length}
+                          </span>
+                          <span className="rounded-md border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-red-300">
+                            Feilet: {failedTargets.length}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="rounded-lg border border-border bg-background/80 px-3 py-1.5 text-[11px] font-medium hover:bg-muted/70"
+                        onClick={() => setTargetsOpen((prev) => !prev)}
+                      >
+                        {targetsOpen ? "Skjul mål" : "Vis mål"}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="grid grid-cols-[9rem_minmax(0,1fr)] gap-y-2 gap-x-4">
-                  <div className="text-muted-foreground">Navn</div>
-                  <div className="min-w-0 text-right break-all">{row.target_name || "-"}</div>
-                  <div className="text-muted-foreground">E-post</div>
-                  <div className="min-w-0 text-right break-all">
-                    {row.target_email ? <CopyableValue value={row.target_email} label="Target e-post" /> : "-"}
-                  </div>
-                  <div className="text-muted-foreground">UUID</div>
-                  <div className="min-w-0 text-right break-all">
-                    {row.target_uuid ? <CopyableValue value={row.target_uuid} label="Target UUID" /> : "-"}
-                  </div>
-                  {row.change_items?.length ? (
+                  {!hasBulkTargets ? (
+                    <>
+                      <div className="text-muted-foreground">Navn</div>
+                      <div className="min-w-0 text-right break-all">{row.target_name || "-"}</div>
+                      <div className="text-muted-foreground">E-post</div>
+                      <div className="min-w-0 text-right break-all">
+                        {row.target_email ? <CopyableValue value={row.target_email} label="Target e-post" /> : "-"}
+                      </div>
+                      <div className="text-muted-foreground">UUID</div>
+                      <div className="min-w-0 text-right break-all">
+                        {row.target_uuid ? <CopyableValue value={row.target_uuid} label="Target UUID" /> : "-"}
+                      </div>
+                    </>
+                  ) : null}
+                  {!hasBulkTargets && row.change_items?.length ? (
                     <>
                       <div className="text-muted-foreground">Endring</div>
                       <div className="min-w-0 text-right break-all">
@@ -146,13 +186,65 @@ export function AuditLogDetailsDialog({
                         </div>
                       </div>
                     </>
-                  ) : row.change ? (
+                  ) : !hasBulkTargets && row.change ? (
                     <>
                       <div className="text-muted-foreground">Endring</div>
                       <div className="min-w-0 text-right break-all">{row.change}</div>
                     </>
                   ) : null}
                 </div>
+                {hasBulkTargets && targetsOpen ? (
+                  <div className="space-y-2 rounded-xl border border-border bg-muted/25 p-3 shadow-sm">
+                    <div className="text-xs font-medium text-foreground/80">Alle mål</div>
+                    <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                      {row?.target_items.map((item) => (
+                        <div
+                          key={`${row.id}-target-${item.id}`}
+                          className="rounded-lg border border-border/70 bg-background/70 p-2"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0 break-all font-medium">{item.name ?? item.id}</div>
+                            <span
+                              className={
+                                item.status === "error"
+                                  ? "text-[11px] text-red-400"
+                                  : item.status === "skipped"
+                                    ? "text-[11px] text-amber-400"
+                                    : "text-[11px] text-emerald-400"
+                              }
+                            >
+                              {item.status === "error"
+                                ? "Feilet"
+                                : item.status === "skipped"
+                                  ? "Hoppet over"
+                                  : "Oppdatert"}
+                            </span>
+                          </div>
+                          <div className="mt-1 grid grid-cols-[3.5rem_minmax(0,1fr)] items-start gap-x-2 gap-y-1 text-xs">
+                            <div className="text-muted-foreground">UUID</div>
+                            <div className="min-w-0 break-all text-right">
+                              <CopyableValue value={item.id} label="Mål UUID" />
+                            </div>
+                            {item.email ? (
+                              <>
+                                <div className="text-muted-foreground">E-post</div>
+                                <div className="min-w-0 break-all text-right">
+                                  <CopyableValue value={item.email} label="Mål e-post" />
+                                </div>
+                              </>
+                            ) : null}
+                          </div>
+                          {item.change ? (
+                            <div className="mt-1 text-xs break-all">{item.change}</div>
+                          ) : null}
+                          {item.reason ? (
+                            <div className="mt-1 text-xs text-muted-foreground break-all">{item.reason}</div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               <div className="space-y-3">
