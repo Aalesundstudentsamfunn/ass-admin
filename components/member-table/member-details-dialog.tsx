@@ -14,6 +14,7 @@ import {
   canEditMemberPrivileges,
   canManageMembers,
   canManageMembershipStatus,
+  canResetPasswords,
   canSetOwnPrivilege,
   getMaxAssignablePrivilege,
   isMembershipActive,
@@ -128,6 +129,7 @@ export function MemberDetailsDialog({
   const canEditTarget = canEditMemberPrivileges(currentPrivilege);
   const canEditThisTarget = canEditPrivilegeForTarget(currentPrivilege, targetPrivilege);
   const canEditMembershipStatus = canManageMembershipStatus(currentPrivilege);
+  const canSendPasswordReset = canResetPasswords(currentPrivilege);
   const canViewBanControls = showBanControls && canBanMembers(currentPrivilege);
   const allowedMax = getMaxAssignablePrivilege(currentPrivilege);
   const selectDisabled = !canEditTarget || !canEditThisTarget || isSaving || !member?.id;
@@ -407,7 +409,7 @@ export function MemberDetailsDialog({
             <DetailRow label="Opprettet">
               <span className="font-medium">{createdAtLabel}</span>
             </DetailRow>
-            {member.email ? (
+            {member.email && canSendPasswordReset ? (
               <div className="flex justify-end pt-2">
                 <Button
                   size="sm"
