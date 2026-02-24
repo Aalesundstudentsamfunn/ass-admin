@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { CurrentUserBadge } from "@/components/current-user-badge";
+import { canViewAuditLogs } from "@/lib/privilege-checks";
 import {
   DashboardSession,
   DashboardSessionProvider,
@@ -141,6 +142,9 @@ export default function DashboardShell({
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const visibleNavigation = canViewAuditLogs(dashboardSession.privilegeType)
+    ? navigation
+    : navigation.filter((item) => item.href !== "/dashboard/audit");
 
   const Sidebar = ({ mobile = false }: { mobile?: boolean }) => (
     <div className={cn("flex h-full flex-col gap-4", mobile ? "w-full" : "w-full pt-5")}>
@@ -167,7 +171,7 @@ export default function DashboardShell({
         <div className={cn("mb-3 hidden lg:flex", sidebarCollapsed ? "min-h-[72px] items-center justify-center" : "items-start")}>{sidebarCollapsed ? <CurrentUserBadge compact name={dashboardSession.name} email={dashboardSession.email} className="justify-center px-2 py-1" /> : <CurrentUserBadge prominent name={dashboardSession.name} email={dashboardSession.email} className="px-2 py-1.5" />}</div>
         <nav aria-label="Primary">
           <ul className="space-y-1">
-            {navigation.map((item) => (
+            {visibleNavigation.map((item) => (
               <NavItem key={item.name} item={item} active={pathname === item.href} onClick={() => mobile && setSidebarOpen(false)} collapsed={!mobile && sidebarCollapsed} />
             ))}
           </ul>
