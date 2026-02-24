@@ -1024,6 +1024,16 @@ function isAuthSyncMemberUpdate(row: DbAuditRow): boolean {
 }
 
 /**
+ * True when a row is the auth-sync variant of `member.delete`.
+ *
+ * How: auth-cascade/delete trigger rows are emitted without an app actor id.
+ * @returns boolean
+ */
+function isAuthSyncMemberDelete(row: DbAuditRow): boolean {
+  return asString(row.action) === "member.delete" && !normalizeId(asString(row.actor_id));
+}
+
+/**
  * Builds stable target tokens for row-to-row matching.
  *
  * How: Encodes id/email sources as prefixed tokens (`id:...`, `email:...`).
@@ -1082,14 +1092,19 @@ function isSameActionWindow(leftCreatedAt: string | null, rightCreatedAt: string
 }
 
 /**
- * Removes auth-sync noise when a ban/unban exists for the same member in the same action window.
+ * Removes auth-sync noise when a matching app action exists in the same action window.
  *
- * How: Keeps explicit app ban/unban rows and drops only redundant `member.update` sync rows.
+ * How:
+ * - keeps Supabase-origin sync rows when no app-side action exists
+ * - drops `member.update` sync rows when paired with app ban/unban for same target/time
+ * - drops `member.delete` sync rows when paired with app delete for same target/time
  * @returns DbAuditRow[]
  */
 function filterRedundantAuthSyncRows(rows: DbAuditRow[]): DbAuditRow[] {
   return rows.filter((row, index) => {
-    if (!isAuthSyncMemberUpdate(row)) {
+    const isSyncUpdate = isAuthSyncMemberUpdate(row);
+    const isSyncDelete = isAuthSyncMemberDelete(row);
+    if (!isSyncUpdate && !isSyncDelete) {
       return true;
     }
 
@@ -1098,7 +1113,16 @@ function filterRedundantAuthSyncRows(rows: DbAuditRow[]): DbAuditRow[] {
         return false;
       }
       const action = asString(candidate.action);
-      if (!action || !BAN_RELATED_ACTIONS.has(action)) {
+      if (!action) {
+        return false;
+      }
+      if (isSyncUpdate && !BAN_RELATED_ACTIONS.has(action)) {
+        return false;
+      }
+      if (isSyncDelete && action !== "member.delete") {
+        return false;
+      }
+      if (!normalizeId(asString(candidate.actor_id))) {
         return false;
       }
       if (!isSameActionWindow(row.created_at, candidate.created_at)) {
