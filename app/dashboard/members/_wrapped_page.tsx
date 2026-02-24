@@ -79,7 +79,13 @@ function buildColumns({ onDelete, onPrint, isDeleting, canEditPrivileges, bulkOp
  *
  * How: Owns table/dialog state, wires permission flags, and binds mutation handlers from `useMembersPageActions`.
  */
-export default function MembersTablePage({ initialData }: { initialData: UserRow[] }) {
+export default function MembersTablePage({
+  initialData,
+  canBulkTemporaryPasswords,
+}: {
+  initialData: UserRow[];
+  canBulkTemporaryPasswords: boolean;
+}) {
   const router = useRouter();
   const defaultPageSize = useMemberPageSizeDefault();
   const [rows, setRows] = React.useState<UserRow[]>(initialData);
@@ -101,13 +107,14 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
     setRows(initialData);
   }, [initialData]);
 
-  const { handlePrint, handleRowPrivilegeChange, handleDeleteMember, handleBulkPrivilege, handleBulkMembershipStatus, handleBulkPasswordReset, handleBulkPrint, handleBulkDelete } = useMembersPageActions({
+  const { handlePrint, handleRowPrivilegeChange, handleDeleteMember, handleBulkPrivilege, handleBulkMembershipStatus, handleBulkPasswordReset, handleBulkTemporaryPasswords: handleBulkTemporaryPasswordsAction, handleBulkPrint, handleBulkDelete } = useMembersPageActions({
     rows,
     currentUserId,
     currentPrivilege,
     canEditPrivileges,
     canManageMembership,
     canResetPasswords,
+    canBulkTemporaryPasswords,
     canDeleteMembers,
     setRows,
     setSelectedMember,
@@ -163,11 +170,13 @@ export default function MembersTablePage({ initialData }: { initialData: UserRow
             onBulkPrivilege={handleBulkPrivilege}
             onBulkMembershipStatus={handleBulkMembershipStatus}
             onBulkPasswordReset={handleBulkPasswordReset}
+            onBulkTemporaryPasswords={handleBulkTemporaryPasswordsAction}
             onBulkPrint={handleBulkPrint}
             onBulkDelete={handleBulkDelete}
             canDelete={canDeleteMembers}
             canManageMembership={canManageMembership}
             canResetPasswords={canResetPasswords}
+            canBulkTemporaryPasswords={canBulkTemporaryPasswords}
             canEditPrivileges={canEditPrivileges}
             bulkOptions={bulkOptions}
             onRefresh={refresh}

@@ -90,6 +90,7 @@ export function MemberBulkActionsBar({
   canDelete,
   canManageMembership,
   canResetPasswords,
+  canBulkTemporaryPasswords,
   canEditPrivileges,
   bulkOptions,
   bulkPrivilege,
@@ -97,6 +98,7 @@ export function MemberBulkActionsBar({
   onBulkPrivilege,
   onBulkMembershipStatus,
   onBulkPasswordReset,
+  onBulkTemporaryPasswords,
   onBulkPrint,
   onBulkDelete,
   onResetSelection,
@@ -106,6 +108,7 @@ export function MemberBulkActionsBar({
   canDelete?: boolean;
   canManageMembership?: boolean;
   canResetPasswords?: boolean;
+  canBulkTemporaryPasswords?: boolean;
   canEditPrivileges?: boolean;
   bulkOptions?: PrivilegeOption[];
   bulkPrivilege: string;
@@ -113,6 +116,7 @@ export function MemberBulkActionsBar({
   onBulkPrivilege?: (members: MemberRow[], next: number) => Promise<void>;
   onBulkMembershipStatus?: (members: MemberRow[], isActive: boolean) => Promise<void>;
   onBulkPasswordReset?: (members: MemberRow[]) => Promise<void>;
+  onBulkTemporaryPasswords?: (members: MemberRow[]) => Promise<void>;
   onBulkPrint?: (members: MemberRow[]) => Promise<void>;
   onBulkDelete?: (members: MemberRow[]) => Promise<void>;
   onResetSelection: () => void;
@@ -267,6 +271,29 @@ export function MemberBulkActionsBar({
                   }}
                 >
                   Send passordlenke
+                </Button>
+              </div>
+            ) : null}
+
+            {canBulkTemporaryPasswords && onBulkTemporaryPasswords ? (
+              <div className="space-y-2 rounded-xl border border-border/60 bg-background/50 p-3">
+                <p className="text-sm font-medium">Engangspassord</p>
+                <p className="text-xs text-muted-foreground">
+                  Du er i ferd med å sette nytt engangspassord og sende e-post til {selectedCount} {selectedLabel}.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full rounded-xl"
+                  disabled={isApplying}
+                  onClick={async () => {
+                    await runBulkAction(
+                      async () => onBulkTemporaryPasswords(selectedMembers),
+                      `Er du sikker på at du vil sette engangspassord for ${selectedCount} ${selectedLabel}?`,
+                    );
+                  }}
+                >
+                  Sett og send engangspassord
                 </Button>
               </div>
             ) : null}

@@ -48,6 +48,7 @@ const ACTION_LABELS: Record<string, string> = {
   "member.unban": "Opphevet utestenging",
   "member.membership_status.update": "Oppdaterte medlemsstatus",
   "member.password_reset.send": "Sendte passordlenke",
+  "member.password_bootstrap.send": "Sendte engangspassord",
   "member.update": "Oppdaterte medlem",
 };
 
@@ -820,7 +821,9 @@ function buildTargetItems(
   const unchangedIds = new Set(readStringArray(details, "unchanged_member_ids"));
   const bannedIds = new Set(readStringArray(details, "blocked_banned_ids"));
   const invalidIds = new Set(readStringArray(details, "invalid_member_ids"));
-  const blockedIds = new Set([...bannedIds, ...invalidIds]);
+  const failedIds = new Set(readStringArray(details, "failed_member_ids"));
+  const failedReasonMap = nestedDetailsObject(details, "failed_reasons_by_member");
+  const blockedIds = new Set([...bannedIds, ...invalidIds, ...failedIds]);
   const snapshotById = new Map(
     [...readDeletedMemberSnapshots(details), ...readInlineMemberSnapshots(details)].map(
       (snapshot) => [snapshot.id, snapshot] as const,
@@ -853,6 +856,8 @@ function buildTargetItems(
           ? "Bruker er utestengt."
           : invalidIds.has(id)
             ? "Ingen tilgang til å oppdatere dette medlemmet."
+            : failedIds.has(id)
+              ? asString(failedReasonMap[id]) ?? "Oppdatering feilet."
             : "Kunne ikke oppdateres.",
         change: null,
       };
@@ -1020,6 +1025,25 @@ function buildChangeLines(row: DbAuditRow): string[] {
 
   if (action === "member.password_reset.send") {
     lines.push("Passordlenke sendt");
+    return lines;
+  }
+
+  if (action === "member.password_bootstrap.send") {
+    const updatedCount = asNumber(details.updated_count);
+    if (updatedCount !== null && updatedCount > 1) {
+      lines.push(`Engangspassord sendt til ${updatedCount} medlemmer`);
+    } else {
+      lines.push("Engangspassord sendt");
+    }
+
+    const failedCount = asNumber(details.failed_count);
+    if (failedCount !== null && failedCount > 0) {
+      lines.push(`Feilet: ${failedCount}`);
+    }
+    const skippedUnavailable = asNumber(details.skipped_unavailable_count);
+    if (skippedUnavailable !== null && skippedUnavailable > 0) {
+      lines.push(`Hoppet over utilgjengelig: ${skippedUnavailable}`);
+    }
     return lines;
   }
 

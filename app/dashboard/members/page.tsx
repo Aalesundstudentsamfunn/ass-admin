@@ -3,6 +3,8 @@ import DataTable from "./_wrapped_page";
 import type { UserRow } from "./_wrapped_page";
 import { ActionsProvider } from "./providers";
 import { addNewMember, activateMember, checkMemberEmail } from "./server/actions";
+import { normalizePrivilege } from "@/lib/privilege-checks";
+import { canUseBulkTemporaryPasswordAction } from "@/lib/server/temporary-password-access";
 
 /**
  * Maps raw `members` rows to the table shape used by members/voluntary views.
@@ -28,6 +30,22 @@ function mapToUserRows(rows: Record<string, unknown>[]): UserRow[] {
  */
 export default async function MembersPage() {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let canBulkTemporaryPasswords = false;
+  if (user?.id) {
+    const { data: me } = await supabase
+      .from("members")
+      .select("privilege_type")
+      .eq("id", user.id)
+      .maybeSingle();
+    canBulkTemporaryPasswords = canUseBulkTemporaryPasswordAction({
+      privilege: normalizePrivilege(me?.privilege_type),
+    });
+  }
+
   const { data, error } = await supabase
     .from("members")
     .select("*")
@@ -45,8 +63,7 @@ export default async function MembersPage() {
       checkMemberEmail={checkMemberEmail}
       activateMember={activateMember}
     >
-      <DataTable initialData={rows} />
+      <DataTable initialData={rows} canBulkTemporaryPasswords={canBulkTemporaryPasswords} />
     </ActionsProvider>
   );
 }
-

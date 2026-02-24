@@ -1,8 +1,8 @@
-import { randomBytes } from "crypto";
 import type { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enqueuePrinterQueue } from "@/lib/printer-queue";
 import { getInviteRedirectUrl } from "@/lib/auth/urls";
+import { generateTemporaryPassword } from "@/lib/auth/temporary-password";
 import { canManageMembers } from "@/lib/privilege-checks";
 import { PRIVILEGE_LEVELS } from "@/lib/privilege-config";
 import type { PrintableMember } from "@/lib/members/shared";
@@ -102,19 +102,6 @@ async function findAuthUserByEmail(email: string): Promise<AuthUserLike | null> 
     }
     page += 1;
   }
-}
-
-/**
- * Creates temporary one-time password for invite bootstrap.
- */
-function generateTemporaryPassword() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
-  const bytes = randomBytes(18);
-  let password = "";
-  for (let i = 0; i < bytes.length; i += 1) {
-    password += chars[bytes[i] % chars.length];
-  }
-  return password;
 }
 
 /**

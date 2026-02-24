@@ -204,11 +204,13 @@ export function MemberDataTable({
   onBulkPrivilege,
   onBulkMembershipStatus,
   onBulkPasswordReset,
+  onBulkTemporaryPasswords,
   onBulkPrint,
   onBulkDelete,
   canDelete,
   canManageMembership,
   canResetPasswords,
+  canBulkTemporaryPasswords,
   canEditPrivileges,
   bulkOptions,
   onRefresh,
@@ -225,11 +227,13 @@ export function MemberDataTable({
   onBulkPrivilege?: (members: MemberRow[], next: number) => Promise<void>;
   onBulkMembershipStatus?: (members: MemberRow[], isActive: boolean) => Promise<void>;
   onBulkPasswordReset?: (members: MemberRow[]) => Promise<void>;
+  onBulkTemporaryPasswords?: (members: MemberRow[]) => Promise<void>;
   onBulkPrint?: (members: MemberRow[]) => Promise<void>;
   onBulkDelete?: (members: MemberRow[]) => Promise<void>;
   canDelete?: boolean;
   canManageMembership?: boolean;
   canResetPasswords?: boolean;
+  canBulkTemporaryPasswords?: boolean;
   canEditPrivileges?: boolean;
   bulkOptions?: PrivilegeOption[];
   onRefresh?: () => void;
@@ -521,6 +525,7 @@ export function MemberDataTable({
           canDelete={canDelete}
           canManageMembership={canManageMembership}
           canResetPasswords={canResetPasswords}
+          canBulkTemporaryPasswords={canBulkTemporaryPasswords}
           canEditPrivileges={canEditPrivileges}
           bulkOptions={bulkOptions}
           bulkPrivilege={bulkPrivilege}
@@ -528,6 +533,7 @@ export function MemberDataTable({
           onBulkPrivilege={onBulkPrivilege}
           onBulkMembershipStatus={onBulkMembershipStatus}
           onBulkPasswordReset={onBulkPasswordReset}
+          onBulkTemporaryPasswords={onBulkTemporaryPasswords}
           onBulkPrint={onBulkPrint}
           onBulkDelete={onBulkDelete}
           onResetSelection={() => table.resetRowSelection()}

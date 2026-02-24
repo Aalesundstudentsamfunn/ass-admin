@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   bulkUpdateMemberPrivilege,
   deleteMembers as deleteMembersRequest,
+  sendBulkTemporaryPasswords,
   sendMemberPasswordReset,
   updateMemberPrivilege,
   updateMembershipStatus,
@@ -29,6 +30,7 @@ type UseMembersPageActionsOptions = {
   canEditPrivileges: boolean;
   canManageMembership: boolean;
   canResetPasswords: boolean;
+  canBulkTemporaryPasswords: boolean;
   canDeleteMembers: boolean;
   setRows: React.Dispatch<React.SetStateAction<UserRow[]>>;
   setSelectedMember: React.Dispatch<React.SetStateAction<UserRow | null>>;
@@ -88,6 +90,7 @@ export function useMembersPageActions({
   canEditPrivileges,
   canManageMembership,
   canResetPasswords,
+  canBulkTemporaryPasswords,
   canDeleteMembers,
   setRows,
   setSelectedMember,
@@ -472,6 +475,70 @@ export function useMembersPageActions({
   );
 
   /**
+   * Generates unique temporary passwords for selected members and sends onboarding emails.
+   *
+   * @returns Promise<void>
+   */
+  const handleBulkTemporaryPasswords = React.useCallback(
+    async (members: UserRow[]) => {
+      if (!members.length) {
+        return;
+      }
+      if (!canBulkTemporaryPasswords) {
+        toast.error("Du har ikke tilgang til å sende engangspassord.");
+        return;
+      }
+
+      const memberIds = Array.from(new Set(members.map((member) => idOf(member.id))));
+      if (!memberIds.length) {
+        toast.error("Ingen gyldige medlemmer valgt.");
+        return;
+      }
+
+      const toastId = toast.loading("Setter engangspassord...", { duration: 10000 });
+      const { response, payload } = await sendBulkTemporaryPasswords(memberIds);
+      if (!response.ok) {
+        toast.error("Kunne ikke sende engangspassord.", {
+          id: toastId,
+          description: payload?.error ?? "Ukjent feil.",
+          duration: Infinity,
+        });
+        return;
+      }
+
+      const updated =
+        typeof payload?.updated === "number" && Number.isFinite(payload.updated)
+          ? payload.updated
+          : memberIds.length;
+      const failed =
+        typeof payload?.failed === "number" && Number.isFinite(payload.failed)
+          ? payload.failed
+          : 0;
+      const skipped =
+        typeof payload?.skipped === "number" && Number.isFinite(payload.skipped)
+          ? payload.skipped
+          : 0;
+      const description = `Oppdatert ${updated}${failed > 0 ? `, feilet ${failed}` : ""}${skipped > 0 ? `, hoppet over ${skipped}` : ""}.`;
+
+      if (failed > 0 || skipped > 0 || payload?.status === "partial") {
+        toast.warning("Engangspassord sendt delvis.", {
+          id: toastId,
+          description,
+          duration: 8000,
+        });
+        return;
+      }
+
+      toast.success("Engangspassord sendt.", {
+        id: toastId,
+        description: members.length > 1 ? `Oppdatert ${updated} medlemmer.` : undefined,
+        duration: 6000,
+      });
+    },
+    [canBulkTemporaryPasswords],
+  );
+
+  /**
    * Bulk card print request for selected members.
    * Skips banned members and summarizes success/failure counts.
    *
@@ -583,6 +650,7 @@ export function useMembersPageActions({
     handleBulkPrivilege,
     handleBulkMembershipStatus,
     handleBulkPasswordReset,
+    handleBulkTemporaryPasswords,
     handleBulkPrint,
     handleBulkDelete,
   };

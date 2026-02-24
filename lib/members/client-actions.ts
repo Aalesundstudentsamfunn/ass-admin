@@ -95,3 +95,16 @@ export async function sendMemberPasswordReset(email: string) {
     body: JSON.stringify({ email }),
   });
 }
+
+/**
+ * Generates and sends one-time passwords for selected members.
+ */
+export async function sendBulkTemporaryPasswords(memberIds: string[]) {
+  const response = await fetch("/api/admin/members/password-bootstrap", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ member_ids: memberIds }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  return { response, payload };
+}
