@@ -559,6 +559,50 @@ function buildTargetLabel(
 }
 
 /**
+ * Estimates how many members were part of the action from audit details.
+ *
+ * How: prefers explicit member-id arrays, then numeric count fields.
+ * @returns number | null
+ */
+function getBulkMemberCount(details: Record<string, unknown>): number | null {
+  const requestedIds = readStringArray(details, "requested_member_ids");
+  if (requestedIds.length > 0) {
+    return requestedIds.length;
+  }
+
+  const memberIds = readStringArray(details, "member_ids");
+  if (memberIds.length > 0) {
+    return memberIds.length;
+  }
+
+  const updatedCount = asNumber(details.updated_count);
+  const unchangedCount = asNumber(details.unchanged_count);
+  const skippedUnchangedCount = asNumber(details.skipped_unchanged_count);
+  const skippedUnavailableCount = asNumber(details.skipped_unavailable_count);
+  const deletedCount = asNumber(details.deleted_count) ?? asNumber(details.count);
+
+  if (
+    updatedCount !== null ||
+    unchangedCount !== null ||
+    skippedUnchangedCount !== null ||
+    skippedUnavailableCount !== null
+  ) {
+    return (
+      (updatedCount ?? 0) +
+      (unchangedCount ?? 0) +
+      (skippedUnchangedCount ?? 0) +
+      (skippedUnavailableCount ?? 0)
+    );
+  }
+
+  if (deletedCount !== null && deletedCount > 0) {
+    return deletedCount;
+  }
+
+  return null;
+}
+
+/**
  * Builds concise human-readable change descriptions.
  *
  * How: Parses structured `details` by action and emits one-liners.
@@ -870,6 +914,12 @@ export async function fetchAuditRows(
     const actor = actorId ? membersById.get(actorId) : undefined;
     const target = resolveTarget(row, membersById, membersByEmail);
     const details = detailsOf(row);
+    const bulkCount = getBulkMemberCount(details);
+    const targetBase = buildTargetLabel(target.targetName, target.targetUuid, target.targetEmail);
+    const targetDisplay =
+      bulkCount !== null && bulkCount > 1
+        ? `${targetBase ?? "Flere medlemmer"} (+${bulkCount - 1})`
+        : targetBase;
     const source = "app.admin";
     const changeItems = buildChangeLines(row);
 
@@ -878,8 +928,8 @@ export async function fetchAuditRows(
       created_at: row.created_at,
       action_key: asString(row.action),
       event: buildEventLabel(row),
-      target: buildTargetLabel(target.targetName, target.targetUuid, target.targetEmail),
-      target_name: target.targetName,
+      target: targetDisplay,
+      target_name: targetDisplay,
       target_uuid: target.targetUuid,
       target_email: target.targetEmail,
       change: changeItems.length ? (changeItems.length === 1 ? changeItems[0] : `${changeItems[0]} (+${changeItems.length - 1})`) : null,
