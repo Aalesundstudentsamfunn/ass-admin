@@ -13,6 +13,7 @@ import {
   MemberRow,
   copyToClipboard,
   getPrivilegeLabel,
+  getPrivilegePillClass,
   PILL_CLASS,
   PRIVILEGE_OPTIONS,
   type PrivilegeOption,
@@ -145,10 +146,11 @@ export function createMemberPrivilegeColumn({
     cell: ({ row }) => {
       const member = row.original;
       const label = getPrivilegeLabel(row.getValue("privilege_type") as number | null);
+      const pillClass = getPrivilegePillClass(member.privilege_type);
       const targetPrivilege = memberPrivilege(member.privilege_type);
       if (!canEditPrivileges || !canEditPrivilegeForTarget(currentPrivilege, targetPrivilege)) {
         return (
-          <Badge variant="secondary" className={PILL_CLASS}>
+          <Badge variant="secondary" className={pillClass}>
             {label}
           </Badge>
         );
@@ -158,7 +160,7 @@ export function createMemberPrivilegeColumn({
       );
       if (!options.length) {
         return (
-          <Badge variant="secondary" className={PILL_CLASS}>
+          <Badge variant="secondary" className={pillClass}>
             {label}
           </Badge>
         );
@@ -173,7 +175,7 @@ export function createMemberPrivilegeColumn({
               onPointerDown={(event) => event.stopPropagation()}
               data-row-action="true"
             >
-              <Badge variant="secondary" className={`${PILL_CLASS} cursor-pointer`}>
+              <Badge variant="secondary" className={`${pillClass} cursor-pointer`}>
                 {label}
               </Badge>
             </button>

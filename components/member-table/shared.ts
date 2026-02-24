@@ -45,6 +45,31 @@ export function getPrivilegeLabel(value: number | null | undefined) {
 }
 
 /**
+ * Returns privilege-specific pill classes used in member/frivillig tables.
+ *
+ * How: Keeps "Medlem" on the current neutral style and applies color accents for higher privileges.
+ * @returns string
+ */
+export function getPrivilegePillClass(value: number | null | undefined) {
+  if (value === PRIVILEGE_LEVELS.MEMBER || typeof value !== "number") {
+    return PILL_CLASS;
+  }
+  if (value === PRIVILEGE_LEVELS.VOLUNTARY) {
+    return `${PILL_CLASS} border-orange-300/70 bg-orange-100 text-orange-800 dark:border-orange-500/45 dark:bg-orange-500/20 dark:text-orange-200`;
+  }
+  if (value === PRIVILEGE_LEVELS.GROUP_LEADER) {
+    return `${PILL_CLASS} border-sky-300/70 bg-sky-100 text-sky-800 dark:border-sky-500/45 dark:bg-sky-500/20 dark:text-sky-200`;
+  }
+  if (value === PRIVILEGE_LEVELS.STORTINGET) {
+    return `${PILL_CLASS} border-violet-300/70 bg-violet-100 text-violet-800 dark:border-violet-500/45 dark:bg-violet-500/20 dark:text-violet-200`;
+  }
+  if (value === PRIVILEGE_LEVELS.IT) {
+    return `${PILL_CLASS} border-rose-300/70 bg-rose-100 text-rose-800 dark:border-rose-500/45 dark:bg-rose-500/20 dark:text-rose-200`;
+  }
+  return PILL_CLASS;
+}
+
+/**
  * Returns assignable privilege options for the current user max level.
  * Voluntary-level (2-3) users only get the voluntary option.
  */
