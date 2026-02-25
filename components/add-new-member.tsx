@@ -24,6 +24,7 @@ import {
   MemberCreateForm,
   MemberEmailCheckForm,
 } from "@/components/add-member-dialog/stage-content";
+import { enqueueMemberPrintJobs } from "@/lib/members/client-actions";
 import type {
   AddMemberDialogStage,
   CheckEmailActionResult,
@@ -43,6 +44,7 @@ export function CreateUserDialog() {
   const [email, setEmail] = React.useState("");
   const [resolvedEmail, setResolvedEmail] = React.useState("");
   const [voluntary, setVoluntary] = React.useState(false);
+  const [printPending, setPrintPending] = React.useState(false);
   const [existingMember, setExistingMember] = React.useState<CheckEmailActionResult["member"] | null>(null);
   const { autoPrint } = useAutoPrintSetting();
 
@@ -267,20 +269,11 @@ export function CreateUserDialog() {
       return;
     }
 
-    if (activateState?.autoPrint === false) {
-      toast.success("Medlemskap aktivert.", {
-        id: toastIdRef.current ?? undefined,
-        description: "Auto-utskrift er deaktivert. Trykk Print kort for å skrive ut.",
-        duration: 10000,
-      });
-      toastIdRef.current = null;
-    } else {
-      startQueueWatch({
-        result: activateState,
-        queuedDescription: "Medlemskap aktivert og lagt i utskriftskø.",
-        completedMessage: "Medlemskap aktivert og utskrift fullført.",
-      });
-    }
+    toast.success("Medlemskap aktivert.", {
+      id: toastIdRef.current ?? undefined,
+      duration: 10000,
+    });
+    toastIdRef.current = null;
 
     activateSubmittedRef.current = false;
     setFirstname("");
@@ -311,8 +304,71 @@ export function CreateUserDialog() {
     };
   }, [stopQueueWatch]);
 
+  /**
+   * Enqueues card printing for an already-existing member found by email lookup.
+   */
+  const handlePrintExistingMember = React.useCallback(async () => {
+    if (!existingMember?.id) {
+      toast.error("Fant ikke medlem å skrive ut kort for.");
+      return;
+    }
+    if (existingMember.is_banned === true) {
+      toast.error("Kunne ikke sende utskrift for denne brukeren.");
+      return;
+    }
+
+    setPrintPending(true);
+    if (!toastIdRef.current) {
+      toastIdRef.current = toast.loading("Sender til utskriftskø...", { duration: 10000 });
+    }
+
+    try {
+      const { response, payload } = await enqueueMemberPrintJobs([existingMember.id]);
+      if (!response.ok) {
+        const failureMessage =
+          typeof payload?.failed?.[0]?.message === "string"
+            ? payload.failed[0].message
+            : payload?.error;
+
+        toast.error("Kunne ikke legge til i utskriftskø.", {
+          id: toastIdRef.current ?? undefined,
+          description:
+            typeof failureMessage === "string" && failureMessage.trim()
+              ? failureMessage
+              : "Ukjent feil.",
+          duration: Infinity,
+        });
+        toastIdRef.current = null;
+        return;
+      }
+
+      const queueEntry = Array.isArray(payload?.queued) ? payload.queued[0] : null;
+      const queueId =
+        queueEntry && (typeof queueEntry.queue_id === "string" || typeof queueEntry.queue_id === "number")
+          ? queueEntry.queue_id
+          : null;
+      if (queueId === null) {
+        toast.error("Kunne ikke legge til i utskriftskø.", {
+          id: toastIdRef.current ?? undefined,
+          description: "Ingen kø-ID ble returnert.",
+          duration: Infinity,
+        });
+        toastIdRef.current = null;
+        return;
+      }
+
+      startQueueWatch({
+        result: { ok: true, queueId },
+        queuedDescription: "Kort lagt i utskriftskø.",
+        completedMessage: "Utskrift sendt til printer.",
+      });
+    } finally {
+      setPrintPending(false);
+    }
+  }, [existingMember, startQueueWatch]);
+
   const normalizedEmail = resolvedEmail || email.trim().toLowerCase();
-  const isBusy = checkPending || createPending || activatePending;
+  const isBusy = checkPending || createPending || activatePending || printPending;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -323,10 +379,10 @@ export function CreateUserDialog() {
       </DialogTrigger>
       <DialogContent className="max-w-md border-0 bg-transparent p-0 shadow-none">
         <AddMemberDialogGlass className="p-[1px]">
-          <div className="rounded-2xl bg-transparent p-6">
+          <div className="rounded-2xl bg-background/95 p-6 text-foreground">
             <DialogHeader>
               <DialogTitle>Opprett ny bruker</DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-foreground/75">
                 Start med e-post. Vi sjekker om medlemskap allerede finnes før oppretting.
               </DialogDescription>
             </DialogHeader>
@@ -373,12 +429,9 @@ export function CreateUserDialog() {
               <MemberActivateForm
                 action={activateAction}
                 normalizedEmail={normalizedEmail}
-                autoPrint={autoPrint}
-                voluntary={voluntary}
                 existingMember={existingMember}
                 isBusy={isBusy}
                 activatePending={activatePending}
-                onVoluntaryChange={setVoluntary}
                 onClose={() => setOpen(false)}
                 onSubmitStart={() => {
                   activateSubmittedRef.current = true;
@@ -397,14 +450,16 @@ export function CreateUserDialog() {
                 description="Ny bruker kan ikke opprettes på denne e-posten."
                 existingMember={existingMember}
                 isBusy={isBusy}
+                printPending={printPending}
                 onClose={() => setOpen(false)}
+                onPrint={handlePrintExistingMember}
               />
             ) : null}
 
             {stage === "exists-banned" ? (
               <MemberBlockedStatePanel
                 title="E-posten kan ikke brukes."
-                description="Oppretting eller aktivering er ikke tilgjengelig for denne e-posten."
+                description="Oppretting eller aktivering er ikke tilgjengelig for denne e-posten, be dem ta kontakt med it@astudent.no."
                 existingMember={existingMember}
                 isBusy={isBusy}
                 onClose={() => setOpen(false)}
@@ -416,4 +471,3 @@ export function CreateUserDialog() {
     </Dialog>
   );
 }
-

@@ -8,40 +8,17 @@ import type { AddMemberDialogStage, CheckEmailActionResult } from "./types";
 /**
  * Form for first-step email validation.
  */
-export function MemberEmailCheckForm({
-  action,
-  email,
-  isBusy,
-  stage,
-  checkPending,
-  onEmailChange,
-  onSubmitStart,
-}: {
-  action: (payload: FormData) => void;
-  email: string;
-  isBusy: boolean;
-  stage: AddMemberDialogStage;
-  checkPending: boolean;
-  onEmailChange: (value: string) => void;
-  onSubmitStart: () => void;
-}) {
+export function MemberEmailCheckForm({ action, email, isBusy, stage, checkPending, onEmailChange, onSubmitStart }: { action: (payload: FormData) => void; email: string; isBusy: boolean; stage: AddMemberDialogStage; checkPending: boolean; onEmailChange: (value: string) => void; onSubmitStart: () => void }) {
   return (
     <form action={action} className="mt-4 space-y-3" onSubmit={onSubmitStart}>
       <div className="space-y-2">
-        <Label htmlFor="email-check">E-post</Label>
-        <Input
-          id="email-check"
-          type="email"
-          name="email"
-          placeholder="ola@example.com"
-          value={email}
-          onChange={(event) => onEmailChange(event.target.value)}
-          required
-          className="rounded-xl"
-        />
+        <Label htmlFor="email-check" className="text-foreground">
+          E-post
+        </Label>
+        <Input id="email-check" type="email" name="email" placeholder="ola@example.com" value={email} onChange={(event) => onEmailChange(event.target.value)} required className="h-12 rounded-xl border-zinc-400/80 bg-white text-zinc-900 placeholder:text-zinc-500 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-400" />
       </div>
       <div className="flex justify-end">
-        <Button type="submit" variant="outline" className="rounded-xl" disabled={isBusy}>
+        <Button type="submit" variant="outline" className="h-12 rounded-xl border-border/90 bg-background/95 text-foreground hover:bg-accent" disabled={isBusy}>
           {checkPending ? "Sjekker..." : stage === "email" ? "Sjekk e-post" : "Sjekk på nytt"}
         </Button>
       </div>
@@ -52,81 +29,38 @@ export function MemberEmailCheckForm({
 /**
  * Form for creating a brand new member after email check.
  */
-export function MemberCreateForm({
-  action,
-  normalizedEmail,
-  autoPrint,
-  firstname,
-  lastname,
-  voluntary,
-  isBusy,
-  createPending,
-  onFirstnameChange,
-  onLastnameChange,
-  onVoluntaryChange,
-  onClose,
-  onSubmitStart,
-}: {
-  action: (payload: FormData) => void;
-  normalizedEmail: string;
-  autoPrint: boolean;
-  firstname: string;
-  lastname: string;
-  voluntary: boolean;
-  isBusy: boolean;
-  createPending: boolean;
-  onFirstnameChange: (value: string) => void;
-  onLastnameChange: (value: string) => void;
-  onVoluntaryChange: (value: boolean) => void;
-  onClose: () => void;
-  onSubmitStart: () => void;
-}) {
+export function MemberCreateForm({ action, normalizedEmail, autoPrint, firstname, lastname, voluntary, isBusy, createPending, onFirstnameChange, onLastnameChange, onVoluntaryChange, onClose, onSubmitStart }: { action: (payload: FormData) => void; normalizedEmail: string; autoPrint: boolean; firstname: string; lastname: string; voluntary: boolean; isBusy: boolean; createPending: boolean; onFirstnameChange: (value: string) => void; onLastnameChange: (value: string) => void; onVoluntaryChange: (value: boolean) => void; onClose: () => void; onSubmitStart: () => void }) {
   return (
     <form action={action} className="mt-4 space-y-4" onSubmit={onSubmitStart}>
       <input type="hidden" name="email" value={normalizedEmail} />
       <input type="hidden" name="autoPrint" value={autoPrint ? "true" : "false"} />
 
       <div className="space-y-2">
-        <Label htmlFor="firstname">Fornavn</Label>
-        <Input
-          id="firstname"
-          name="firstname"
-          placeholder="Ola"
-          value={firstname}
-          onChange={(event) => onFirstnameChange(event.target.value)}
-          required
-          className="rounded-xl"
-        />
+        <Label htmlFor="firstname" className="text-foreground">
+          Fornavn
+        </Label>
+        <Input id="firstname" name="firstname" placeholder="Ola" value={firstname} onChange={(event) => onFirstnameChange(event.target.value)} required className="h-12 rounded-xl border-zinc-400/80 bg-white text-zinc-900 placeholder:text-zinc-500 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-400" />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="lastname">Etternavn</Label>
-        <Input
-          id="lastname"
-          name="lastname"
-          placeholder="Nordmann"
-          value={lastname}
-          onChange={(event) => onLastnameChange(event.target.value)}
-          required
-          className="rounded-xl"
-        />
+        <Label htmlFor="lastname" className="text-foreground">
+          Etternavn
+        </Label>
+        <Input id="lastname" name="lastname" placeholder="Nordmann" value={lastname} onChange={(event) => onLastnameChange(event.target.value)} required className="h-12 rounded-xl border-zinc-400/80 bg-white text-zinc-900 placeholder:text-zinc-500 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-400" />
       </div>
 
       <div className="flex items-center space-x-2">
-        <Checkbox
-          id="voluntary-create"
-          name="voluntary"
-          checked={voluntary}
-          onCheckedChange={(value) => onVoluntaryChange(!!value)}
-        />
-        <Label htmlFor="voluntary-create">Frivillig</Label>
+        <Checkbox id="voluntary-create" name="voluntary" checked={voluntary} onCheckedChange={(value) => onVoluntaryChange(!!value)} />
+        <Label htmlFor="voluntary-create" className="text-foreground">
+          Frivillig
+        </Label>
       </div>
 
       <div className="flex justify-end gap-2 pt-2">
-        <Button type="button" variant="secondary" onClick={onClose} className="rounded-xl" disabled={isBusy}>
+        <Button type="button" variant="secondary" onClick={onClose} className="h-11 rounded-xl border border-border/80 bg-background text-foreground hover:bg-accent" disabled={isBusy}>
           Avbryt
         </Button>
-        <Button className="rounded-xl" disabled={isBusy}>
+        <Button className="h-11 rounded-xl font-semibold" disabled={isBusy}>
           {createPending ? "Oppretter..." : "Opprett medlem"}
         </Button>
       </div>
@@ -137,55 +71,18 @@ export function MemberCreateForm({
 /**
  * Form for re-activating an inactive membership.
  */
-export function MemberActivateForm({
-  action,
-  normalizedEmail,
-  autoPrint,
-  voluntary,
-  existingMember,
-  isBusy,
-  activatePending,
-  onVoluntaryChange,
-  onClose,
-  onSubmitStart,
-}: {
-  action: (payload: FormData) => void;
-  normalizedEmail: string;
-  autoPrint: boolean;
-  voluntary: boolean;
-  existingMember: CheckEmailActionResult["member"] | null;
-  isBusy: boolean;
-  activatePending: boolean;
-  onVoluntaryChange: (value: boolean) => void;
-  onClose: () => void;
-  onSubmitStart: () => void;
-}) {
+export function MemberActivateForm({ action, normalizedEmail, existingMember, isBusy, activatePending, onClose, onSubmitStart }: { action: (payload: FormData) => void; normalizedEmail: string; existingMember: CheckEmailActionResult["member"] | null; isBusy: boolean; activatePending: boolean; onClose: () => void; onSubmitStart: () => void }) {
   return (
     <form action={action} className="mt-4 space-y-4" onSubmit={onSubmitStart}>
       <input type="hidden" name="email" value={normalizedEmail} />
-      <input type="hidden" name="autoPrint" value={autoPrint ? "true" : "false"} />
 
-      <ExistingMemberNotice
-        title="E-posten finnes allerede i databasen."
-        description="Du kan aktivere medlemskapet, men ikke opprette ny bruker på samme e-post."
-        member={existingMember}
-      />
-
-      <div className="flex items-center space-x-2">
-        <Checkbox
-          id="voluntary-activate"
-          name="voluntary"
-          checked={voluntary}
-          onCheckedChange={(value) => onVoluntaryChange(!!value)}
-        />
-        <Label htmlFor="voluntary-activate">Aktiver som frivillig</Label>
-      </div>
+      <ExistingMemberNotice title="E-posten finnes allerede i databasen." description="Du kan aktivere medlemskapet, men ikke opprette ny bruker på samme e-post." member={existingMember} />
 
       <div className="flex justify-end gap-2 pt-2">
-        <Button type="button" variant="secondary" onClick={onClose} className="rounded-xl" disabled={isBusy}>
+        <Button type="button" variant="secondary" onClick={onClose} className="h-11 rounded-xl border border-border/80 bg-background text-foreground hover:bg-accent" disabled={isBusy}>
           Avbryt
         </Button>
-        <Button className="rounded-xl" disabled={isBusy}>
+        <Button className="h-11 rounded-xl font-semibold" disabled={isBusy}>
           {activatePending ? "Aktiverer..." : "Aktiver medlemskap"}
         </Button>
       </div>
@@ -196,24 +93,17 @@ export function MemberActivateForm({
 /**
  * Passive info panel for active/banned email states where mutation is blocked.
  */
-export function MemberBlockedStatePanel({
-  title,
-  description,
-  existingMember,
-  isBusy,
-  onClose,
-}: {
-  title: string;
-  description: string;
-  existingMember: CheckEmailActionResult["member"] | null;
-  isBusy: boolean;
-  onClose: () => void;
-}) {
+export function MemberBlockedStatePanel({ title, description, existingMember, isBusy, printPending = false, onClose, onPrint }: { title: string; description: string; existingMember: CheckEmailActionResult["member"] | null; isBusy: boolean; printPending?: boolean; onClose: () => void; onPrint?: () => void }) {
   return (
     <div className="mt-4 space-y-4">
       <ExistingMemberNotice title={title} description={description} member={existingMember} />
       <div className="flex justify-end gap-2 pt-2">
-        <Button type="button" variant="secondary" onClick={onClose} className="rounded-xl" disabled={isBusy}>
+        {onPrint ? (
+          <Button type="button" variant="outline" onClick={onPrint} className="h-11 rounded-xl border-border/90 bg-background/95 text-foreground hover:bg-accent" disabled={isBusy}>
+            {printPending ? "Sender til utskriftskø..." : "Print kort"}
+          </Button>
+        ) : null}
+        <Button type="button" variant="secondary" onClick={onClose} className="h-11 rounded-xl border border-border/80 bg-background text-foreground hover:bg-accent" disabled={isBusy}>
           Lukk
         </Button>
       </div>
@@ -224,25 +114,16 @@ export function MemberBlockedStatePanel({
 /**
  * Shared notice block that shows why email cannot proceed directly.
  */
-function ExistingMemberNotice({
-  title,
-  description,
-  member,
-}: {
-  title: string;
-  description: string;
-  member: CheckEmailActionResult["member"] | null;
-}) {
+function ExistingMemberNotice({ title, description, member }: { title: string; description: string; member: CheckEmailActionResult["member"] | null }) {
   return (
-    <div className="rounded-xl border border-border/60 bg-background/50 p-3 text-sm">
-      <p className="font-medium">{title}</p>
-      <p className="text-muted-foreground">{description}</p>
+    <div className="rounded-xl border border-border/90 bg-card/95 p-4 text-sm shadow-sm">
+      <p className="font-semibold text-foreground">{title}</p>
+      <p className="text-foreground/80">{description}</p>
       {member ? (
-        <p className="mt-2 text-xs text-muted-foreground">
+        <p className="mt-2 text-sm text-foreground/75">
           {member.firstname} {member.lastname} · {member.email}
         </p>
       ) : null}
     </div>
   );
 }
-

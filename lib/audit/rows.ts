@@ -46,6 +46,7 @@ const BAN_RELATED_ACTIONS = new Set(["member.ban", "member.unban"]);
 
 const ACTION_LABELS: Record<string, string> = {
   "member.create": "Opprettet medlem",
+  "member.create.check": "Sjekket oppretting",
   "member.activate": "Aktiverte medlemskap",
   "member.rename": "Oppdaterte navn",
   "member.privilege.update": "Oppdaterte tilgang",
@@ -1076,6 +1077,30 @@ function buildChangeLines(row: DbAuditRow): string[] {
 
   if (action === "member.password_bootstrap.send") {
     lines.push("Engangspassord sendt");
+    return lines;
+  }
+
+  if (action === "member.create.check") {
+    const reason = asString(details.reason);
+    if (reason === "banned_email" || reason === "banned_member") {
+      lines.push("Oppretting blokkert: bruker er utestengt");
+      return lines;
+    }
+    lines.push("Oppretting kontrollert");
+    return lines;
+  }
+
+  if (action === "member.card_print.enqueue") {
+    const blockedBannedCount = readStringArray(details, "blocked_banned_ids").length;
+    if (blockedBannedCount > 0) {
+      lines.push(
+        blockedBannedCount === 1
+          ? "Utskrift blokkert: bruker er utestengt"
+          : `Utskrift blokkert: ${blockedBannedCount} brukere er utestengt`,
+      );
+      return lines;
+    }
+    lines.push("Utskrift feilet");
     return lines;
   }
 
