@@ -471,7 +471,7 @@ export function CreateUserDialog() {
             {stage === "exists-banned" ? (
               <MemberBlockedStatePanel
                 title="E-posten kan ikke brukes."
-                description="Oppretting eller aktivering er ikke tilgjengelig for denne e-posten."
+                description="Oppretting eller aktivering er ikke tilgjengelig for denne e-posten, be dem ta kontakt med it@astudent.no."
                 existingMember={existingMember}
                 isBusy={isBusy}
                 onClose={() => setOpen(false)}
