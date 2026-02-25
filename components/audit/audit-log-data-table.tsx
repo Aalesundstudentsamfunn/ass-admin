@@ -45,6 +45,7 @@ const DEFAULT_AUDIT_SORT: SortingState = [{ id: "created_at", desc: true }];
 type AuditQuickFilterPreset =
   | "status_error"
   | "status_ok"
+  | "status_partial"
   | "reset";
 
 /**
@@ -240,7 +241,7 @@ export function AuditLogDataTable({
     pageIndex: 0,
     pageSize: defaultPageSize,
   });
-  const [statusFilter, setStatusFilter] = React.useState<"all" | "ok" | "error">("all");
+  const [statusFilter, setStatusFilter] = React.useState<"all" | "ok" | "error" | "partial">("all");
   const onSortingChange = React.useCallback((updater: React.SetStateAction<SortingState>) => {
     setSorting((previous) => {
       const raw = typeof updater === "function" ? updater(previous) : updater;
@@ -260,6 +261,8 @@ export function AuditLogDataTable({
       pills.push({ key: "status_error", label: "Kun feilet" });
     } else if (statusFilter === "ok") {
       pills.push({ key: "status_ok", label: "Kun OK" });
+    } else if (statusFilter === "partial") {
+      pills.push({ key: "status_partial", label: "Kun Delvis" });
     }
     return pills;
   }, [statusFilter]);
@@ -269,6 +272,8 @@ export function AuditLogDataTable({
       keys.push("status_error");
     } else if (statusFilter === "ok") {
       keys.push("status_ok");
+    } else if (statusFilter === "partial") {
+      keys.push("status_partial");
     }
     return keys;
   }, [statusFilter]);
@@ -314,6 +319,9 @@ export function AuditLogDataTable({
       case "status_ok":
         setStatusFilter((previous) => (previous === "ok" ? "all" : "ok"));
         break;
+      case "status_partial":
+        setStatusFilter((previous) => (previous === "partial" ? "all" : "partial"));
+        break;
       default:
         setStatusFilter("all");
         table.getColumn("search")?.setFilterValue("");
@@ -327,7 +335,7 @@ export function AuditLogDataTable({
       applyQuickFilter("reset");
       return;
     }
-    if (key === "status_ok" || key === "status_error") {
+    if (key === "status_ok" || key === "status_error" || key === "status_partial") {
       setStatusFilter("all");
     } else {
       applyQuickFilter("reset");
@@ -345,6 +353,7 @@ export function AuditLogDataTable({
         quickFilters={[
           { key: "status_error", label: "Kun feilet" },
           { key: "status_ok", label: "Kun OK" },
+          { key: "status_partial", label: "Kun Delvis" },
           { key: "reset", label: "Nullstill hurtigfiltre" },
         ]}
         onQuickFilterSelect={(key) => applyQuickFilter(key as AuditQuickFilterPreset)}
