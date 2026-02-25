@@ -93,28 +93,28 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">Login</CardTitle>
-          <CardDescription>Enter your email below to login to your account</CardDescription>
+          <CardTitle className="text-2xl">Logg inn</CardTitle>
+          <CardDescription>Tast inn e-posten og passordet ditt for å logge inn.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin}>
             <div className="flex flex-col gap-6">
               <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="m@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                <Label htmlFor="email">E-post</Label>
+                <Input id="email" type="email" placeholder="epost@astudent.no" required value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
               <div className="grid gap-2">
                 <div className="flex items-center">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password">Passord</Label>
                   <Link href="/auth/forgot-password" className="ml-auto inline-block text-sm underline-offset-4 hover:underline">
-                    Forgot your password?
+                    Glemt passord?
                   </Link>
                 </div>
-                <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                <Input id="password" placeholder="&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
               </div>
               {error && <p className="text-sm text-red-500">{error}</p>}
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Logging in..." : "Login"}
+                {isLoading ? "Logger inn..." : "Logg inn"}
               </Button>
             </div>
           </form>
