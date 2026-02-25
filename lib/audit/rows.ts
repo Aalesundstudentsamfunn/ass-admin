@@ -470,6 +470,15 @@ function valuesEqual(left: unknown, right: unknown): boolean {
  * @returns string | null
  */
 function buildFieldDiffLine(details: Record<string, unknown>, field: string): string | null {
+  if (field === "password_set_at") {
+    const before = previousFieldValue(details, field);
+    const after = nextFieldValue(details, field);
+    if (valuesEqual(before, after)) {
+      return null;
+    }
+    return "Oppdaterte passordstatus";
+  }
+
   const label = FIELD_LABELS[field] ?? field;
   const before = formatFieldValue(field, previousFieldValue(details, field));
   const after = formatFieldValue(field, nextFieldValue(details, field));
