@@ -98,6 +98,21 @@ export async function checkMemberEmail(
       };
     }
 
+    if (existingMember.is_banned === true) {
+      await logMemberAction(sb, {
+        actorId: actor.userId,
+        action: "member.create.check",
+        targetId: existingMember.id,
+        status: "error",
+        errorMessage: "E-posten kan ikke brukes.",
+        details: {
+          email: normalizedEmail,
+          member_id: existingMember.id,
+          reason: "banned_email",
+        },
+      });
+    }
+
     return {
       ok: true,
       email: normalizedEmail,

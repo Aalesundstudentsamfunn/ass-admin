@@ -65,6 +65,7 @@ export async function POST(request: Request) {
     const queued: Array<{ queue_id: string | number; member_id: string }> = [];
     const failed: Array<{ id: string; message: string }> = [];
     const invalidIds: string[] = [];
+    const blockedBannedIds: string[] = [];
 
     for (const memberId of memberIds) {
       const member = memberById.get(memberId);
@@ -74,7 +75,8 @@ export async function POST(request: Request) {
         continue;
       }
       if (member.is_banned === true) {
-        failed.push({ id: memberId, message: "Kontoen kan ikke brukes for utskrift." });
+        blockedBannedIds.push(memberId);
+        failed.push({ id: memberId, message: "Noe gikk galt, ta kontakt med IT." });
         continue;
       }
 
@@ -119,6 +121,7 @@ export async function POST(request: Request) {
           requested_member_ids: memberIds,
           queued_member_ids: queued.map((entry) => entry.member_id),
           failed_member_ids: failedIds,
+          blocked_banned_ids: blockedBannedIds,
           invalid_member_ids: invalidIds,
           failed,
         },
@@ -152,4 +155,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

@@ -104,11 +104,6 @@ export function useMembersPageActions({
    * @returns Promise<void>
    */
   const handlePrint = React.useCallback(async (member: UserRow) => {
-    if (member.is_banned === true) {
-      toast.error("Kunne ikke sende utskrift for denne brukeren.");
-      return;
-    }
-
     const toastId = toast.loading("Sender til utskriftskø...", { duration: 10000 });
     const { response, payload } = await enqueueMemberPrintJobs([idOf(member.id)]);
     if (!response.ok) {
@@ -151,7 +146,7 @@ export function useMembersPageActions({
     watchPrinterQueueStatus(supabaseClient, {
       queueId,
       timeoutMs: 25000,
-      timeoutErrorMessage: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
+      timeoutErrorMessage: "Sjekk om printer-PC er koblet på internett. Kontakt IT om det ikke går.",
       onCompleted: () => {
         toast.success("Utskrift sendt til printer.", { id: toastId, duration: 10000 });
       },
@@ -161,7 +156,7 @@ export function useMembersPageActions({
       onTimeout: () => {
         toast.error("Utskrift tar lengre tid enn vanlig.", {
           id: toastId,
-          description: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
+          description: "Sjekk om printer-PC er koblet på internett. Kontakt IT om det ikke går.",
           duration: Infinity,
         });
       },
@@ -549,15 +544,8 @@ export function useMembersPageActions({
     if (!members.length) {
       return;
     }
-    const bannedCount = members.filter((member) => member.is_banned === true).length;
-    const printableMembers = members.filter((member) => member.is_banned !== true);
-    if (!printableMembers.length) {
-      toast.error("Ingen utskrifter sendt. Valgte kontoer kan ikke brukes for utskrift.");
-      return;
-    }
-
     const toastId = toast.loading("Sender til utskriftskø...", { duration: 10000 });
-    const memberIds = printableMembers.map((member) => idOf(member.id));
+    const memberIds = members.map((member) => idOf(member.id));
     const { response, payload } = await enqueueMemberPrintJobs(memberIds);
     const successCount =
       typeof payload?.queued_count === "number" && Number.isFinite(payload.queued_count)
@@ -568,18 +556,15 @@ export function useMembersPageActions({
         ? payload.failed_count
         : response.ok
           ? 0
-          : printableMembers.length;
+          : memberIds.length;
 
-    if (errorCount > 0 || bannedCount > 0) {
+    if (errorCount > 0) {
       const parts: string[] = [];
       if (successCount > 0) {
         parts.push(`sendt ${successCount}`);
       }
       if (errorCount > 0) {
         parts.push(`feilet ${errorCount}`);
-      }
-      if (bannedCount > 0) {
-        parts.push(`hoppet over utilgjengelig ${bannedCount}`);
       }
       toast.error("Kunne ikke skrive ut alle valgte.", {
         id: toastId,
