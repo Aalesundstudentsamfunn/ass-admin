@@ -8,10 +8,6 @@ import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import type { Metadata } from "next"
 
-export const metadata: Metadata = {
-  title: "Activity Groups",
-}
-
 // Types 
 interface ActivityGroup {
   id: number
@@ -22,7 +18,6 @@ interface ActivityGroup {
   website_url: string | null
   group_leader: { firstname: string | null, lastname: string | null }[] | null
 }
-
 
 /**
  * Renders Liquid Glass glass.
@@ -134,7 +129,7 @@ export default async function ActivityGroupsPage() {
     description,
     img_url,
     website_url,
-    group_leader:profiles (
+    group_leader:members (
       firstname,
       lastname
     )
