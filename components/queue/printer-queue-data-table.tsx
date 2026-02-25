@@ -32,12 +32,6 @@ import { formatDate, getInvokerLabel, getStatusMeta, PrinterLogRow } from "./sha
 const DEFAULT_QUEUE_SORT: SortingState = [{ id: "created_at", desc: true }];
 
 type QueueQuickFilterPreset =
-  | "latest"
-  | "oldest"
-  | "name_asc"
-  | "name_desc"
-  | "invoker_asc"
-  | "invoker_desc"
   | "status_failed"
   | "status_pending"
   | "status_done"
@@ -51,71 +45,6 @@ function getQueueStatusKey(row: PrinterLogRow): "failed" | "pending" | "done" {
     return "done";
   }
   return "pending";
-}
-
-/**
- * Maps sorting state to a readable active sort label.
- *
- * How: Interprets first active sorting rule and keeps default newest-first unlabeled.
- * @returns string | null
- */
-function getQueueSortLabel(sorting: SortingState): string | null {
-  if (sorting.length > 1) {
-    return `${sorting.length} sorteringer`;
-  }
-  if (sorting.length !== 1) {
-    return null;
-  }
-  const sort = sorting[0];
-  if (!sort) {
-    return null;
-  }
-  if (sort.id === "created_at") {
-    return sort.desc ? null : "Eldste oppføring først";
-  }
-  if (sort.id === "name") {
-    return sort.desc ? "Navn Å-A" : "Navn A-Å";
-  }
-  if (sort.id === "invoker") {
-    return sort.desc ? "Kjørt av Å-A" : "Kjørt av A-Å";
-  }
-  if (sort.id === "email") {
-    return sort.desc ? "E-post Å-A" : "E-post A-Å";
-  }
-  if (sort.id === "status") {
-    return sort.desc ? "Status høyest først" : "Status lavest først";
-  }
-  return sort.desc ? `Sortering: ${sort.id} Å-A` : `Sortering: ${sort.id} A-Å`;
-}
-
-/**
- * Maps sorting state to quick-filter keys for checked marks in dropdown.
- */
-function getQueueSortQuickFilterKeys(sorting: SortingState): string[] {
-  return sorting.flatMap((sort) => {
-    if (sort.id === "created_at") {
-      return [sort.desc ? "latest" : "oldest"];
-    }
-    if (sort.id === "name") {
-      return [sort.desc ? "name_desc" : "name_asc"];
-    }
-    if (sort.id === "invoker") {
-      return [sort.desc ? "invoker_desc" : "invoker_asc"];
-    }
-    return [];
-  });
-}
-
-/**
- * Maps current sort keys to explicit priority labels shown in the dropdown.
- */
-function getQueueSortPriorityByKey(sorting: SortingState): Record<string, number> {
-  const keys = getQueueSortQuickFilterKeys(sorting);
-  const priorityByKey: Record<string, number> = {};
-  keys.forEach((key, index) => {
-    priorityByKey[key] = index + 1;
-  });
-  return priorityByKey;
 }
 
 /**
@@ -135,39 +64,6 @@ function normalizeQueueSorting(next: SortingState): SortingState {
     deduped.push(item);
   });
   return deduped.length ? deduped : DEFAULT_QUEUE_SORT;
-}
-
-/**
- * Finds which sort id changed between previous and next sorting state.
- */
-function getChangedSortId(previous: SortingState, next: SortingState): string | null {
-  const previousMap = new Map(previous.map((item) => [item.id, item.desc] as const));
-  for (const item of next) {
-    if (!previousMap.has(item.id)) {
-      return item.id;
-    }
-  }
-  for (const item of next) {
-    const prevDesc = previousMap.get(item.id);
-    if (typeof prevDesc === "boolean" && prevDesc !== item.desc) {
-      return item.id;
-    }
-  }
-  return null;
-}
-
-/**
- * Upserts one sort rule as highest priority.
- * Clicking an already-primary identical rule removes it.
- */
-function upsertSortAsPrimary(previous: SortingState, nextSort: { id: string; desc: boolean }): SortingState {
-  const primary = previous[0];
-  if (primary && primary.id === nextSort.id && primary.desc === nextSort.desc) {
-    const removed = previous.filter((item) => item.id !== nextSort.id);
-    return normalizeQueueSorting(removed);
-  }
-  const withoutSame = previous.filter((item) => item.id !== nextSort.id);
-  return normalizeQueueSorting([nextSort, ...withoutSame]);
 }
 
 /**
@@ -284,17 +180,7 @@ export function PrinterQueueDataTable({
   const onSortingChange = React.useCallback((updater: React.SetStateAction<SortingState>) => {
     setSorting((previous) => {
       const raw = typeof updater === "function" ? updater(previous) : updater;
-      const next = normalizeQueueSorting(raw);
-      const changedId = getChangedSortId(previous, next);
-      if (!changedId) {
-        return next;
-      }
-      const changed = next.find((item) => item.id === changedId);
-      if (!changed) {
-        return next;
-      }
-      const rest = next.filter((item) => item.id !== changedId);
-      return [changed, ...rest];
+      return normalizeQueueSorting(raw);
     });
   }, []);
   const filteredData = React.useMemo(
@@ -304,14 +190,8 @@ export function PrinterQueueDataTable({
       ),
     [data, statusFilter],
   );
-  const currentSortLabel = React.useMemo(() => getQueueSortLabel(sorting), [sorting]);
-  const activeSortKeys = React.useMemo(() => getQueueSortQuickFilterKeys(sorting), [sorting]);
-  const sortPriorityByKey = React.useMemo(() => getQueueSortPriorityByKey(sorting), [sorting]);
   const activeQuickFilters = React.useMemo(() => {
     const pills: Array<{ key: string; label: string }> = [];
-    if (currentSortLabel) {
-      pills.push({ key: "sort", label: currentSortLabel });
-    }
     if (statusFilter === "failed") {
       pills.push({ key: "status_failed", label: "Kun feilet" });
     } else if (statusFilter === "pending") {
@@ -320,9 +200,9 @@ export function PrinterQueueDataTable({
       pills.push({ key: "status_done", label: "Kun ferdig" });
     }
     return pills;
-  }, [currentSortLabel, statusFilter]);
+  }, [statusFilter]);
   const activeQuickFilterKeys = React.useMemo(() => {
-    const keys = [...activeSortKeys];
+    const keys: string[] = [];
     if (statusFilter === "failed") {
       keys.push("status_failed");
     } else if (statusFilter === "pending") {
@@ -331,7 +211,7 @@ export function PrinterQueueDataTable({
       keys.push("status_done");
     }
     return keys;
-  }, [activeSortKeys, statusFilter]);
+  }, [statusFilter]);
 
   const table = useReactTable({
     data: filteredData,
@@ -364,31 +244,7 @@ export function PrinterQueueDataTable({
       ...(searchValue ? ["__search"] : []),
     ]).size;
   const applyQuickFilter = (preset: QueueQuickFilterPreset) => {
-    const toggleSort = (id: string, desc: boolean) => {
-      setSorting((previous) => {
-        return upsertSortAsPrimary(previous, { id, desc });
-      });
-    };
-
     switch (preset) {
-      case "latest":
-        toggleSort("created_at", true);
-        break;
-      case "oldest":
-        toggleSort("created_at", false);
-        break;
-      case "name_asc":
-        toggleSort("name", false);
-        break;
-      case "name_desc":
-        toggleSort("name", true);
-        break;
-      case "invoker_asc":
-        toggleSort("invoker", false);
-        break;
-      case "invoker_desc":
-        toggleSort("invoker", true);
-        break;
       case "status_failed":
         setStatusFilter((prev) => (prev === "failed" ? "all" : "failed"));
         break;
@@ -399,7 +255,6 @@ export function PrinterQueueDataTable({
         setStatusFilter((prev) => (prev === "done" ? "all" : "done"));
         break;
       default:
-        setSorting(DEFAULT_QUEUE_SORT);
         setStatusFilter("all");
         table.getColumn("search")?.setFilterValue("");
         break;
@@ -412,9 +267,7 @@ export function PrinterQueueDataTable({
       applyQuickFilter("reset");
       return;
     }
-    if (key === "sort") {
-      setSorting(DEFAULT_QUEUE_SORT);
-    } else if (key === "status_failed" || key === "status_pending" || key === "status_done") {
+    if (key === "status_failed" || key === "status_pending" || key === "status_done") {
       setStatusFilter("all");
     } else {
       applyQuickFilter("reset");
@@ -430,12 +283,6 @@ export function PrinterQueueDataTable({
         searchPlaceholder="Søk navn, e-post, invoker eller ref..."
         isDefaultSort={isDefaultSort}
         quickFilters={[
-          { key: "latest", label: "Nyeste oppføring først" },
-          { key: "oldest", label: "Eldste oppføring først" },
-          { key: "name_asc", label: "Navn A-Å" },
-          { key: "name_desc", label: "Navn Å-A" },
-          { key: "invoker_asc", label: "Kjørt av A-Å" },
-          { key: "invoker_desc", label: "Kjørt av Å-A" },
           { key: "status_failed", label: "Kun feilet" },
           { key: "status_pending", label: "Kun pending" },
           { key: "status_done", label: "Kun ferdig" },
@@ -445,7 +292,6 @@ export function PrinterQueueDataTable({
         activeQuickFilter={null}
         activeQuickFilters={activeQuickFilters}
         activeQuickFilterKeys={activeQuickFilterKeys}
-        sortPriorityByKey={sortPriorityByKey}
         activeFilterCount={activeFilterCount}
         showActivePills={false}
         onClearQuickFilter={clearQuickFilter}

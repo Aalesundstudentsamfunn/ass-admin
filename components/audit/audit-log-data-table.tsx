@@ -43,12 +43,6 @@ import {
 const DEFAULT_AUDIT_SORT: SortingState = [{ id: "created_at", desc: true }];
 
 type AuditQuickFilterPreset =
-  | "latest"
-  | "oldest"
-  | "event_asc"
-  | "event_desc"
-  | "target_asc"
-  | "target_desc"
   | "status_error"
   | "status_ok"
   | "reset";
@@ -79,71 +73,6 @@ function compactChangeForTable(value: string | null | undefined) {
 }
 
 /**
- * Maps current audit sorting to a readable label.
- *
- * How: Uses first sorting rule and keeps default newest-first without pill.
- * @returns string | null
- */
-function getAuditSortLabel(sorting: SortingState): string | null {
-  if (sorting.length > 1) {
-    return `${sorting.length} sorteringer`;
-  }
-  if (sorting.length !== 1) {
-    return null;
-  }
-  const sort = sorting[0];
-  if (!sort) {
-    return null;
-  }
-  if (sort.id === "created_at") {
-    return sort.desc ? null : "Eldste oppføring først";
-  }
-  if (sort.id === "event") {
-    return sort.desc ? "Hendelse Å-A" : "Hendelse A-Å";
-  }
-  if (sort.id === "target_name") {
-    return sort.desc ? "Mål Å-A" : "Mål A-Å";
-  }
-  if (sort.id === "change") {
-    return sort.desc ? "Endring Å-A" : "Endring A-Å";
-  }
-  if (sort.id === "status") {
-    return sort.desc ? "Status høyest først" : "Status lavest først";
-  }
-  return sort.desc ? `Sortering: ${sort.id} Å-A` : `Sortering: ${sort.id} A-Å`;
-}
-
-/**
- * Maps sorting state to quick-filter keys used in the dropdown checkmarks.
- */
-function getAuditSortQuickFilterKeys(sorting: SortingState): string[] {
-  return sorting.flatMap((sort) => {
-    if (sort.id === "created_at") {
-      return [sort.desc ? "latest" : "oldest"];
-    }
-    if (sort.id === "event") {
-      return [sort.desc ? "event_desc" : "event_asc"];
-    }
-    if (sort.id === "target_name") {
-      return [sort.desc ? "target_desc" : "target_asc"];
-    }
-    return [];
-  });
-}
-
-/**
- * Maps active sort keys to explicit priority labels shown in filter dropdown.
- */
-function getAuditSortPriorityByKey(sorting: SortingState): Record<string, number> {
-  const keys = getAuditSortQuickFilterKeys(sorting);
-  const priorityByKey: Record<string, number> = {};
-  keys.forEach((key, index) => {
-    priorityByKey[key] = index + 1;
-  });
-  return priorityByKey;
-}
-
-/**
  * Keeps default newest-first sort as fallback when no custom sort rules remain.
  */
 function normalizeAuditSorting(next: SortingState): SortingState {
@@ -160,39 +89,6 @@ function normalizeAuditSorting(next: SortingState): SortingState {
     deduped.push(item);
   });
   return deduped.length ? deduped : DEFAULT_AUDIT_SORT;
-}
-
-/**
- * Finds changed sort id by comparing previous and next sorting state.
- */
-function getChangedSortId(previous: SortingState, next: SortingState): string | null {
-  const previousMap = new Map(previous.map((item) => [item.id, item.desc] as const));
-  for (const item of next) {
-    if (!previousMap.has(item.id)) {
-      return item.id;
-    }
-  }
-  for (const item of next) {
-    const prevDesc = previousMap.get(item.id);
-    if (typeof prevDesc === "boolean" && prevDesc !== item.desc) {
-      return item.id;
-    }
-  }
-  return null;
-}
-
-/**
- * Upserts one sort rule as highest priority.
- * Clicking an already-primary identical rule removes it.
- */
-function upsertSortAsPrimary(previous: SortingState, nextSort: { id: string; desc: boolean }): SortingState {
-  const primary = previous[0];
-  if (primary && primary.id === nextSort.id && primary.desc === nextSort.desc) {
-    const removed = previous.filter((item) => item.id !== nextSort.id);
-    return normalizeAuditSorting(removed);
-  }
-  const withoutSame = previous.filter((item) => item.id !== nextSort.id);
-  return normalizeAuditSorting([nextSort, ...withoutSame]);
 }
 
 /**
@@ -348,22 +244,9 @@ export function AuditLogDataTable({
   const onSortingChange = React.useCallback((updater: React.SetStateAction<SortingState>) => {
     setSorting((previous) => {
       const raw = typeof updater === "function" ? updater(previous) : updater;
-      const next = normalizeAuditSorting(raw);
-      const changedId = getChangedSortId(previous, next);
-      if (!changedId) {
-        return next;
-      }
-      const changed = next.find((item) => item.id === changedId);
-      if (!changed) {
-        return next;
-      }
-      const rest = next.filter((item) => item.id !== changedId);
-      return [changed, ...rest];
+      return normalizeAuditSorting(raw);
     });
   }, []);
-  const currentSortLabel = React.useMemo(() => getAuditSortLabel(sorting), [sorting]);
-  const activeSortKeys = React.useMemo(() => getAuditSortQuickFilterKeys(sorting), [sorting]);
-  const sortPriorityByKey = React.useMemo(() => getAuditSortPriorityByKey(sorting), [sorting]);
   const filteredData = React.useMemo(
     () =>
       data.filter((row) =>
@@ -373,25 +256,22 @@ export function AuditLogDataTable({
   );
   const activeQuickFilters = React.useMemo(() => {
     const pills: Array<{ key: string; label: string }> = [];
-    if (currentSortLabel) {
-      pills.push({ key: "sort", label: currentSortLabel });
-    }
     if (statusFilter === "error") {
       pills.push({ key: "status_error", label: "Kun feilet" });
     } else if (statusFilter === "ok") {
       pills.push({ key: "status_ok", label: "Kun OK" });
     }
     return pills;
-  }, [currentSortLabel, statusFilter]);
+  }, [statusFilter]);
   const activeQuickFilterKeys = React.useMemo(() => {
-    const keys = [...activeSortKeys];
+    const keys: string[] = [];
     if (statusFilter === "error") {
       keys.push("status_error");
     } else if (statusFilter === "ok") {
       keys.push("status_ok");
     }
     return keys;
-  }, [activeSortKeys, statusFilter]);
+  }, [statusFilter]);
 
   const table = useReactTable({
     data: filteredData,
@@ -427,31 +307,7 @@ export function AuditLogDataTable({
   const applyQuickFilter = (
     preset: AuditQuickFilterPreset
   ) => {
-    const toggleSort = (id: string, desc: boolean) => {
-      setSorting((previous) => {
-        return upsertSortAsPrimary(previous, { id, desc });
-      });
-    };
-
     switch (preset) {
-      case "latest":
-        toggleSort("created_at", true);
-        break;
-      case "oldest":
-        toggleSort("created_at", false);
-        break;
-      case "event_asc":
-        toggleSort("event", false);
-        break;
-      case "event_desc":
-        toggleSort("event", true);
-        break;
-      case "target_asc":
-        toggleSort("target_name", false);
-        break;
-      case "target_desc":
-        toggleSort("target_name", true);
-        break;
       case "status_error":
         setStatusFilter((previous) => (previous === "error" ? "all" : "error"));
         break;
@@ -459,7 +315,6 @@ export function AuditLogDataTable({
         setStatusFilter((previous) => (previous === "ok" ? "all" : "ok"));
         break;
       default:
-        setSorting(DEFAULT_AUDIT_SORT);
         setStatusFilter("all");
         table.getColumn("search")?.setFilterValue("");
         break;
@@ -472,9 +327,7 @@ export function AuditLogDataTable({
       applyQuickFilter("reset");
       return;
     }
-    if (key === "sort") {
-      setSorting(DEFAULT_AUDIT_SORT);
-    } else if (key === "status_ok" || key === "status_error") {
+    if (key === "status_ok" || key === "status_error") {
       setStatusFilter("all");
     } else {
       applyQuickFilter("reset");
@@ -490,12 +343,6 @@ export function AuditLogDataTable({
         searchPlaceholder="Søk hendelse, bruker eller e-post..."
         isDefaultSort={isDefaultSort}
         quickFilters={[
-          { key: "latest", label: "Nyeste oppføring først" },
-          { key: "oldest", label: "Eldste oppføring først" },
-          { key: "event_asc", label: "Hendelse A-Å" },
-          { key: "event_desc", label: "Hendelse Å-A" },
-          { key: "target_asc", label: "Mål A-Å" },
-          { key: "target_desc", label: "Mål Å-A" },
           { key: "status_error", label: "Kun feilet" },
           { key: "status_ok", label: "Kun OK" },
           { key: "reset", label: "Nullstill hurtigfiltre" },
@@ -504,7 +351,6 @@ export function AuditLogDataTable({
         activeQuickFilter={null}
         activeQuickFilters={activeQuickFilters}
         activeQuickFilterKeys={activeQuickFilterKeys}
-        sortPriorityByKey={sortPriorityByKey}
         activeFilterCount={activeFilterCount}
         showActivePills={false}
         onClearQuickFilter={clearQuickFilter}

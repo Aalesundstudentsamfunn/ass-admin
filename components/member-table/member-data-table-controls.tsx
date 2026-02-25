@@ -13,39 +13,27 @@ import {
 import { isVoluntaryOrHigher } from "@/lib/privilege-checks";
 import type { MemberRow, PrivilegeOption } from "./shared";
 
-export type MemberSortPreset =
-  | "latest"
-  | "oldest"
-  | "lastname_asc"
-  | "lastname_desc"
-  | "email_asc"
-  | "email_desc"
-  | "privilege_desc"
-  | "privilege_asc";
-
 export type MemberRowFilterPreset =
   | "role_voluntary"
   | "role_member"
   | "membership_active"
   | "membership_inactive";
 
+export type VoluntaryRoleFilterPreset =
+  | "role_level_2"
+  | "role_level_3"
+  | "role_level_4"
+  | "role_level_5";
+
 export type MemberQuickFilterPreset =
-  | MemberSortPreset
   | MemberRowFilterPreset
+  | VoluntaryRoleFilterPreset
   | "reset";
 
 /**
  * Shared funnel presets used by member-like tables.
  */
 export const MEMBER_QUICK_FILTERS = [
-  { key: "latest", label: "Nyeste oppføring først" },
-  { key: "oldest", label: "Eldste oppføring først" },
-  { key: "privilege_desc", label: "Tilgang høyest først" },
-  { key: "privilege_asc", label: "Tilgang lavest først" },
-  { key: "lastname_asc", label: "Etternavn A-Å" },
-  { key: "lastname_desc", label: "Etternavn Å-A" },
-  { key: "email_asc", label: "E-post A-Å" },
-  { key: "email_desc", label: "E-post Å-A" },
   { key: "role_voluntary", label: "Kun frivillige" },
   { key: "role_member", label: "Kun medlemmer" },
   { key: "membership_active", label: "Kun aktive medlemskap" },
@@ -54,20 +42,15 @@ export const MEMBER_QUICK_FILTERS = [
 ] as const;
 
 /**
- * Type guard for quick-filter keys that only affect sorting.
+ * Quick filters tailored for frivillige page role-level segmentation.
  */
-export function isMemberSortPreset(value: MemberQuickFilterPreset): value is MemberSortPreset {
-  return (
-    value === "latest" ||
-    value === "oldest" ||
-    value === "lastname_asc" ||
-    value === "lastname_desc" ||
-    value === "email_asc" ||
-    value === "email_desc" ||
-    value === "privilege_desc" ||
-    value === "privilege_asc"
-  );
-}
+export const VOLUNTARY_ROLE_QUICK_FILTERS = [
+  { key: "role_level_2", label: "Kun Frivillig" },
+  { key: "role_level_3", label: "Kun Gruppeleder" },
+  { key: "role_level_4", label: "Kun Stortinget" },
+  { key: "role_level_5", label: "Kun IT" },
+  { key: "reset", label: "Nullstill hurtigfiltre" },
+] as const;
 
 /**
  * Type guard for quick-filter keys that affect row visibility only.
@@ -78,6 +61,18 @@ export function isMemberRowFilterPreset(value: MemberQuickFilterPreset): value i
     value === "role_member" ||
     value === "membership_active" ||
     value === "membership_inactive"
+  );
+}
+
+/**
+ * Type guard for voluntary role-level quick-filter keys.
+ */
+export function isVoluntaryRoleFilterPreset(value: MemberQuickFilterPreset): value is VoluntaryRoleFilterPreset {
+  return (
+    value === "role_level_2" ||
+    value === "role_level_3" ||
+    value === "role_level_4" ||
+    value === "role_level_5"
   );
 }
 
@@ -384,60 +379,6 @@ export function MemberQuickSelectionBar({
       </Button>
     </div>
   );
-}
-
-/**
- * Computes sorting state + active quick-filter label for the selected preset.
- */
-export function getMemberQuickFilterState(
-  preset: MemberSortPreset,
-): {
-  sorting: Array<{ id: string; desc: boolean }>;
-  activeQuickFilter: string | null;
-} {
-  switch (preset) {
-    case "oldest":
-      return {
-        sorting: [{ id: "created_at_sort", desc: false }],
-        activeQuickFilter: "Eldste oppføring først",
-      };
-    case "lastname_asc":
-      return {
-        sorting: [{ id: "lastname", desc: false }],
-        activeQuickFilter: "Etternavn A-Å",
-      };
-    case "lastname_desc":
-      return {
-        sorting: [{ id: "lastname", desc: true }],
-        activeQuickFilter: "Etternavn Å-A",
-      };
-    case "email_asc":
-      return {
-        sorting: [{ id: "email", desc: false }],
-        activeQuickFilter: "E-post A-Å",
-      };
-    case "email_desc":
-      return {
-        sorting: [{ id: "email", desc: true }],
-        activeQuickFilter: "E-post Å-A",
-      };
-    case "privilege_desc":
-      return {
-        sorting: [{ id: "privilege_type", desc: true }],
-        activeQuickFilter: "Høyeste tilgang først",
-      };
-    case "privilege_asc":
-      return {
-        sorting: [{ id: "privilege_type", desc: false }],
-        activeQuickFilter: "Laveste tilgang først",
-      };
-    case "latest":
-    default:
-      return {
-        sorting: [{ id: "created_at_sort", desc: true }],
-        activeQuickFilter: null,
-      };
-  }
 }
 
 /**

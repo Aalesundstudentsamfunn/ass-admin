@@ -46,7 +46,6 @@ export function SearchFilterToolbar({
   activeFilterCount = 0,
   showActivePills = true,
   activeQuickFilterKeys = [],
-  sortPriorityByKey,
 }: {
   searchValue: string;
   onSearchChange: (value: string) => void;
@@ -64,31 +63,13 @@ export function SearchFilterToolbar({
   activeFilterCount?: number;
   showActivePills?: boolean;
   activeQuickFilterKeys?: string[];
-  sortPriorityByKey?: Record<string, number>;
 }) {
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const hasSearchFilter = Boolean(searchValue);
   const quickFilterPills = activeQuickFilters ?? (activeQuickFilter ? [{ key: "__single", label: activeQuickFilter }] : []);
   const resetFilterOption = quickFilters.find((option) => option.key === "reset");
   const selectableQuickFilters = quickFilters.filter((option) => option.key !== "reset");
-  const isSortOption = React.useCallback(
-    (key: string) =>
-      key === "latest" ||
-      key === "oldest" ||
-      key.endsWith("_asc") ||
-      key.endsWith("_desc") ||
-      key === "privilege_asc" ||
-      key === "privilege_desc",
-    [],
-  );
-  const sortOptions = React.useMemo(
-    () => selectableQuickFilters.filter((option) => isSortOption(option.key)),
-    [isSortOption, selectableQuickFilters],
-  );
-  const filterOptions = React.useMemo(
-    () => selectableQuickFilters.filter((option) => !isSortOption(option.key)),
-    [isSortOption, selectableQuickFilters],
-  );
+  const filterOptions = selectableQuickFilters;
 
   return (
     <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -122,47 +103,13 @@ export function SearchFilterToolbar({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-[22rem] p-0">
               <div className="border-b border-border/60 px-3 py-2">
-                <p className="text-sm font-medium">Filtre og sortering</p>
+                <p className="text-sm font-medium">Filtre</p>
                 <p className="text-xs text-muted-foreground">Velg flere filtre samtidig</p>
               </div>
 
               <div className="max-h-[60vh] space-y-1 overflow-y-auto p-2">
-                {sortOptions.length ? (
-                  <div className="space-y-1">
-                    <p className="px-2 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Sortering
-                    </p>
-                    {sortOptions.map((option) => (
-                      <DropdownMenuItem
-                        key={option.key}
-                        className="rounded-lg"
-                        onSelect={(event) => {
-                          event.preventDefault();
-                          onQuickFilterSelect(option.key);
-                        }}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-3.5 w-3.5",
-                            activeQuickFilterKeys.includes(option.key) ? "opacity-100" : "opacity-0",
-                          )}
-                        />
-                        {option.label}
-                        {sortPriorityByKey?.[option.key] ? (
-                          <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-border/70 bg-muted/40 px-1 text-[10px] font-semibold">
-                            {sortPriorityByKey[option.key]}
-                          </span>
-                        ) : null}
-                      </DropdownMenuItem>
-                    ))}
-                  </div>
-                ) : null}
-
                 {filterOptions.length ? (
                   <div className="space-y-1 pt-1">
-                    <p className="px-2 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Filtrering
-                    </p>
                     {filterOptions.map((option) => (
                       <DropdownMenuItem
                         key={option.key}
