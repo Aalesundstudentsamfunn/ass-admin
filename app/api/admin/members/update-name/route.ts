@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { assertPermission } from "@/lib/server/assert-permission";
 import { logAdminAction } from "@/lib/server/admin-audit-log";
+import { canEditPrivilegeForTarget } from "@/lib/privilege-checks";
 
 /**
  * Updates member name in `members` and mirrors metadata to the auth user.
@@ -29,64 +30,38 @@ export async function POST(request: Request) {
     if (!permission.ok) {
       return permission.response;
     }
-    const { supabase, userId } = permission;
+    const { supabase, userId, privilege } = permission;
 
     const { data: existingMember, error: existingError } = await supabase
       .from("members")
-      .select("id, firstname, lastname")
+      .select("id, firstname, lastname, privilege_type")
       .eq("id", memberId)
       .single();
 
     if (existingError || !existingMember) {
       return NextResponse.json({ error: "Fant ikke medlem." }, { status: 404 });
     }
-
-    const { error: memberUpdateError } = await supabase
-      .from("members")
-      .update({ firstname, lastname })
-      .eq("id", memberId);
-
-    if (memberUpdateError) {
-      await logAdminAction(supabase, {
-        actorId: userId,
-        action: "member.rename",
-        targetTable: "members",
-        targetId: memberId,
-        status: "error",
-        errorMessage: memberUpdateError.message,
-        details: { firstname, lastname },
-      });
-      return NextResponse.json({ error: memberUpdateError.message }, { status: 400 });
+    if (!canEditPrivilegeForTarget(privilege, existingMember.privilege_type)) {
+      return NextResponse.json({ error: "Du har ikke tilgang til å oppdatere navn for dette medlemmet." }, { status: 403 });
     }
 
     const admin = createAdminClient();
     const { data: authUserData, error: authUserError } = await admin.auth.admin.getUserById(memberId);
-    const existingMetadata = authUserData?.user?.user_metadata ?? {};
-    const fullName = `${firstname} ${lastname}`.trim();
-
-    if (authUserError) {
-      await supabase
-        .from("members")
-        .update({
-          firstname: existingMember.firstname,
-          lastname: existingMember.lastname,
-        })
-        .eq("id", memberId);
+    if (authUserError || !authUserData?.user) {
+      const errorMessage = authUserError?.message ?? `Fant ikke auth-bruker med id=${memberId}`;
       await logAdminAction(supabase, {
         actorId: userId,
         action: "member.rename",
         targetTable: "members",
         targetId: memberId,
         status: "error",
-        errorMessage: authUserError.message,
-        details: {
-          firstname,
-          lastname,
-          rollback: "members.firstname/lastname restored",
-        },
+        errorMessage,
+        details: { firstname, lastname, member_id: memberId },
       });
-      return NextResponse.json({ error: authUserError.message }, { status: 400 });
+      return NextResponse.json({ error: errorMessage }, { status: 404 });
     }
+    const existingMetadata = authUserData.user.user_metadata ?? {};
+    const fullName = `${firstname} ${lastname}`.trim();
 
     const { error: authUpdateError } = await admin.auth.admin.updateUserById(memberId, {
       user_metadata: {
@@ -99,13 +74,6 @@ export async function POST(request: Request) {
     });
 
     if (authUpdateError) {
-      await supabase
-        .from("members")
-        .update({
-          firstname: existingMember.firstname,
-          lastname: existingMember.lastname,
-        })
-        .eq("id", memberId);
       await logAdminAction(supabase, {
         actorId: userId,
         action: "member.rename",
@@ -116,10 +84,59 @@ export async function POST(request: Request) {
         details: {
           firstname,
           lastname,
-          rollback: "members.firstname/lastname restored",
         },
       });
       return NextResponse.json({ error: authUpdateError.message }, { status: 400 });
+    }
+
+    const { data: memberUpdateRows, error: memberUpdateError } = await supabase
+      .from("members")
+      .update({ firstname, lastname })
+      .eq("id", memberId)
+      .select("id");
+
+    if (memberUpdateError) {
+      const { error: authRollbackError } = await admin.auth.admin.updateUserById(memberId, {
+        user_metadata: existingMetadata,
+      });
+      await logAdminAction(supabase, {
+        actorId: userId,
+        action: "member.rename",
+        targetTable: "members",
+        targetId: memberId,
+        status: "error",
+        errorMessage: memberUpdateError.message,
+        details: {
+          firstname,
+          lastname,
+          rollback: authRollbackError
+            ? `auth.user_metadata rollback failed: ${authRollbackError.message}`
+            : "auth.user_metadata restored",
+        },
+      });
+      return NextResponse.json({ error: memberUpdateError.message }, { status: 400 });
+    }
+    if (!memberUpdateRows?.length) {
+      const { error: authRollbackError } = await admin.auth.admin.updateUserById(memberId, {
+        user_metadata: existingMetadata,
+      });
+      const errorMessage = "Ingen rader ble oppdatert i members (mangler tilgang eller rad er utilgjengelig).";
+      await logAdminAction(supabase, {
+        actorId: userId,
+        action: "member.rename",
+        targetTable: "members",
+        targetId: memberId,
+        status: "error",
+        errorMessage,
+        details: {
+          firstname,
+          lastname,
+          rollback: authRollbackError
+            ? `auth.user_metadata rollback failed: ${authRollbackError.message}`
+            : "auth.user_metadata restored",
+        },
+      });
+      return NextResponse.json({ error: errorMessage }, { status: 403 });
     }
 
     await logAdminAction(supabase, {
