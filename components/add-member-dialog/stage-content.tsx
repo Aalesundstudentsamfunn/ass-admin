@@ -159,48 +159,29 @@ export function MemberCreateForm({
 export function MemberActivateForm({
   action,
   normalizedEmail,
-  autoPrint,
-  voluntary,
   existingMember,
   isBusy,
   activatePending,
-  onVoluntaryChange,
   onClose,
   onSubmitStart,
 }: {
   action: (payload: FormData) => void;
   normalizedEmail: string;
-  autoPrint: boolean;
-  voluntary: boolean;
   existingMember: CheckEmailActionResult["member"] | null;
   isBusy: boolean;
   activatePending: boolean;
-  onVoluntaryChange: (value: boolean) => void;
   onClose: () => void;
   onSubmitStart: () => void;
 }) {
   return (
     <form action={action} className="mt-4 space-y-4" onSubmit={onSubmitStart}>
       <input type="hidden" name="email" value={normalizedEmail} />
-      <input type="hidden" name="autoPrint" value={autoPrint ? "true" : "false"} />
 
       <ExistingMemberNotice
         title="E-posten finnes allerede i databasen."
         description="Du kan aktivere medlemskapet, men ikke opprette ny bruker på samme e-post."
         member={existingMember}
       />
-
-      <div className="flex items-center space-x-2">
-        <Checkbox
-          id="voluntary-activate"
-          name="voluntary"
-          checked={voluntary}
-          onCheckedChange={(value) => onVoluntaryChange(!!value)}
-        />
-        <Label htmlFor="voluntary-activate" className="text-foreground">
-          Aktiver som frivillig
-        </Label>
-      </div>
 
       <div className="flex justify-end gap-2 pt-2">
         <Button

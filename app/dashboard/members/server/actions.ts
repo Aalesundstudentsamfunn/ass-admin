@@ -78,15 +78,21 @@ export async function checkMemberEmail(
       return { ok: false, error: actor.error };
     }
 
-    const { data: existingMember, error: lookupError } = await sb
+    const { data: existingMembers, error: lookupError } = await sb
       .from("members")
       .select("id, firstname, lastname, email, privilege_type, is_membership_active, is_banned")
       .ilike("email", normalizedEmail)
-      .maybeSingle<ExistingMemberLookup>();
+      .limit(2);
 
     if (lookupError) {
       return { ok: false, error: lookupError.message };
     }
+
+    const existingMemberRows = (existingMembers ?? []) as ExistingMemberLookup[];
+    if (existingMemberRows.length > 1) {
+      return { ok: false, error: "Fant flere medlemsrader for denne e-posten. Kontakt IT." };
+    }
+    const existingMember = existingMemberRows[0] ?? null;
 
     if (!existingMember) {
       return {
@@ -141,8 +147,6 @@ export async function activateMember(
   formData: FormData,
 ): Promise<AddMemberActionResult> {
   const normalizedEmail = normalizeMemberEmail(String(formData.get("email") ?? ""));
-  const voluntary = Boolean(formData.get("voluntary"));
-  const autoPrint = shouldAutoPrint(formData.get("autoPrint"));
 
   if (!normalizedEmail) {
     return { ok: false, error: "E-post mangler." };
@@ -156,11 +160,11 @@ export async function activateMember(
     }
     const createdBy = actor.userId;
 
-    const { data: existingMember, error: lookupError } = await sb
+    const { data: existingMembers, error: lookupError } = await sb
       .from("members")
       .select("id, firstname, lastname, email, privilege_type, is_membership_active, is_banned")
       .ilike("email", normalizedEmail)
-      .maybeSingle<ExistingMemberLookup>();
+      .limit(2);
 
     if (lookupError) {
       await logMemberAction(sb, {
@@ -173,6 +177,25 @@ export async function activateMember(
       });
       return { ok: false, error: lookupError.message };
     }
+
+    const existingMemberRows = (existingMembers ?? []) as ExistingMemberLookup[];
+    if (existingMemberRows.length > 1) {
+      await logMemberAction(sb, {
+        actorId: createdBy,
+        action: "member.activate",
+        targetId: normalizedEmail,
+        status: "error",
+        errorMessage: "Fant flere medlemsrader for denne e-posten.",
+        details: {
+          email: normalizedEmail,
+          reason: "duplicate_email_rows",
+          duplicate_count: existingMemberRows.length,
+        },
+      });
+      return { ok: false, error: "Fant flere medlemsrader for denne e-posten. Kontakt IT." };
+    }
+    const existingMember = existingMemberRows[0] ?? null;
+
     if (!existingMember) {
       await logMemberAction(sb, {
         actorId: createdBy,
@@ -207,54 +230,35 @@ export async function activateMember(
       return { ok: false, error: "Dette medlemskapet er allerede aktivt." };
     }
 
-    const privilegeType = toMemberPrivilege(voluntary);
     const { data: updatedMember, error: updateError } = await sb
       .from("members")
-      .update({ privilege_type: privilegeType, is_membership_active: true })
+      .update({ is_membership_active: true })
       .eq("id", existingMember.id)
-      .select("id, firstname, lastname, email, privilege_type")
-      .single();
+      .select("id, firstname, lastname, email, privilege_type, is_membership_active")
+      .maybeSingle();
 
-    if (updateError || !updatedMember) {
+    if (updateError) {
       await logMemberAction(sb, {
         actorId: createdBy,
         action: "member.activate",
         targetId: existingMember.id,
         status: "error",
-        errorMessage: updateError?.message ?? "Kunne ikke aktivere medlemskap.",
-        details: { email: normalizedEmail, privilege_type: privilegeType },
+        errorMessage: updateError.message,
+        details: { email: normalizedEmail },
       });
-      return { ok: false, error: updateError?.message ?? "Kunne ikke aktivere medlemskap." };
+      return { ok: false, error: updateError.message };
     }
 
-    if (!autoPrint) {
+    if (!updatedMember) {
       await logMemberAction(sb, {
         actorId: createdBy,
         action: "member.activate",
-        targetId: updatedMember.id,
-        details: { email: updatedMember.email, privilege_type: privilegeType, auto_print: false },
-      });
-      revalidatePath("/dashboard/members");
-      return { ok: true, autoPrint: false };
-    }
-
-    const { data: queueRow, error: queueError } = await queueMemberCardPrint(
-      sb,
-      updatedMember,
-      createdBy,
-      privilegeType,
-    );
-
-    if (queueError) {
-      await logMemberAction(sb, {
-        actorId: createdBy,
-        action: "member.activate",
-        targetId: updatedMember.id,
+        targetId: existingMember.id,
         status: "error",
-        errorMessage: `medlemskap aktivert men utskrift feilet: ${queueError.message}`,
-        details: { email: updatedMember.email, privilege_type: privilegeType, auto_print: true },
+        errorMessage: "Mangler tilgang til å aktivere medlemskap.",
+        details: { email: normalizedEmail },
       });
-      return { ok: false, error: `medlemskap aktivert men utskrift feilet: ${queueError.message}` };
+      return { ok: false, error: "Mangler tilgang til å aktivere medlemskap." };
     }
 
     await logMemberAction(sb, {
@@ -263,19 +267,15 @@ export async function activateMember(
       targetId: updatedMember.id,
       details: {
         email: updatedMember.email,
-        privilege_type: privilegeType,
-        auto_print: true,
-        queue_id: queueRow?.id ?? null,
+        privilege_type: updatedMember.privilege_type,
+        is_membership_active: true,
       },
     });
 
     revalidatePath("/dashboard/members");
     return {
       ok: true,
-      autoPrint: true,
-      queueId: queueRow?.id,
-      queueRef: updatedMember.id,
-      queueInvoker: createdBy,
+      autoPrint: false,
     };
   } catch (error: unknown) {
     return { ok: false, error: String(error) };
@@ -303,11 +303,11 @@ export async function addNewMember(
     }
     const createdBy = actor.userId;
 
-    const { data: existingMember, error: lookupError } = await sb
+    const { data: existingMembers, error: lookupError } = await sb
       .from("members")
       .select("id, privilege_type, is_membership_active, is_banned")
       .ilike("email", normalizedEmail)
-      .maybeSingle<Pick<ExistingMemberLookup, "id" | "privilege_type" | "is_membership_active" | "is_banned">>();
+      .limit(2);
 
     if (lookupError) {
       await logMemberAction(sb, {
@@ -320,6 +320,26 @@ export async function addNewMember(
       });
       return { ok: false, error: lookupError.message };
     }
+
+    const existingMemberRows = (existingMembers ?? []) as Array<
+      Pick<ExistingMemberLookup, "id" | "privilege_type" | "is_membership_active" | "is_banned">
+    >;
+    if (existingMemberRows.length > 1) {
+      await logMemberAction(sb, {
+        actorId: createdBy,
+        action: "member.create",
+        targetId: normalizedEmail,
+        status: "error",
+        errorMessage: "Fant flere medlemsrader for denne e-posten.",
+        details: {
+          email: normalizedEmail,
+          reason: "duplicate_email_rows",
+          duplicate_count: existingMemberRows.length,
+        },
+      });
+      return { ok: false, error: "Fant flere medlemsrader for denne e-posten. Kontakt IT." };
+    }
+    const existingMember = existingMemberRows[0] ?? null;
 
     if (existingMember) {
       if (existingMember.is_banned === true) {

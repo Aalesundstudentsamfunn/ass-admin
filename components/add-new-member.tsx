@@ -269,20 +269,11 @@ export function CreateUserDialog() {
       return;
     }
 
-    if (activateState?.autoPrint === false) {
-      toast.success("Medlemskap aktivert.", {
-        id: toastIdRef.current ?? undefined,
-        description: "Auto-utskrift er deaktivert. Trykk Print kort for å skrive ut.",
-        duration: 10000,
-      });
-      toastIdRef.current = null;
-    } else {
-      startQueueWatch({
-        result: activateState,
-        queuedDescription: "Medlemskap aktivert og lagt i utskriftskø.",
-        completedMessage: "Medlemskap aktivert og utskrift fullført.",
-      });
-    }
+    toast.success("Medlemskap aktivert.", {
+      id: toastIdRef.current ?? undefined,
+      duration: 10000,
+    });
+    toastIdRef.current = null;
 
     activateSubmittedRef.current = false;
     setFirstname("");
@@ -438,12 +429,9 @@ export function CreateUserDialog() {
               <MemberActivateForm
                 action={activateAction}
                 normalizedEmail={normalizedEmail}
-                autoPrint={autoPrint}
-                voluntary={voluntary}
                 existingMember={existingMember}
                 isBusy={isBusy}
                 activatePending={activatePending}
-                onVoluntaryChange={setVoluntary}
                 onClose={() => setOpen(false)}
                 onSubmitStart={() => {
                   activateSubmittedRef.current = true;
