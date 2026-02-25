@@ -3,16 +3,9 @@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PrinterLogRow, formatDate, getInvokerLabel, getStatusMeta } from "./shared";
+import { CopyableInlineValue } from "../member-table/member-details-primitives";
 
-export function PrinterLogDetailsDialog({
-  open,
-  onOpenChange,
-  row,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  row: PrinterLogRow | null;
-}) {
+export function PrinterLogDetailsDialog({ open, onOpenChange, row }: { open: boolean; onOpenChange: (open: boolean) => void; row: PrinterLogRow | null }) {
   const status = row ? getStatusMeta(row) : null;
   const fullName = row ? `${row.firstname ?? ""} ${row.lastname ?? ""}`.trim() : "";
 
@@ -39,7 +32,11 @@ export function PrinterLogDetailsDialog({
             </div>
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground">E-post</span>
-              <span className="font-medium">{row.email || "-"}</span>
+              <CopyableInlineValue value={String(row.email)} copyLabel="E-post" />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">UUID</span>
+              <CopyableInlineValue value={String(row.ref)} copyLabel="UUID" />
             </div>
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground">Status</span>
@@ -50,10 +47,6 @@ export function PrinterLogDetailsDialog({
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground">Kjørt av</span>
               <span className="font-medium">{getInvokerLabel(row)}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Ref</span>
-              <span className="font-medium">{row.ref || "-"}</span>
             </div>
             <div className="grid gap-1">
               <span className="text-muted-foreground">Feilmelding</span>

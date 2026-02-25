@@ -2,62 +2,42 @@
  * Server route for `groups` dashboard view.
  */
 // app/dashboard/groups/page.tsx
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { createClient } from "@/lib/supabase/server"
-import Link from "next/link"
-import type { Metadata } from "next"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/server";
+import Link from "next/link";
 
-export const metadata: Metadata = {
-  title: "Activity Groups",
-}
-
-// Types 
+// Types
 interface ActivityGroup {
-  id: number
-  created_at: string
-  name: string | null
-  description: string | null
-  img_url: string | null
-  website_url: string | null
-  group_leader: { firstname: string | null, lastname: string | null }[] | null
+  id: number;
+  created_at: string;
+  name: string | null;
+  description: string | null;
+  img_url: string | null;
+  website_url: string | null;
+  group_leader: { firstname: string | null; lastname: string | null }[] | null;
 }
-
 
 /**
  * Renders Liquid Glass glass.
  */
 function Glass({ className = "", children }: React.PropsWithChildren<{ className?: string }>) {
-  return (
-    <div
-      className={
-        `relative rounded-2xl border backdrop-blur-xl ` +
-        `bg-white/65 border-white/50 shadow-[0_1px_0_rgba(255,255,255,0.6),0_10px_30px_-10px_rgba(16,24,40,0.25)] ` +
-        `dark:bg-white/5 dark:border-white/10 dark:shadow-[0_1px_0_rgba(255,255,255,0.07),0_20px_60px_-20px_rgba(0,0,0,0.6)] ` +
-        className
-      }
-    >
-      {children}
-    </div>
-  )
+  return <div className={`relative rounded-2xl border backdrop-blur-xl ` + `bg-white/65 border-white/50 shadow-[0_1px_0_rgba(255,255,255,0.6),0_10px_30px_-10px_rgba(16,24,40,0.25)] ` + `dark:bg-white/5 dark:border-white/10 dark:shadow-[0_1px_0_rgba(255,255,255,0.07),0_20px_60px_-20px_rgba(0,0,0,0.6)] ` + className}>{children}</div>;
 }
 
 /**
  * Renders fallback logo.
  */
 function FallbackLogo({ name }: { name?: string | null }) {
-  const safe = (name?.trim() || "Aktivitetsgruppe").toUpperCase()
+  const safe = (name?.trim() || "Aktivitetsgruppe").toUpperCase();
   const initials = safe
     .split(/\s+/)
     .slice(0, 2)
     .map((w) => w[0])
-    .join("")
+    .join("");
 
   return (
-    <div
-      className="flex h-36 w-full items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-sky-400/40 to-fuchsia-500/40 p-0 text-white shadow-inner dark:from-sky-600/30 dark:to-fuchsia-600/30"
-      aria-hidden
-    >
+    <div className="flex h-36 w-full items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-sky-400/40 to-fuchsia-500/40 p-0 text-white shadow-inner dark:from-sky-600/30 dark:to-fuchsia-600/30" aria-hidden>
       <svg viewBox="0 0 200 200" className="h-full w-full">
         {/* soft glassy blob */}
         <defs>
@@ -71,37 +51,29 @@ function FallbackLogo({ name }: { name?: string | null }) {
           <circle cx="160" cy="40" r="26" fill="white" opacity="0.18" />
           <circle cx="48" cy="160" r="20" fill="white" opacity="0.14" />
         </g>
-        <text
-          x="50%"
-          y="54%"
-          textAnchor="middle"
-          fontSize="64"
-          fontWeight="700"
-          fill="white"
-          style={{ letterSpacing: "0.08em" }}
-        >
+        <text x="50%" y="54%" textAnchor="middle" fontSize="64" fontWeight="700" fill="white" style={{ letterSpacing: "0.08em" }}>
           {initials}
         </text>
       </svg>
     </div>
-  )
+  );
 }
 
 /**
  * Renders safe image.
  */
 function SafeImage({ src, alt }: { src?: string | null; alt: string }) {
-  if (!src) return <FallbackLogo name={alt} />
+  if (!src) return <FallbackLogo name={alt} />;
   try {
-    const url = new URL(src) // validates absolute URLs too
+    const url = new URL(src); // validates absolute URLs too
     return (
       <div className="h-36 w-full overflow-hidden rounded-2xl">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={url.toString()} alt={alt} className="h-full w-full object-cover" />
       </div>
-    )
+    );
   } catch {
-    return <FallbackLogo name={alt} />
+    return <FallbackLogo name={alt} />;
   }
 }
 
@@ -112,64 +84,64 @@ function SafeImage({ src, alt }: { src?: string | null; alt: string }) {
  * @returns trimmed url | null
  */
 function normalizeUrl(u?: string | null) {
-  if (!u) return null
-  const trimmed = u.trim()
-  if (!trimmed) return null
-  if (/^https?:\/\//i.test(trimmed)) return trimmed
-  return `https://${trimmed}`
+  if (!u) return null;
+  const trimmed = u.trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
 }
-
 
 /**
  * Renders activity groups page.
  */
 export default async function ActivityGroupsPage() {
-  const supabase = await createClient()
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from("activity_group")
-    .select(`
+    .select(
+      `
     id,
     created_at,
     name,
     description,
     img_url,
     website_url,
-    group_leader:profiles (
+    group_leader:members (
       firstname,
       lastname
     )
-  `)
-    .order("created_at", { ascending: false })
+  `,
+    )
+    .order("created_at", { ascending: false });
 
   if (error) {
-    return <div>Error: {error?.message}</div>
+    return <div>Error: {error?.message}</div>;
   }
-  const groups: ActivityGroup[] = Array.isArray(data) ? data : []
+  const groups: ActivityGroup[] = Array.isArray(data) ? data : [];
 
   // Fallback data if table is empty or error
   const safeGroups: ActivityGroup[] = groups.length
     ? groups
     : [
-      {
-        id: 1,
-        created_at: new Date().toISOString(),
-        name: "Turgruppe Fjell",
-        description: "Ukentlige turer i nærområdet og helgeturer i fjellet.",
-        img_url: null,
-        website_url: "fjordfix.no",
-        group_leader: null,
-      },
-      {
-        id: 2,
-        created_at: new Date().toISOString(),
-        name: "Sykkel & Service",
-        description: "Vedlikehold av sykler og felles sykkelturer.",
-        img_url: null,
-        website_url: null,
-        group_leader: null,
-      },
-    ]
-
+        {
+          id: 1,
+          created_at: new Date().toISOString(),
+          name: "Turgruppe Fjell",
+          description: "Ukentlige turer i nærområdet og helgeturer i fjellet.",
+          img_url: null,
+          website_url: "fjordfix.no",
+          group_leader: null,
+        },
+        {
+          id: 2,
+          created_at: new Date().toISOString(),
+          name: "Sykkel & Service",
+          description: "Vedlikehold av sykler og felles sykkelturer.",
+          img_url: null,
+          website_url: null,
+          group_leader: null,
+        },
+      ];
 
   return (
     <div className="space-y-6">
@@ -180,11 +152,11 @@ export default async function ActivityGroupsPage() {
 
       <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
         {safeGroups.map((g) => {
-          const name = g.name ?? "Uten navn"
-          const desc = g.description ?? "Ingen beskrivelse tilgjengelig."
-          const url = normalizeUrl(g.website_url)
-          const created = new Date(g.created_at)
-          const createdLabel = isNaN(created.getTime()) ? "Ukjent dato" : created.toLocaleDateString()
+          const name = g.name ?? "Uten navn";
+          const desc = g.description ?? "Ingen beskrivelse tilgjengelig.";
+          const url = normalizeUrl(g.website_url);
+          const created = new Date(g.created_at);
+          const createdLabel = isNaN(created.getTime()) ? "Ukjent dato" : created.toLocaleDateString();
 
           return (
             <Glass key={g.id} className="p-[1px]">
@@ -201,12 +173,18 @@ export default async function ActivityGroupsPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     {url ? (
                       <Button asChild className="rounded-xl">
-                        <Link href={url} target="_blank" rel="noopener noreferrer">Besøk nettside</Link>
+                        <Link href={url} target="_blank" rel="noopener noreferrer">
+                          Besøk nettside
+                        </Link>
                       </Button>
                     ) : (
-                      <Button variant="secondary" disabled className="rounded-xl">Ingen nettside</Button>
+                      <Button variant="secondary" disabled className="rounded-xl">
+                        Ingen nettside
+                      </Button>
                     )}
-                    <Button variant="outline" className="rounded-xl">Mer info</Button>
+                    <Button variant="outline" className="rounded-xl">
+                      Mer info
+                    </Button>
                   </div>
 
                   <div className="text-xs text-muted-foreground">
@@ -216,9 +194,9 @@ export default async function ActivityGroupsPage() {
                 </CardContent>
               </Card>
             </Glass>
-          )
+          );
         })}
       </div>
     </div>
-  )
+  );
 }

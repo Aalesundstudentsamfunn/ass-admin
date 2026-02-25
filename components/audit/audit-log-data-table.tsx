@@ -80,16 +80,8 @@ function normalizeAuditSorting(next: SortingState): SortingState {
   if (!next.length) {
     return DEFAULT_AUDIT_SORT;
   }
-  const seen = new Set<string>();
-  const deduped: SortingState = [];
-  next.forEach((item) => {
-    if (seen.has(item.id)) {
-      return;
-    }
-    seen.add(item.id);
-    deduped.push(item);
-  });
-  return deduped.length ? deduped : DEFAULT_AUDIT_SORT;
+  const first = next[0];
+  return first ? [{ id: first.id, desc: first.desc }] : DEFAULT_AUDIT_SORT;
 }
 
 /**
@@ -124,7 +116,7 @@ function buildColumns(): ColumnDef<AuditLogRow, unknown>[] {
       header: ({ column }) => (
         <button
           className="inline-flex items-center gap-1"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc", true)}
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
           Tidspunkt <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
@@ -140,7 +132,7 @@ function buildColumns(): ColumnDef<AuditLogRow, unknown>[] {
       header: ({ column }) => (
         <button
           className="inline-flex items-center gap-1"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc", true)}
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
           Hendelse <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
@@ -154,7 +146,7 @@ function buildColumns(): ColumnDef<AuditLogRow, unknown>[] {
       header: ({ column }) => (
         <button
           className="inline-flex items-center gap-1"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc", true)}
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
           Mål <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
@@ -168,7 +160,7 @@ function buildColumns(): ColumnDef<AuditLogRow, unknown>[] {
       header: ({ column }) => (
         <button
           className="inline-flex items-center gap-1"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc", true)}
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
           Endring <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
@@ -185,7 +177,7 @@ function buildColumns(): ColumnDef<AuditLogRow, unknown>[] {
       header: ({ column }) => (
         <button
           className="inline-flex items-center gap-1"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc", true)}
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
           Status <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
@@ -290,6 +282,8 @@ export function AuditLogDataTable({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    enableMultiSort: false,
+    enableSortingRemoval: false,
   });
 
   React.useEffect(() => {

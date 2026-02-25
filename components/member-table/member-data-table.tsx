@@ -53,7 +53,7 @@ function isDefaultMemberSort(sorting: SortingState, defaultSorting: SortingState
 /**
  * Normalizes member sorting payload.
  *
- * How: Deduplicates by column id (first wins) and keeps default fallback when empty.
+ * How: Keeps one active sort rule and falls back to default when empty.
  */
 function normalizeMemberSorting(
   next: SortingState,
@@ -62,16 +62,8 @@ function normalizeMemberSorting(
   if (!next.length) {
     return fallback;
   }
-  const seen = new Set<string>();
-  const deduped: SortingState = [];
-  next.forEach((item) => {
-    if (seen.has(item.id)) {
-      return;
-    }
-    seen.add(item.id);
-    deduped.push(item);
-  });
-  return deduped.length ? deduped : fallback;
+  const first = next[0];
+  return first ? [{ id: first.id, desc: first.desc }] : fallback;
 }
 
 /**
@@ -202,6 +194,8 @@ export function MemberDataTable({
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     enableRowSelection: true,
+    enableMultiSort: false,
+    enableSortingRemoval: false,
   });
 
   React.useEffect(() => {

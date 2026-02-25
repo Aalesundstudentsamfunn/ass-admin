@@ -54,16 +54,8 @@ function normalizeQueueSorting(next: SortingState): SortingState {
   if (!next.length) {
     return DEFAULT_QUEUE_SORT;
   }
-  const seen = new Set<string>();
-  const deduped: SortingState = [];
-  next.forEach((item) => {
-    if (seen.has(item.id)) {
-      return;
-    }
-    seen.add(item.id);
-    deduped.push(item);
-  });
-  return deduped.length ? deduped : DEFAULT_QUEUE_SORT;
+  const first = next[0];
+  return first ? [{ id: first.id, desc: first.desc }] : DEFAULT_QUEUE_SORT;
 }
 
 /**
@@ -94,7 +86,7 @@ function buildColumns(): ColumnDef<PrinterLogRow, unknown>[] {
       accessorKey: "created_at",
       sortingFn: sortByDateValue,
       header: ({ column }) => (
-        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc", true)}>
+        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
           Tidspunkt <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
@@ -104,7 +96,7 @@ function buildColumns(): ColumnDef<PrinterLogRow, unknown>[] {
       id: "name",
       accessorFn: (row: PrinterLogRow) => `${row.firstname ?? ""} ${row.lastname ?? ""}`.trim(),
       header: ({ column }) => (
-        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc", true)}>
+        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
           Navn <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
@@ -113,7 +105,7 @@ function buildColumns(): ColumnDef<PrinterLogRow, unknown>[] {
     {
       accessorKey: "email",
       header: ({ column }) => (
-        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc", true)}>
+        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
           E-post <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
@@ -123,7 +115,7 @@ function buildColumns(): ColumnDef<PrinterLogRow, unknown>[] {
       id: "status",
       accessorFn: (row: PrinterLogRow) => getStatusMeta(row).sortValue,
       header: ({ column }) => (
-        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc", true)}>
+        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
           Status <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
@@ -140,7 +132,7 @@ function buildColumns(): ColumnDef<PrinterLogRow, unknown>[] {
       id: "invoker",
       accessorFn: (row: PrinterLogRow) => getInvokerLabel(row),
       header: ({ column }) => (
-        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc", true)}>
+        <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
           Kjørt av <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
@@ -225,6 +217,8 @@ export function PrinterQueueDataTable({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    enableMultiSort: false,
+    enableSortingRemoval: false,
   });
 
   React.useEffect(() => {

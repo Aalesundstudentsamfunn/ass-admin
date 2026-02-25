@@ -125,7 +125,7 @@ export function MemberDetailsDialog({
   const currentPrivilege = typeof currentUserPrivilege === "number" ? currentUserPrivilege : null;
   const targetPrivilege = memberPrivilege(member?.privilege_type);
   const isSelf = Boolean(currentUserId && member?.id && String(currentUserId) === String(member.id));
-  const canEditName = canManageMembers(currentPrivilege);
+  const canEditName = canManageMembers(currentPrivilege) && canEditPrivilegeForTarget(currentPrivilege, targetPrivilege);
   const canEditTarget = canEditMemberPrivileges(currentPrivilege);
   const canEditThisTarget = canEditPrivilegeForTarget(currentPrivilege, targetPrivilege);
   const canEditMembershipStatus = canManageMembershipStatus(currentPrivilege);
