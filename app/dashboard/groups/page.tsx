@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
-import type { Metadata } from "next"
 
 // Types 
 interface ActivityGroup {
