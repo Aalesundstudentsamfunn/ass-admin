@@ -28,7 +28,9 @@ export function MemberEmailCheckForm({
   return (
     <form action={action} className="mt-4 space-y-3" onSubmit={onSubmitStart}>
       <div className="space-y-2">
-        <Label htmlFor="email-check">E-post</Label>
+        <Label htmlFor="email-check" className="text-foreground">
+          E-post
+        </Label>
         <Input
           id="email-check"
           type="email"
@@ -37,11 +39,16 @@ export function MemberEmailCheckForm({
           value={email}
           onChange={(event) => onEmailChange(event.target.value)}
           required
-          className="rounded-xl"
+          className="h-12 rounded-xl border-zinc-400/80 bg-white text-zinc-900 placeholder:text-zinc-500 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-400"
         />
       </div>
       <div className="flex justify-end">
-        <Button type="submit" variant="outline" className="rounded-xl" disabled={isBusy}>
+        <Button
+          type="submit"
+          variant="outline"
+          className="h-12 rounded-xl border-border/90 bg-background/95 text-foreground hover:bg-accent"
+          disabled={isBusy}
+        >
           {checkPending ? "Sjekker..." : stage === "email" ? "Sjekk e-post" : "Sjekk på nytt"}
         </Button>
       </div>
@@ -87,7 +94,9 @@ export function MemberCreateForm({
       <input type="hidden" name="autoPrint" value={autoPrint ? "true" : "false"} />
 
       <div className="space-y-2">
-        <Label htmlFor="firstname">Fornavn</Label>
+        <Label htmlFor="firstname" className="text-foreground">
+          Fornavn
+        </Label>
         <Input
           id="firstname"
           name="firstname"
@@ -95,12 +104,14 @@ export function MemberCreateForm({
           value={firstname}
           onChange={(event) => onFirstnameChange(event.target.value)}
           required
-          className="rounded-xl"
+          className="h-12 rounded-xl border-zinc-400/80 bg-white text-zinc-900 placeholder:text-zinc-500 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-400"
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="lastname">Etternavn</Label>
+        <Label htmlFor="lastname" className="text-foreground">
+          Etternavn
+        </Label>
         <Input
           id="lastname"
           name="lastname"
@@ -108,7 +119,7 @@ export function MemberCreateForm({
           value={lastname}
           onChange={(event) => onLastnameChange(event.target.value)}
           required
-          className="rounded-xl"
+          className="h-12 rounded-xl border-zinc-400/80 bg-white text-zinc-900 placeholder:text-zinc-500 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-400"
         />
       </div>
 
@@ -119,14 +130,22 @@ export function MemberCreateForm({
           checked={voluntary}
           onCheckedChange={(value) => onVoluntaryChange(!!value)}
         />
-        <Label htmlFor="voluntary-create">Frivillig</Label>
+        <Label htmlFor="voluntary-create" className="text-foreground">
+          Frivillig
+        </Label>
       </div>
 
       <div className="flex justify-end gap-2 pt-2">
-        <Button type="button" variant="secondary" onClick={onClose} className="rounded-xl" disabled={isBusy}>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={onClose}
+          className="h-11 rounded-xl border border-border/80 bg-background text-foreground hover:bg-accent"
+          disabled={isBusy}
+        >
           Avbryt
         </Button>
-        <Button className="rounded-xl" disabled={isBusy}>
+        <Button className="h-11 rounded-xl font-semibold" disabled={isBusy}>
           {createPending ? "Oppretter..." : "Opprett medlem"}
         </Button>
       </div>
@@ -178,14 +197,22 @@ export function MemberActivateForm({
           checked={voluntary}
           onCheckedChange={(value) => onVoluntaryChange(!!value)}
         />
-        <Label htmlFor="voluntary-activate">Aktiver som frivillig</Label>
+        <Label htmlFor="voluntary-activate" className="text-foreground">
+          Aktiver som frivillig
+        </Label>
       </div>
 
       <div className="flex justify-end gap-2 pt-2">
-        <Button type="button" variant="secondary" onClick={onClose} className="rounded-xl" disabled={isBusy}>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={onClose}
+          className="h-11 rounded-xl border border-border/80 bg-background text-foreground hover:bg-accent"
+          disabled={isBusy}
+        >
           Avbryt
         </Button>
-        <Button className="rounded-xl" disabled={isBusy}>
+        <Button className="h-11 rounded-xl font-semibold" disabled={isBusy}>
           {activatePending ? "Aktiverer..." : "Aktiver medlemskap"}
         </Button>
       </div>
@@ -201,19 +228,40 @@ export function MemberBlockedStatePanel({
   description,
   existingMember,
   isBusy,
+  printPending = false,
   onClose,
+  onPrint,
 }: {
   title: string;
   description: string;
   existingMember: CheckEmailActionResult["member"] | null;
   isBusy: boolean;
+  printPending?: boolean;
   onClose: () => void;
+  onPrint?: () => void;
 }) {
   return (
     <div className="mt-4 space-y-4">
       <ExistingMemberNotice title={title} description={description} member={existingMember} />
       <div className="flex justify-end gap-2 pt-2">
-        <Button type="button" variant="secondary" onClick={onClose} className="rounded-xl" disabled={isBusy}>
+        {onPrint ? (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onPrint}
+            className="h-11 rounded-xl border-border/90 bg-background/95 text-foreground hover:bg-accent"
+            disabled={isBusy}
+          >
+            {printPending ? "Sender til utskriftskø..." : "Print kort"}
+          </Button>
+        ) : null}
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={onClose}
+          className="h-11 rounded-xl border border-border/80 bg-background text-foreground hover:bg-accent"
+          disabled={isBusy}
+        >
           Lukk
         </Button>
       </div>
@@ -234,15 +282,14 @@ function ExistingMemberNotice({
   member: CheckEmailActionResult["member"] | null;
 }) {
   return (
-    <div className="rounded-xl border border-border/60 bg-background/50 p-3 text-sm">
-      <p className="font-medium">{title}</p>
-      <p className="text-muted-foreground">{description}</p>
+    <div className="rounded-xl border border-border/90 bg-card/95 p-4 text-sm shadow-sm">
+      <p className="font-semibold text-foreground">{title}</p>
+      <p className="text-foreground/80">{description}</p>
       {member ? (
-        <p className="mt-2 text-xs text-muted-foreground">
+        <p className="mt-2 text-sm text-foreground/75">
           {member.firstname} {member.lastname} · {member.email}
         </p>
       ) : null}
     </div>
   );
 }
-
