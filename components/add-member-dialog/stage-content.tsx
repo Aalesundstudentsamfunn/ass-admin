@@ -28,7 +28,7 @@ export function MemberEmailCheckForm({ action, email, isBusy, stage, checkPendin
 /**
  * Form for creating a brand new member after email check.
  */
-export function MemberCreateForm({ action, normalizedEmail, autoPrint, firstname, lastname, isBusy, createPending, onFirstnameChange, onLastnameChange, onClose, onSubmitStart }: { action: (payload: FormData) => void; normalizedEmail: string; autoPrint: boolean; firstname: string; lastname: string; isBusy: boolean; createPending: boolean; onFirstnameChange: (value: string) => void; onLastnameChange: (value: string) => void; onVoluntaryChange: (value: boolean) => void; onClose: () => void; onSubmitStart: () => void }) {
+export function MemberCreateForm({ action, normalizedEmail, autoPrint, firstname, lastname, isBusy, createPending, onFirstnameChange, onLastnameChange, onClose, onSubmitStart }: { action: (payload: FormData) => void; normalizedEmail: string; autoPrint: boolean; firstname: string; lastname: string; isBusy: boolean; createPending: boolean; onFirstnameChange: (value: string) => void; onLastnameChange: (value: string) => void; onClose: () => void; onSubmitStart: () => void }) {
   return (
     <form action={action} className="mt-4 space-y-4" onSubmit={onSubmitStart}>
       <input type="hidden" name="email" value={normalizedEmail} />
