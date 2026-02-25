@@ -108,3 +108,22 @@ export async function sendBulkTemporaryPasswords(memberIds: string[]) {
   const payload = await response.json().catch(() => ({}));
   return { response, payload };
 }
+
+/**
+ * Enqueues printer queue jobs for one or multiple members.
+ * Server logs only failed enqueue attempts to admin_audit_log.
+ */
+export async function enqueueMemberPrintJobs(memberIds: string[]) {
+  const body =
+    memberIds.length === 1
+      ? { member_id: memberIds[0] }
+      : { member_ids: memberIds };
+
+  const response = await fetch("/api/admin/members/print", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json().catch(() => ({}));
+  return { response, payload };
+}

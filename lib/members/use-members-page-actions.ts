@@ -6,18 +6,18 @@ import type { MemberRow } from "@/components/member-table/shared";
 import { createClient } from "@/lib/supabase/client";
 import {
   bulkUpdateMemberPrivilege,
+  enqueueMemberPrintJobs,
   deleteMembers as deleteMembersRequest,
   sendBulkTemporaryPasswords,
   sendMemberPasswordReset,
   updateMemberPrivilege,
   updateMembershipStatus,
 } from "@/lib/members/client-actions";
-import { enqueuePrinterQueue, watchPrinterQueueStatus } from "@/lib/printer-queue";
+import { watchPrinterQueueStatus } from "@/lib/printer-queue";
 import {
   canAssignPrivilege,
   canSetOwnPrivilege,
   isMembershipActive,
-  isVoluntaryOrHigher,
   memberPrivilege,
 } from "@/lib/privilege-checks";
 
@@ -109,36 +109,39 @@ export function useMembersPageActions({
       return;
     }
 
-    const supabaseClient = createClient();
     const toastId = toast.loading("Sender til utskriftskø...", { duration: 10000 });
-    const { data: authData, error: authError } = await supabaseClient.auth.getUser();
-    if (authError || !authData.user) {
+    const { response, payload } = await enqueueMemberPrintJobs([idOf(member.id)]);
+    if (!response.ok) {
+      const failureMessage =
+        typeof payload?.failed?.[0]?.message === "string"
+          ? payload.failed[0].message
+          : payload?.error;
       toast.error("Kunne ikke legge til i utskriftskø.", {
         id: toastId,
-        description: "Prøv å logge inn på nytt.",
+        description:
+          typeof failureMessage === "string" && failureMessage.trim()
+            ? failureMessage
+            : "Ukjent feil.",
         duration: Infinity,
       });
       return;
     }
 
-    const { data: queueRow, error } = await enqueuePrinterQueue(supabaseClient, {
-      firstname: member.firstname,
-      lastname: member.lastname,
-      email: member.email,
-      ref: member.id,
-      ref_invoker: authData.user.id,
-      is_voluntary: isVoluntaryOrHigher(member.privilege_type),
-    });
-    if (error) {
-      toast.error(
-        "Kunne ikke legge til i utskriftskø.",
-        error.message
-          ? { id: toastId, description: error.message, duration: Infinity }
-          : { id: toastId, duration: Infinity },
-      );
+    const queueEntry = Array.isArray(payload?.queued) ? payload.queued[0] : null;
+    const queueId =
+      queueEntry && (typeof queueEntry.queue_id === "string" || typeof queueEntry.queue_id === "number")
+        ? queueEntry.queue_id
+        : null;
+    if (queueId === null) {
+      toast.error("Kunne ikke legge til i utskriftskø.", {
+        id: toastId,
+        description: "Ingen kø-ID ble returnert.",
+        duration: Infinity,
+      });
       return;
     }
 
+    const supabaseClient = createClient();
     toast.loading("Venter på utskrift...", {
       id: toastId,
       description: "Utskrift starter når skriveren er klar.",
@@ -146,9 +149,7 @@ export function useMembersPageActions({
     });
 
     watchPrinterQueueStatus(supabaseClient, {
-      queueId: queueRow?.id,
-      ref: member.id,
-      refInvoker: authData.user.id,
+      queueId,
       timeoutMs: 25000,
       timeoutErrorMessage: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
       onCompleted: () => {
@@ -556,34 +557,18 @@ export function useMembersPageActions({
     }
 
     const toastId = toast.loading("Sender til utskriftskø...", { duration: 10000 });
-    const supabaseClient = createClient();
-    const { data: authData, error: authError } = await supabaseClient.auth.getUser();
-    if (authError || !authData.user) {
-      toast.error("Kunne ikke legge til i utskriftskø.", {
-        id: toastId,
-        description: "Prøv å logge inn på nytt.",
-        duration: Infinity,
-      });
-      return;
-    }
-
-    let successCount = 0;
-    let errorCount = 0;
-    for (const member of printableMembers) {
-      const { error } = await enqueuePrinterQueue(supabaseClient, {
-        firstname: member.firstname,
-        lastname: member.lastname,
-        email: member.email,
-        ref: member.id,
-        ref_invoker: authData.user.id,
-        is_voluntary: isVoluntaryOrHigher(member.privilege_type),
-      });
-      if (error) {
-        errorCount += 1;
-      } else {
-        successCount += 1;
-      }
-    }
+    const memberIds = printableMembers.map((member) => idOf(member.id));
+    const { response, payload } = await enqueueMemberPrintJobs(memberIds);
+    const successCount =
+      typeof payload?.queued_count === "number" && Number.isFinite(payload.queued_count)
+        ? payload.queued_count
+        : 0;
+    const errorCount =
+      typeof payload?.failed_count === "number" && Number.isFinite(payload.failed_count)
+        ? payload.failed_count
+        : response.ok
+          ? 0
+          : printableMembers.length;
 
     if (errorCount > 0 || bannedCount > 0) {
       const parts: string[] = [];
