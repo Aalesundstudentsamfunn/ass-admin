@@ -260,7 +260,6 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
             columns={columns}
             data={rows}
             defaultPageSize={defaultPageSize}
-            defaultSorting={[{ id: "privilege_type", desc: true }]}
             filterMode="voluntary-roles"
             onBulkPrivilege={handleBulkPrivilege}
             canEditPrivileges={canEditPrivileges}
