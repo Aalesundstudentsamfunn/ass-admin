@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { AddMemberDialogStage, CheckEmailActionResult } from "./types";
@@ -28,7 +29,7 @@ export function MemberEmailCheckForm({ action, email, isBusy, stage, checkPendin
 /**
  * Form for creating a brand new member after email check.
  */
-export function MemberCreateForm({ action, normalizedEmail, autoPrint, firstname, lastname, isBusy, createPending, onFirstnameChange, onLastnameChange, onClose, onSubmitStart }: { action: (payload: FormData) => void; normalizedEmail: string; autoPrint: boolean; firstname: string; lastname: string; isBusy: boolean; createPending: boolean; onFirstnameChange: (value: string) => void; onLastnameChange: (value: string) => void; onClose: () => void; onSubmitStart: () => void }) {
+export function MemberCreateForm({ action, normalizedEmail, autoPrint, firstname, lastname, voluntary, isBusy, createPending, onFirstnameChange, onLastnameChange, onVoluntaryChange, onClose, onSubmitStart }: { action: (payload: FormData) => void; normalizedEmail: string; autoPrint: boolean; firstname: string; lastname: string; voluntary: boolean; isBusy: boolean; createPending: boolean; onFirstnameChange: (value: string) => void; onLastnameChange: (value: string) => void; onVoluntaryChange: (value: boolean) => void; onClose: () => void; onSubmitStart: () => void }) {
   return (
     <form action={action} className="mt-4 space-y-4" onSubmit={onSubmitStart}>
       <input type="hidden" name="email" value={normalizedEmail} />
@@ -46,6 +47,13 @@ export function MemberCreateForm({ action, normalizedEmail, autoPrint, firstname
           Etternavn
         </Label>
         <Input id="lastname" name="lastname" placeholder="Nordmann" value={lastname} onChange={(event) => onLastnameChange(event.target.value)} required className="h-12 rounded-xl border-zinc-400/80 bg-white text-zinc-900 placeholder:text-zinc-500 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-400" />
+      </div>
+
+      <div className="flex items-center space-x-2">
+        <Checkbox id="voluntary-create" name="voluntary" checked={voluntary} onCheckedChange={(value) => onVoluntaryChange(!!value)} />
+        <Label htmlFor="voluntary-create" className="text-foreground">
+          Frivillig
+        </Label>
       </div>
 
       <div className="flex justify-end gap-2 pt-2">
