@@ -31,25 +31,16 @@ const RESERVATION_SELECT = `
 /**
  * Loads reservation rows for one user by returned status.
  */
-async function fetchReservationsForUser(
-  userId: string,
-  isReturned: boolean,
-): Promise<ItemReservation[]> {
+async function fetchReservationsForUser(userId: string, isReturned: boolean): Promise<ItemReservation[]> {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .schema("item_schema")
-    .from("item_reservation")
-    .select(RESERVATION_SELECT)
-    .eq("user_id", userId)
-    .eq("is_returned", isReturned)
-    .order("start_time", { ascending: false });
+  const { data, error } = await supabase.schema("item_schema").from("item_reservation").select(RESERVATION_SELECT).eq("user_id", userId).eq("is_returned", isReturned).order("start_time", { ascending: false });
 
   if (error) {
     return [];
   }
 
-  return (data ?? []) as ItemReservation[];
+  return (data ?? []) as unknown as ItemReservation[];
 }
 
 /**
@@ -65,22 +56,9 @@ export default async function UtstyrPage() {
     redirect("/auth/login?next=%2Futstyr");
   }
 
-  const { data: member } = await supabase
-    .from("members")
-    .select("firstname")
-    .eq("id", user.id)
-    .maybeSingle();
+  const { data: member } = await supabase.from("members").select("firstname").eq("id", user.id).maybeSingle();
 
-  const [reservations, oldReservations] = await Promise.all([
-    fetchReservationsForUser(user.id, false),
-    fetchReservationsForUser(user.id, true),
-  ]);
+  const [reservations, oldReservations] = await Promise.all([fetchReservationsForUser(user.id, false), fetchReservationsForUser(user.id, true)]);
 
-  return (
-    <UtstyrClient
-      firstname={member?.firstname ?? "bruker"}
-      reservations={reservations}
-      oldReservations={oldReservations}
-    />
-  );
+  return <UtstyrClient firstname={member?.firstname ?? "bruker"} reservations={reservations} oldReservations={oldReservations} />;
 }
