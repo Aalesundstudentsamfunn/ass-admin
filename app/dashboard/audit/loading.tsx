@@ -7,7 +7,7 @@ import { DashboardLoadingScreen } from "@/components/dashboard/loading-screen";
 export default function LoadingAuditPage() {
   return (
     <DashboardLoadingScreen
-      title="Laster auditlogg"
+      title="Laster logg"
       description="Henter hendelser og forbereder detaljer…"
       embedded
     />

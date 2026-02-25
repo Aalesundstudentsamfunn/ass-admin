@@ -15,10 +15,7 @@ import { ThemeSwitcher } from "@/components/theme-switcher";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { CurrentUserBadge } from "@/components/current-user-badge";
 import { canViewAuditLogs } from "@/lib/privilege-checks";
-import {
-  DashboardSession,
-  DashboardSessionProvider,
-} from "@/components/dashboard/session-context";
+import { DashboardSession, DashboardSessionProvider } from "@/components/dashboard/session-context";
 
 /**
  * Liquid Glass redesign for your dashboard layout
@@ -33,9 +30,9 @@ const navigation = [
   { name: "Utstyr", href: "/dashboard/equipment", icon: Package },
   { name: "Grupper", href: "/dashboard/groups", icon: Building2 },
   { name: "Sertifisering", href: "/dashboard/certification", icon: Award },
-  { name: "Sertifisering — søknader", href: "/dashboard/certification-application", icon: FileText },
+  { name: "Søknader", href: "/dashboard/certification-application", icon: FileText },
   { name: "Printerkø", href: "/dashboard/queue", icon: Printer },
-  { name: "Auditlogg", href: "/dashboard/audit", icon: ShieldCheck },
+  { name: "Logg", href: "/dashboard/audit", icon: ShieldCheck },
   { name: "Innstillinger", href: "/dashboard/settings", icon: Settings },
 ];
 
@@ -131,20 +128,12 @@ function NavItem({ item, active, onClick, collapsed }: { item: (typeof navigatio
  * Renders dashboard shell.
  *
  */
-export default function DashboardShell({
-  children,
-  dashboardSession,
-}: {
-  children: React.ReactNode;
-  dashboardSession: DashboardSession;
-}) {
+export default function DashboardShell({ children, dashboardSession }: { children: React.ReactNode; dashboardSession: DashboardSession }) {
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const visibleNavigation = canViewAuditLogs(dashboardSession.privilegeType)
-    ? navigation
-    : navigation.filter((item) => item.href !== "/dashboard/audit");
+  const visibleNavigation = canViewAuditLogs(dashboardSession.privilegeType) ? navigation : navigation.filter((item) => item.href !== "/dashboard/audit");
 
   const Sidebar = ({ mobile = false }: { mobile?: boolean }) => (
     <div className={cn("flex h-full flex-col gap-4", mobile ? "w-full" : "w-full pt-5")}>
@@ -200,46 +189,46 @@ export default function DashboardShell({
       <div className="relative flex min-h-screen w-full flex-col bg-background antialiased">
         <LiquidBackground />
 
-      {/* Top bar (mobile+desktop) */}
-      <div className="sticky top-0 z-40 px-3 py-3 lg:hidden">
-        <GlassPanel className="flex items-center justify-between px-2 py-1">
-          <div className="flex items-center gap-2">
-            <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl">
-                  <Menu className="h-5 w-5" />
-                  <span className="sr-only">Åpne navigasjonsmeny</span>
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="p-3 bg-transparent border-0">
-                <SheetTitle className="sr-only">Navigasjonsmeny</SheetTitle>
-                <Sidebar mobile />
-              </SheetContent>
-            </Sheet>
-            <span className="text-sm font-semibold">Admin Panel</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <CurrentUserBadge compact name={dashboardSession.name} email={dashboardSession.email} />
-            <ThemeSwitcher />
-          </div>
-        </GlassPanel>
-      </div>
-
-      <div className="mx-auto flex w-full max-w-[1400px] flex-1 items-start gap-3 px-3 pb-6 lg:pt-6">
-        {/* Desktop sidebar */}
-        <aside className={cn("relative hidden shrink-0 transition-[width] duration-300 lg:block", sidebarCollapsed ? "w-20" : "w-72")}>
-          <Sidebar />
-        </aside>
-
-        {/* Main content area */}
-        <main className="relative z-0 flex min-h-[70vh] min-w-0 flex-1 flex-col pt-5">
-          <GlassPanel className="flex min-h-[70vh] flex-1 p-4 md:p-6">
-            <div className="flex-1 min-w-0 overflow-auto">{children}</div>
+        {/* Top bar (mobile+desktop) */}
+        <div className="sticky top-0 z-40 px-3 py-3 lg:hidden">
+          <GlassPanel className="flex items-center justify-between px-2 py-1">
+            <div className="flex items-center gap-2">
+              <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl">
+                    <Menu className="h-5 w-5" />
+                    <span className="sr-only">Åpne navigasjonsmeny</span>
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="p-3 bg-transparent border-0">
+                  <SheetTitle className="sr-only">Navigasjonsmeny</SheetTitle>
+                  <Sidebar mobile />
+                </SheetContent>
+              </Sheet>
+              <span className="text-sm font-semibold">Admin Panel</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CurrentUserBadge compact name={dashboardSession.name} email={dashboardSession.email} />
+              <ThemeSwitcher />
+            </div>
           </GlassPanel>
-        </main>
-      </div>
+        </div>
 
-      {/* Subtle bottom padding / safe area for mobile */}
+        <div className="mx-auto flex w-full max-w-[1400px] flex-1 items-start gap-3 px-3 pb-6 lg:pt-6">
+          {/* Desktop sidebar */}
+          <aside className={cn("relative hidden shrink-0 transition-[width] duration-300 lg:block", sidebarCollapsed ? "w-20" : "w-72")}>
+            <Sidebar />
+          </aside>
+
+          {/* Main content area */}
+          <main className="relative z-0 flex min-h-[70vh] min-w-0 flex-1 flex-col pt-5">
+            <GlassPanel className="flex min-h-[70vh] flex-1 p-4 md:p-6">
+              <div className="flex-1 min-w-0 overflow-auto">{children}</div>
+            </GlassPanel>
+          </main>
+        </div>
+
+        {/* Subtle bottom padding / safe area for mobile */}
         <div className="h-4 lg:h-6" />
       </div>
     </DashboardSessionProvider>

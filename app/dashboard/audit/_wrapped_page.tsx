@@ -28,7 +28,7 @@ export default function AuditLogsPage({ initialData }: { initialData: AuditLogRo
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-balance">Auditlogg</h1>
+        <h1 className="text-3xl font-bold text-balance">Logg</h1>
         <p className="text-muted-foreground text-pretty">Viser hendelser registrert av admin-funksjoner i appen</p>
       </div>
 
