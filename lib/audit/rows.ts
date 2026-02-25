@@ -59,9 +59,7 @@ const ACTION_LABELS: Record<string, string> = {
   "member.update": "Oppdaterte medlem",
 };
 
-const PRIVILEGE_LABELS = new Map(
-  PRIVILEGE_OPTIONS.map((option) => [option.value, option.label] as const),
-);
+const PRIVILEGE_LABELS = new Map(PRIVILEGE_OPTIONS.map((option) => [option.value, option.label] as const));
 
 const FIELD_LABELS: Record<string, string> = {
   privilege_type: "Tilgang",
@@ -276,11 +274,7 @@ function readMemberSnapshot(value: unknown): DeletedMemberSnapshot | null {
  * @returns DeletedMemberSnapshot[]
  */
 function readInlineMemberSnapshots(details: Record<string, unknown>): DeletedMemberSnapshot[] {
-  const snapshots = [
-    readMemberSnapshot(details.old),
-    readMemberSnapshot(details.new),
-    readMemberSnapshot(details.member),
-  ].filter((snapshot): snapshot is DeletedMemberSnapshot => Boolean(snapshot));
+  const snapshots = [readMemberSnapshot(details.old), readMemberSnapshot(details.new), readMemberSnapshot(details.member)].filter((snapshot): snapshot is DeletedMemberSnapshot => Boolean(snapshot));
 
   const deduped = new Map<string, DeletedMemberSnapshot>();
   for (const snapshot of snapshots) {
@@ -296,12 +290,7 @@ function readInlineMemberSnapshots(details: Record<string, unknown>): DeletedMem
  * @returns number
  */
 function snapshotScore(snapshot: DeletedMemberSnapshot): number {
-  return (
-    (snapshot.name ? 4 : 0) +
-    (snapshot.email ? 3 : 0) +
-    (snapshot.firstname ? 2 : 0) +
-    (snapshot.lastname ? 1 : 0)
-  );
+  return (snapshot.name ? 4 : 0) + (snapshot.email ? 3 : 0) + (snapshot.firstname ? 2 : 0) + (snapshot.lastname ? 1 : 0);
 }
 
 /**
@@ -310,10 +299,7 @@ function snapshotScore(snapshot: DeletedMemberSnapshot): number {
  * How: compares quality score and fills missing fields from the weaker snapshot.
  * @returns DeletedMemberSnapshot
  */
-function mergeSnapshots(
-  current: DeletedMemberSnapshot | undefined,
-  next: DeletedMemberSnapshot,
-): DeletedMemberSnapshot {
+function mergeSnapshots(current: DeletedMemberSnapshot | undefined, next: DeletedMemberSnapshot): DeletedMemberSnapshot {
   if (!current) {
     return next;
   }
@@ -413,7 +399,7 @@ function formatFieldValue(field: string, value: unknown): string | null {
     if (typeof value !== "boolean") {
       return null;
     }
-    return value ? "Bannlyst" : "OK";
+    return value ? "Utestengt" : "OK";
   }
   if (typeof value === "boolean") {
     return yesNo(value);
@@ -509,15 +495,8 @@ function toStatus(row: DbAuditRow): AuditLogRow["status"] {
   const updatedFromIds = readStringArray(details, "updated_member_ids").length;
   const updatedCount = Math.max(updatedFromCount, updatedFromIds);
 
-  const skippedFromCount =
-    (asNumber(details.skipped_unavailable_count) ?? 0) +
-    (asNumber(details.skipped_unchanged_count) ?? 0) +
-    (asNumber(details.unchanged_count) ?? 0);
-  const skippedFromIds = new Set([
-    ...readStringArray(details, "unchanged_member_ids"),
-    ...readStringArray(details, "blocked_banned_ids"),
-    ...readStringArray(details, "invalid_member_ids"),
-  ]).size;
+  const skippedFromCount = (asNumber(details.skipped_unavailable_count) ?? 0) + (asNumber(details.skipped_unchanged_count) ?? 0) + (asNumber(details.unchanged_count) ?? 0);
+  const skippedFromIds = new Set([...readStringArray(details, "unchanged_member_ids"), ...readStringArray(details, "blocked_banned_ids"), ...readStringArray(details, "invalid_member_ids")]).size;
   const skippedCount = Math.max(skippedFromCount, skippedFromIds);
 
   if (updatedCount > 0 && skippedCount > 0) {
@@ -538,10 +517,7 @@ function toStatus(row: DbAuditRow): AuditLogRow["status"] {
  * How: Filters invalid ids and queries in chunks to avoid long `in` lists.
  * @returns Promise<Map<string, DbMemberRow>>
  */
-async function fetchMembersByIds(
-  supabase: SupabaseClient,
-  ids: string[],
-) {
+async function fetchMembersByIds(supabase: SupabaseClient, ids: string[]) {
   const uniqueIds = Array.from(new Set(ids.filter((value) => isUuid(value))));
   const map = new Map<string, DbMemberRow>();
 
@@ -552,10 +528,7 @@ async function fetchMembersByIds(
   const chunkSize = 100;
   for (let index = 0; index < uniqueIds.length; index += chunkSize) {
     const chunk = uniqueIds.slice(index, index + chunkSize);
-    const { data, error } = await supabase
-      .from("members")
-      .select("id, firstname, lastname, email")
-      .in("id", chunk);
+    const { data, error } = await supabase.from("members").select("id, firstname, lastname, email").in("id", chunk);
 
     if (error) {
       throw error;
@@ -575,17 +548,8 @@ async function fetchMembersByIds(
  * How: Normalizes emails before query + map insertion.
  * @returns Promise<Map<string, DbMemberRow>>
  */
-async function fetchMembersByEmails(
-  supabase: SupabaseClient,
-  emails: string[],
-) {
-  const uniqueEmails = Array.from(
-    new Set(
-      emails
-        .map((value) => normalizeEmail(value))
-        .filter((value): value is string => isEmail(value)),
-    ),
-  );
+async function fetchMembersByEmails(supabase: SupabaseClient, emails: string[]) {
+  const uniqueEmails = Array.from(new Set(emails.map((value) => normalizeEmail(value)).filter((value): value is string => isEmail(value))));
   const map = new Map<string, DbMemberRow>();
 
   if (!uniqueEmails.length) {
@@ -595,10 +559,7 @@ async function fetchMembersByEmails(
   const chunkSize = 100;
   for (let index = 0; index < uniqueEmails.length; index += chunkSize) {
     const chunk = uniqueEmails.slice(index, index + chunkSize);
-    const { data, error } = await supabase
-      .from("members")
-      .select("id, firstname, lastname, email")
-      .in("email", chunk);
+    const { data, error } = await supabase.from("members").select("id, firstname, lastname, email").in("email", chunk);
 
     if (error) {
       throw error;
@@ -718,12 +679,7 @@ function getTargetLookupEmails(row: DbAuditRow): string[] {
  * How: Prefers UUID matches first, then email matches.
  * @returns ResolvedTarget
  */
-function resolveTarget(
-  row: DbAuditRow,
-  membersById: Map<string, DbMemberRow>,
-  membersByEmail: Map<string, DbMemberRow>,
-  snapshots: MemberSnapshotLookup,
-): ResolvedTarget {
+function resolveTarget(row: DbAuditRow, membersById: Map<string, DbMemberRow>, membersByEmail: Map<string, DbMemberRow>, snapshots: MemberSnapshotLookup): ResolvedTarget {
   const details = detailsOf(row);
   const candidateIds = getTargetLookupIds(row);
   const candidateEmails = getTargetLookupEmails(row);
@@ -789,15 +745,10 @@ function resolveTarget(
     };
   }
 
-  const detailsSnapshots = [
-    ...readDeletedMemberSnapshots(details),
-    ...readInlineMemberSnapshots(details),
-  ];
+  const detailsSnapshots = [...readDeletedMemberSnapshots(details), ...readInlineMemberSnapshots(details)];
   if (detailsSnapshots.length > 0) {
     const targetId = normalizeId(asString(row.target_id));
-    const directMatch = targetId
-      ? detailsSnapshots.find((snapshot) => snapshot.id === targetId)
-      : null;
+    const directMatch = targetId ? detailsSnapshots.find((snapshot) => snapshot.id === targetId) : null;
     const picked = directMatch ?? detailsSnapshots[0];
     if (picked) {
       const name = picked.name ?? `${picked.firstname ?? ""} ${picked.lastname ?? ""}`.trim();
@@ -852,11 +803,7 @@ function buildEventLabel(row: DbAuditRow): string {
  * How: Prefers name, then email, then UUID.
  * @returns string | null
  */
-function buildTargetLabel(
-  targetName: string | null,
-  targetUuid: string | null,
-  targetEmail: string | null,
-): string | null {
+function buildTargetLabel(targetName: string | null, targetUuid: string | null, targetEmail: string | null): string | null {
   return targetName ?? targetEmail ?? targetUuid ?? null;
 }
 
@@ -883,18 +830,8 @@ function getBulkMemberCount(details: Record<string, unknown>): number | null {
   const skippedUnavailableCount = asNumber(details.skipped_unavailable_count);
   const deletedCount = asNumber(details.deleted_count) ?? asNumber(details.count);
 
-  if (
-    updatedCount !== null ||
-    unchangedCount !== null ||
-    skippedUnchangedCount !== null ||
-    skippedUnavailableCount !== null
-  ) {
-    return (
-      (updatedCount ?? 0) +
-      (unchangedCount ?? 0) +
-      (skippedUnchangedCount ?? 0) +
-      (skippedUnavailableCount ?? 0)
-    );
+  if (updatedCount !== null || unchangedCount !== null || skippedUnchangedCount !== null || skippedUnavailableCount !== null) {
+    return (updatedCount ?? 0) + (unchangedCount ?? 0) + (skippedUnchangedCount ?? 0) + (skippedUnavailableCount ?? 0);
   }
 
   if (deletedCount !== null && deletedCount > 0) {
@@ -910,27 +847,18 @@ function getBulkMemberCount(details: Record<string, unknown>): number | null {
  * How: prefers explicit requested list, then member list, then resolved target uuid.
  * @returns string[]
  */
-function getAuditTargetMemberIds(
-  details: Record<string, unknown>,
-  targetUuid: string | null,
-): string[] {
-  const requested = readStringArray(details, "requested_member_ids").filter((id) =>
-    isUuid(normalizeId(id)),
-  );
+function getAuditTargetMemberIds(details: Record<string, unknown>, targetUuid: string | null): string[] {
+  const requested = readStringArray(details, "requested_member_ids").filter((id) => isUuid(normalizeId(id)));
   if (requested.length > 0) {
     return Array.from(new Set(requested));
   }
 
-  const memberIds = readStringArray(details, "member_ids").filter((id) =>
-    isUuid(normalizeId(id)),
-  );
+  const memberIds = readStringArray(details, "member_ids").filter((id) => isUuid(normalizeId(id)));
   if (memberIds.length > 0) {
     return Array.from(new Set(memberIds));
   }
 
-  const deletedMemberIds = readStringArray(details, "deleted_member_ids").filter((id) =>
-    isUuid(normalizeId(id)),
-  );
+  const deletedMemberIds = readStringArray(details, "deleted_member_ids").filter((id) => isUuid(normalizeId(id)));
   if (deletedMemberIds.length > 0) {
     return Array.from(new Set(deletedMemberIds));
   }
@@ -938,11 +866,7 @@ function getAuditTargetMemberIds(
   const snapshotIds = readDeletedMemberSnapshots(details).map((snapshot) => snapshot.id);
   const inlineSnapshotIds = readInlineMemberSnapshots(details).map((snapshot) => snapshot.id);
   const targetMemberId = normalizeId(asString(details.target_member_id));
-  const allSnapshotIds = [
-    ...snapshotIds,
-    ...inlineSnapshotIds,
-    ...(isUuid(targetMemberId) ? [targetMemberId] : []),
-  ];
+  const allSnapshotIds = [...snapshotIds, ...inlineSnapshotIds, ...(isUuid(targetMemberId) ? [targetMemberId] : [])];
   if (allSnapshotIds.length > 0) {
     return Array.from(new Set(allSnapshotIds));
   }
@@ -960,13 +884,7 @@ function getAuditTargetMemberIds(
  * How: classifies each target as updated/skipped/error from detail id lists.
  * @returns AuditTargetItem[]
  */
-function buildTargetItems(
-  details: Record<string, unknown>,
-  targetIds: string[],
-  membersById: Map<string, DbMemberRow>,
-  changeItems: string[],
-  snapshotLookupById: Map<string, DeletedMemberSnapshot>,
-): AuditTargetItem[] {
+function buildTargetItems(details: Record<string, unknown>, targetIds: string[], membersById: Map<string, DbMemberRow>, changeItems: string[], snapshotLookupById: Map<string, DeletedMemberSnapshot>): AuditTargetItem[] {
   if (!targetIds.length) {
     return [];
   }
@@ -978,11 +896,7 @@ function buildTargetItems(
   const failedIds = new Set(readStringArray(details, "failed_member_ids"));
   const failedReasonMap = nestedDetailsObject(details, "failed_reasons_by_member");
   const blockedIds = new Set([...bannedIds, ...invalidIds, ...failedIds]);
-  const snapshotById = new Map(
-    [...readDeletedMemberSnapshots(details), ...readInlineMemberSnapshots(details)].map(
-      (snapshot) => [snapshot.id, snapshot] as const,
-    ),
-  );
+  const snapshotById = new Map([...readDeletedMemberSnapshots(details), ...readInlineMemberSnapshots(details)].map((snapshot) => [snapshot.id, snapshot] as const));
 
   const hasExplicitUpdated = updatedIds.size > 0;
   const primaryChange = changeItems[0] ?? null;
@@ -990,14 +904,8 @@ function buildTargetItems(
   const items = targetIds.map((id) => {
     const member = membersById.get(id);
     const snapshot = snapshotById.get(id) ?? snapshotLookupById.get(id);
-    const fallbackName = snapshot
-      ? (snapshot.name ?? `${snapshot.firstname ?? ""} ${snapshot.lastname ?? ""}`.trim())
-      : null;
-    const label =
-      toMemberLabel(member) ??
-      fallbackName ??
-      snapshot?.email ??
-      id;
+    const fallbackName = snapshot ? (snapshot.name ?? `${snapshot.firstname ?? ""} ${snapshot.lastname ?? ""}`.trim()) : null;
+    const label = toMemberLabel(member) ?? fallbackName ?? snapshot?.email ?? id;
     const email = member?.email ?? snapshot?.email ?? null;
 
     if (blockedIds.has(id)) {
@@ -1006,13 +914,7 @@ function buildTargetItems(
         name: label,
         email,
         status: "error" as const,
-        reason: bannedIds.has(id)
-          ? "Bruker er utestengt."
-          : invalidIds.has(id)
-            ? "Ingen tilgang til å oppdatere dette medlemmet."
-            : failedIds.has(id)
-              ? asString(failedReasonMap[id]) ?? "Oppdatering feilet."
-            : "Kunne ikke oppdateres.",
+        reason: bannedIds.has(id) ? "Bruker er utestengt." : invalidIds.has(id) ? "Ingen tilgang til å oppdatere dette medlemmet." : failedIds.has(id) ? (asString(failedReasonMap[id]) ?? "Oppdatering feilet.") : "Kunne ikke oppdateres.",
         change: null,
       };
     }
@@ -1076,12 +978,7 @@ function buildChangeLines(row: DbAuditRow): string[] {
 
   if (action === "member.membership_status.update") {
     const next = typeof details.is_active === "boolean" ? details.is_active : null;
-    const prev =
-      typeof details.previous_is_active === "boolean"
-        ? details.previous_is_active
-        : typeof next === "boolean"
-          ? !next
-          : null;
+    const prev = typeof details.previous_is_active === "boolean" ? details.previous_is_active : typeof next === "boolean" ? !next : null;
     if (typeof prev === "boolean" && typeof next === "boolean") {
       lines.push(`Aktivt medlemskap: ${yesNo(prev)} -> ${yesNo(next)}`);
     } else if (typeof next === "boolean") {
@@ -1139,14 +1036,9 @@ function buildChangeLines(row: DbAuditRow): string[] {
   }
 
   if (action === "member.ban" || action === "member.unban") {
-    const bannedValue =
-      typeof details.is_banned === "boolean"
-        ? details.is_banned
-        : typeof details.next_banned === "boolean"
-          ? details.next_banned
-          : null;
+    const bannedValue = typeof details.is_banned === "boolean" ? details.is_banned : typeof details.next_banned === "boolean" ? details.next_banned : null;
     if (typeof bannedValue === "boolean") {
-      lines.push(`Kontostatus: ${bannedValue ? "Bannlyst" : "OK"}`);
+      lines.push(`Kontostatus: ${bannedValue ? "Utestengt" : "OK"}`);
     }
     const membershipValue = yesNo(details.is_membership_active);
     if (membershipValue) {
@@ -1193,11 +1085,7 @@ function buildChangeLines(row: DbAuditRow): string[] {
     const newDetails = nestedDetailsObject(details, "new");
     const oldNewKeys = Array.from(new Set([...Object.keys(oldDetails), ...Object.keys(newDetails)]));
     const inferredFields = oldNewKeys.filter((field) => !valuesEqual(oldDetails[field], newDetails[field]));
-    const fieldsToInspect = changedFields.length
-      ? changedFields
-      : inferredFields.length
-        ? inferredFields
-        : ["privilege_type", "is_membership_active", "firstname", "lastname", "is_banned"];
+    const fieldsToInspect = changedFields.length ? changedFields : inferredFields.length ? inferredFields : ["privilege_type", "is_membership_active", "firstname", "lastname", "is_banned"];
 
     if (fieldsToInspect.length > 0) {
       for (const field of fieldsToInspect) {
@@ -1210,11 +1098,7 @@ function buildChangeLines(row: DbAuditRow): string[] {
         if (changedFields.length) {
           lines.push(`Felter: ${changedFields.join(", ")}`);
         } else {
-          lines.push(
-            normalizeId(asString(row.actor_id))
-              ? "Oppdaterte medlem"
-              : "Synkroniserte medlemsdata fra Auth",
-          );
+          lines.push(normalizeId(asString(row.actor_id)) ? "Oppdaterte medlem" : "Synkroniserte medlemsdata fra Auth");
         }
       }
       return lines;
@@ -1359,50 +1243,144 @@ function filterRedundantAuthSyncRows(rows: DbAuditRow[]): DbAuditRow[] {
 }
 
 /**
+ * Resolves the effective ban state represented by one audit row.
+ *
+ * How: Prefers explicit payload values from details; falls back to action key semantics.
+ * @returns boolean | null
+ */
+function getBanState(row: DbAuditRow): boolean | null {
+  const action = asString(row.action);
+  const details = detailsOf(row);
+
+  if (typeof details.is_banned === "boolean") {
+    return details.is_banned;
+  }
+  if (typeof details.next_banned === "boolean") {
+    return details.next_banned;
+  }
+
+  const nextDetails = nestedDetailsObject(details, "new");
+  if (typeof nextDetails.is_banned === "boolean") {
+    return nextDetails.is_banned;
+  }
+
+  if (action === "member.ban") {
+    return true;
+  }
+  if (action === "member.unban") {
+    return false;
+  }
+  return null;
+}
+
+/**
+ * Scores row quality for duplicate suppression.
+ *
+ * How: Prefers rows with explicit actor, richer target snapshots, and explicit target metadata.
+ * @returns number
+ */
+function rankBanRow(row: DbAuditRow): number {
+  const details = detailsOf(row);
+  let score = 0;
+
+  if (normalizeId(asString(row.actor_id))) {
+    score += 10;
+  }
+  const snapshots = [...readInlineMemberSnapshots(details), ...readDeletedMemberSnapshots(details)];
+  score += Math.min(snapshots.length, 5);
+  if (asString(details.target_member_name)) {
+    score += 2;
+  }
+  if (asString(details.target_member_email)) {
+    score += 1;
+  }
+  if (asString(details.target_member_id)) {
+    score += 1;
+  }
+
+  return score;
+}
+
+/**
+ * Removes duplicate ban/unban rows emitted by both app action and auth-sync updates.
+ *
+ * How: When two rows represent the same ban outcome for the same target in the same action window,
+ * keeps only one best-quality row for UI rendering while preserving all rows in DB.
+ * @returns DbAuditRow[]
+ */
+function filterDuplicateBanRows(rows: DbAuditRow[]): DbAuditRow[] {
+  const kept: DbAuditRow[] = [];
+
+  for (const row of rows) {
+    const action = asString(row.action);
+    if (!action || !BAN_RELATED_ACTIONS.has(action)) {
+      kept.push(row);
+      continue;
+    }
+
+    const rowBanState = getBanState(row);
+    const existingIndex = kept.findIndex((candidate) => {
+      const candidateAction = asString(candidate.action);
+      if (!candidateAction || candidateAction !== action || !BAN_RELATED_ACTIONS.has(candidateAction)) {
+        return false;
+      }
+      if (asString(candidate.status) !== asString(row.status)) {
+        return false;
+      }
+      if (asString(candidate.error_message) !== asString(row.error_message)) {
+        return false;
+      }
+      if (!isSameActionWindow(candidate.created_at, row.created_at)) {
+        return false;
+      }
+      if (!rowsShareTarget(candidate, row)) {
+        return false;
+      }
+      return getBanState(candidate) === rowBanState;
+    });
+
+    if (existingIndex === -1) {
+      kept.push(row);
+      continue;
+    }
+
+    if (rankBanRow(row) > rankBanRow(kept[existingIndex])) {
+      kept[existingIndex] = row;
+    }
+  }
+
+  return kept;
+}
+
+/**
  * Loads and adapts the latest admin audit rows for dashboard rendering.
  *
  * How: Fetches raw rows, enriches actor/target names from `members`, and builds concise labels.
  * @returns Promise<{ rows: AuditLogRow[]; errorMessage: string | null }>
  */
-export async function fetchAuditRows(
-  supabase: SupabaseClient,
-): Promise<{ rows: AuditLogRow[]; errorMessage: string | null }> {
-  const { data, error } = await supabase
-    .from("admin_audit_log")
-    .select("id, created_at, actor_id, action, target_table, target_id, status, error_message, details")
-    .order("created_at", { ascending: false })
-    .limit(1000);
+export async function fetchAuditRows(supabase: SupabaseClient): Promise<{ rows: AuditLogRow[]; errorMessage: string | null }> {
+  const { data, error } = await supabase.from("admin_audit_log").select("id, created_at, actor_id, action, target_table, target_id, status, error_message, details").order("created_at", { ascending: false }).limit(1000);
 
   if (error) {
     if (error.message.includes("Could not find the table")) {
       return {
         rows: [],
-        errorMessage:
-          "Fant ikke public.admin_audit_log. Opprett audit-tabellen først.",
+        errorMessage: "Fant ikke public.admin_audit_log. Opprett audit-tabellen først.",
       };
     }
     return { rows: [], errorMessage: error.message };
   }
 
   const dbRows = (data ?? []) as DbAuditRow[];
-  const filteredRows = filterRedundantAuthSyncRows(dbRows);
+  const filteredRows = filterDuplicateBanRows(filterRedundantAuthSyncRows(dbRows));
   const snapshotLookup = buildMemberSnapshotLookup(filteredRows);
 
-  const actorIds = Array.from(
-    new Set(
-      filteredRows
-        .map((row) => normalizeId(asString(row.actor_id)))
-        .filter((value): value is string => isUuid(value)),
-    ),
-  );
+  const actorIds = Array.from(new Set(filteredRows.map((row) => normalizeId(asString(row.actor_id))).filter((value): value is string => isUuid(value))));
   const targetIds = Array.from(new Set(filteredRows.flatMap((row) => getTargetLookupIds(row))));
   const targetEmails = Array.from(new Set(filteredRows.flatMap((row) => getTargetLookupEmails(row))));
   const memberIds = Array.from(new Set([...actorIds, ...targetIds]));
 
-  const [membersById, membersByEmail] = await Promise.all([
-    fetchMembersByIds(supabase, memberIds),
-    fetchMembersByEmails(supabase, targetEmails),
-  ]);
+  const [membersById, membersByEmail] = await Promise.all([fetchMembersByIds(supabase, memberIds), fetchMembersByEmails(supabase, targetEmails)]);
 
   const rows: AuditLogRow[] = filteredRows.map((row) => {
     const actorId = normalizeId(asString(row.actor_id));
@@ -1411,10 +1389,7 @@ export async function fetchAuditRows(
     const details = detailsOf(row);
     const bulkCount = getBulkMemberCount(details);
     const targetBase = buildTargetLabel(target.targetName, target.targetUuid, target.targetEmail);
-    const targetDisplay =
-      bulkCount !== null && bulkCount > 1
-        ? `${targetBase ?? "Flere medlemmer"} (+${bulkCount - 1})`
-        : targetBase;
+    const targetDisplay = bulkCount !== null && bulkCount > 1 ? `${targetBase ?? "Flere medlemmer"} (+${bulkCount - 1})` : targetBase;
     const source = "app.admin";
     const changeItems = buildChangeLines(row);
     const targetIds = getAuditTargetMemberIds(details, target.targetUuid);
