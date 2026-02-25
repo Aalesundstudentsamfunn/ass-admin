@@ -34,6 +34,11 @@ export type AppShape = {
   verified_by_profile?: Verified_by_profile | null
 }
 
+/**
+ * Card for one certification application with status, preview, and actions.
+ *
+ * How: Renders action buttons based on `canManage` and keeps local dialogs for details/delete confirmation.
+ */
 export default function CertificationCard({
   app,
   onAccept,
@@ -51,14 +56,32 @@ export default function CertificationCard({
   const [deleteOpen, setDeleteOpen] = useState(false)
   const allowActions = canManage;
 
+  /**
+   * Accept action dispatcher for the current card.
+   *
+   * How: Calls `onAccept` with current application id when handler exists.
+   * @returns void
+   */
   function handleAccept() {
     if (onAccept) onAccept(app.id)
   }
 
+  /**
+   * Reject action dispatcher for the current card.
+   *
+   * How: Calls `onReject` with current application id when handler exists.
+   * @returns void
+   */
   function handleReject() {
     if (onReject) onReject(app.id)
   }
 
+  /**
+   * Confirms deletion of the current application.
+   *
+   * How: Calls `onDelete` then closes the delete confirmation dialog.
+   * @returns void
+   */
   function handleDeleteConfirm() {
     if (onDelete) onDelete(app.id)
     setDeleteOpen(false)

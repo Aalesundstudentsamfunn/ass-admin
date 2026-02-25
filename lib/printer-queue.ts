@@ -1,3 +1,6 @@
+/**
+ * Printer queue data helpers for enqueueing jobs and watching completion/error state.
+ */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type PrinterQueueEntry = {
@@ -15,6 +18,9 @@ export type PrinterQueueRow = {
   error_msg: string | null;
 };
 
+/**
+ * Inserts a new print request in `public.printer_queue`.
+ */
 export async function enqueuePrinterQueue(
   supabase: SupabaseClient,
   entry: PrinterQueueEntry,
@@ -30,6 +36,11 @@ export async function enqueuePrinterQueue(
     .single();
 }
 
+/**
+ * Subscribes to queue updates and polls as fallback until completion/error.
+ *
+ * Returns an unsubscribe function that clears realtime + polling resources.
+ */
 export function watchPrinterQueueStatus(
   supabase: SupabaseClient,
   {

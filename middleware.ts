@@ -1,9 +1,12 @@
-import { NextResponse, type NextRequest } from "next/server";
+/**
+ * Next.js middleware entrypoint for dashboard/admin route protection.
+ */
+import { type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
-import { createClient } from "@/lib/supabase/server";
 
-
-//midlertidig auth sjekk, bør bli oppdatert 
+/**
+ * Delegates auth/session handling for protected app areas.
+ */
 export async function middleware(request: NextRequest) {
   return updateSession(request);
 }

@@ -1,15 +1,12 @@
-"use client";
-
-import Image from "next/image";
+/**
+ * Client-side presentation and interaction layer for `equipment/[id]/_wrappedPage.tsx`.
+ */
+"use client"
 import * as React from "react";
-import { format } from "date-fns";
-import { nb } from "date-fns/locale";
-import type { DateRange } from "react-day-picker";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Calendar } from "@/components/ui/calendar";
 import {
     Dialog,
     DialogContent,
@@ -19,21 +16,45 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { EquipmentImage } from "@/components/equipment/equipment-image";
 
 import { createClient } from "@/lib/supabase/client";
 import { ItemType } from "./page";
 import { useRouter } from "next/navigation";
 
-function cn(...classes: Array<string | false | null | undefined>) {
-    return classes.filter(Boolean).join(" ");
+type DateRangeState = {
+    from?: Date;
+    to?: Date;
+};
+
+function toDateInputValue(date?: Date) {
+    if (!date) {
+        return "";
+    }
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
 }
 
+function fromDateInputValue(value: string) {
+    if (!value) {
+        return undefined;
+    }
+    const parsed = new Date(`${value}T00:00:00`);
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
+/**
+ * Renders wrapped item page.
+ *
+ */
 export default function WrappedItemPage({ item }: { item: ItemType }) {
     const [open, setOpen] = React.useState(false);
 
-    const [range, setRange] = React.useState<DateRange | undefined>();
+    const [range, setRange] = React.useState<DateRangeState>({});
     const [email, setEmail] = React.useState("");
     const [emailStatus, setEmailStatus] = React.useState<
         "idle" | "checking" | "valid" | "invalid"
@@ -45,6 +66,7 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
 
     const disabledFrom = new Date()// do not disable today, as same-day rental might be desired. just disable past dates.
     disabledFrom.setDate(disabledFrom.getDate() - 1);
+    const minDate = toDateInputValue(new Date(disabledFrom.getTime() + 24 * 60 * 60 * 1000));
 
     // Debounced “does email exist in public.profiles?”
     React.useEffect(() => {
@@ -148,8 +170,8 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
         }
         const { error } = await supabase.schema("item_schema").from("item_reservation").insert({
             item_id: item.id,
-            start_time: range?.from,
-            end_time: range?.to,
+            start_time: range?.from?.toISOString(),
+            end_time: range?.to?.toISOString(),
             user_id: pdata.id,
             lenderId: lenderId,
             number_of_extends: 0,
@@ -169,7 +191,7 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
         toast.success("Utlån opprettet!");
 
         setOpen(false);
-        setRange(undefined);
+        setRange({});
         setEmail("");
         setEmailStatus("idle");
         setEmailMsg("");
@@ -177,60 +199,46 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
     }
 
     return (
-        <main className="min-h-screen bg-white">
-            <div>
-                <div>
-                    <Button onClick={() => window.history.back()}>← Tilbake</Button>
+        <main className="space-y-6 text-foreground">
+            <header className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1">
+                    <h1 className="text-2xl font-semibold lg:text-3xl">Rediger og lei ut</h1>
+                    <p className="text-sm text-muted-foreground">
+                        Detaljer for valgt utstyr.
+                    </p>
                 </div>
-            </div>
+                <Button variant="outline" onClick={() => window.history.back()}>
+                    ← Tilbake
+                </Button>
+            </header>
 
-            <div className="mb-6">
-                <h1 className="text-2xl font-semibold">Rediger og lei ut {item.itemname}</h1>
-                <p className="text-sm text-muted-foreground">
-                    Detaljer for valgt utstyr.
-                </p>
-            </div>
-
-            <div className="mx-auto max-w-6xl lg:grid lg:grid-cols-2">
+            <div className="mx-auto grid max-w-6xl items-start gap-6 xl:grid-cols-[minmax(340px,1fr)_minmax(440px,1fr)]">
                 {/* VENSTRE SIDE – BILDE */}
-                <section className="lg:sticky lg:top-0 lg:h-screen lg:border-r bg-neutral-50">
-                    <div className="relative w-full aspect-[4/3] lg:h-full lg:aspect-auto">
-                        {item.img_path ? (
-                            <Image
-                                src={
-                                    process.env.NEXT_PUBLIC_SUPABASE_URL +
-                                    "/storage/v1/object/public/items/" +
-                                    item.img_path +
-                                    "." +
-                                    item.img_type
-                                }
-                                alt={item.itemname}
-                                fill
-                                priority
-                                className="object-cover"
-                                sizes="(max-width: 1024px) 100vw, 50vw"
-                            />
-                        ) : (
-                            <div className="flex h-full items-center justify-center text-neutral-400">
-                                Ingen bilde
-                            </div>
-                        )}
-                    </div>
+                <section className="relative aspect-[10/11] w-full overflow-hidden rounded-2xl border border-border/60 bg-muted/20">
+                        <EquipmentImage
+                            imgPath={item.img_path}
+                            imgType={item.img_type}
+                            alt={item.itemname}
+                            fill
+                            priority
+                            className="object-cover"
+                            sizes="(max-width: 1280px) 100vw, 480px"
+                        />
                 </section>
 
                 {/* HØYRE SIDE – INFO */}
-                <section className="lg:h-screen lg:overflow-y-auto">
-                    <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-6">
-                        <h1 className="text-2xl font-semibold lg:text-4xl">
+                <section className="rounded-2xl border border-border/60 bg-card/40 p-5 lg:p-7">
+                    <div className="space-y-6">
+                        <h2 className="text-2xl font-semibold lg:text-4xl">
                             {item.itemname}
-                        </h1>
+                        </h2>
 
-                        <div className="flex flex-row space-x-4">
+                        <div className="flex flex-wrap gap-3">
                             <div>
                                 <span
                                     className={`inline-block rounded-full px-4 py-1 text-sm ${item.is_active
-                                        ? "bg-green-100 text-green-700"
-                                        : "bg-red-100 text-red-600"
+                                        ? "bg-emerald-500/15 text-emerald-700 ring-1 ring-emerald-500/25 dark:text-emerald-300"
+                                        : "bg-rose-500/15 text-rose-700 ring-1 ring-rose-500/25 dark:text-rose-300"
                                         }`}
                                 >
                                     {item.is_active ? "Aktiv" : "Deaktivert / mistet / ødelagt"}
@@ -241,8 +249,8 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
                                     <div>
                                         <span
                                             className={`inline-block rounded-full px-4 py-1 text-sm ${item.is_rented
-                                                ? "bg-yellow-100 text-yellow-700"
-                                                : "bg-green-100 text-green-700"
+                                                ? "bg-amber-500/15 text-amber-700 ring-1 ring-amber-500/25 dark:text-amber-300"
+                                                : "bg-emerald-500/15 text-emerald-700 ring-1 ring-emerald-500/25 dark:text-emerald-300"
                                                 }`}
                                         >
                                             {item.is_rented ? "Utlånt" : "Tilgjengelig"}
@@ -253,22 +261,22 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
                         </div>
 
                         <div>
-                            <p className="text-sm text-neutral-500">Lokasjon</p>
+                            <p className="text-sm text-muted-foreground">Lokasjon</p>
                             <p className="font-medium">{item.location}</p>
                         </div>
 
                         {item.itemdescription && (
                             <div>
-                                <p className="text-sm text-neutral-500 mb-2">Beskrivelse</p>
-                                <p className="whitespace-pre-line text-neutral-800">
+                                <p className="mb-2 text-sm text-muted-foreground">Beskrivelse</p>
+                                <p className="whitespace-pre-line text-foreground/90">
                                     {item.itemdescription}
                                 </p>
                             </div>
                         )}
 
                         <div>
-                            <p className="text-sm font-bold mb-2">Krav til sertifisering</p>
-                            <p className="whitespace-pre-line text-neutral-800">
+                            <p className="mb-2 text-sm font-bold">Krav til sertifisering</p>
+                            <p className="whitespace-pre-line text-foreground/90">
                                 {item.certification_type
                                     ? `Dette utstyret krever sertifisering av typen ${item.certification_type_name} (${item.certification_type_description}).`
                                     : "Dette utstyret har ingen sertifiseringskrav."}
@@ -276,7 +284,7 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
                         </div>
 
                         {/* Knapper */}
-                        <div className="flex gap-3 pt-4">
+                        <div className="grid gap-3 pt-4 sm:grid-cols-2">
                             <Dialog open={open} onOpenChange={setOpen}>
                                 <DialogTrigger asChild>
                                     <Button className="flex-1" disabled={!item.is_active || item.is_rented}>
@@ -293,7 +301,7 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
                                     </DialogHeader>
 
                                     {/* Regler (filler) */}
-                                    <div className="space-y-2 text-sm text-neutral-700">
+                                    <div className="space-y-2 text-sm text-foreground/90">
                                         <p className="font-medium">Krav: (kortversjon)</p>
                                         <ul className="list-disc pl-5 space-y-1">
                                             <li>Opplys låner om reglene.</li>
@@ -308,37 +316,47 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
                                     {/* Dato range */}
                                     <div className="space-y-2">
                                         <Label>Periode</Label>
-                                        <Popover>
-                                            <PopoverTrigger asChild>
-                                                <Button
-                                                    variant="outline"
-                                                    className={cn(
-                                                        "w-full justify-start text-left font-normal",
-                                                        !range?.from && "text-muted-foreground"
-                                                    )}
-                                                >
-                                                    {range?.from && range?.to ? (
-                                                        <>
-                                                            {format(range.from, "PPP", { locale: nb })} –{" "}
-                                                            {format(range.to, "PPP", { locale: nb })}
-                                                        </>
-                                                    ) : (
-                                                        "Velg fra og til dato"
-                                                    )}
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-auto p-0" align="start">
-                                                <Calendar
-                                                    mode="range"
-                                                    selected={range}
-                                                    onSelect={setRange}
-                                                    numberOfMonths={2}
-                                                    disabled={(date) => date < disabledFrom /* disable past dates */}
+                                        <div className="grid gap-2 sm:grid-cols-2">
+                                            <div className="space-y-1">
+                                                <Label htmlFor="rent-from" className="text-xs text-muted-foreground">
+                                                    Fra
+                                                </Label>
+                                                <Input
+                                                    id="rent-from"
+                                                    type="date"
+                                                    min={minDate}
+                                                    value={toDateInputValue(range.from)}
+                                                    onChange={(event) => {
+                                                        const from = fromDateInputValue(event.target.value);
+                                                        setRange((prev) => {
+                                                            const nextTo =
+                                                                prev.to && from && prev.to < from ? undefined : prev.to;
+                                                            return { from, to: nextTo };
+                                                        });
+                                                    }}
                                                 />
-                                            </PopoverContent>
-                                        </Popover>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label htmlFor="rent-to" className="text-xs text-muted-foreground">
+                                                    Til
+                                                </Label>
+                                                <Input
+                                                    id="rent-to"
+                                                    type="date"
+                                                    min={toDateInputValue(range.from) || minDate}
+                                                    value={toDateInputValue(range.to)}
+                                                    onChange={(event) => {
+                                                        const to = fromDateInputValue(event.target.value);
+                                                        setRange((prev) => ({ from: prev.from, to }));
+                                                    }}
+                                                    disabled={!range.from}
+                                                />
+                                            </div>
+                                        </div>
                                         <p className="text-xs text-muted-foreground">
-                                            Du må velge både start- og sluttdato.
+                                            {range.from && range.to
+                                                ? `Valgt periode: ${range.from.toLocaleDateString("nb-NO")} – ${range.to.toLocaleDateString("nb-NO")}`
+                                                : "Du må velge både start- og sluttdato."}
                                         </p>
                                     </div>
 
@@ -390,10 +408,10 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
                         </div>
 
                         <div>
-                            <p className="italic whitespace-pre-line text-neutral-800">For å levere bruk admin.astudent.no/utstyr</p>
+                            <p className="italic whitespace-pre-line text-muted-foreground">For å levere bruk admin.astudent.no/utstyr</p>
                         </div>
 
-                        <div className="pt-6 text-xs text-neutral-400">
+                        <div className="pt-6 text-xs text-muted-foreground">
                             Lagt til: {new Date(item.created_at).toLocaleDateString("no-NO")}
                         </div>
                     </div>

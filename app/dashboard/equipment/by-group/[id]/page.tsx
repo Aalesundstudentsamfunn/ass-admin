@@ -1,3 +1,6 @@
+/**
+ * Server route for `equipment/by-group/[id]` dashboard view.
+ */
 import { createClient } from "@/lib/supabase/server";
 import WrappedUtstyrPage from "./_wrappedPage";
 import Link from "next/link";

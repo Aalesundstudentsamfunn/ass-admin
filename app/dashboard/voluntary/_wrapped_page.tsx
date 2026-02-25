@@ -1,685 +1,247 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ArrowUpDown, Filter } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { MEMBER_PAGE_SIZES, useMemberPageSizeDefault } from "@/lib/table-settings"
-import { createClient } from "@/lib/supabase/client"
-import { Badge } from "@/components/ui/badge"
-import { toast } from "sonner"
-import { useCurrentPrivilege } from "@/lib/use-current-privilege"
+import * as React from "react";
+import { ColumnDef } from "@tanstack/react-table";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { MemberDataTable } from "@/components/member-table/member-data-table";
+import { MemberDetailsDialog } from "@/components/member-table/member-details-dialog";
 import {
-  ColumnDef,
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  SortingState,
-  useReactTable,
-  ColumnFiltersState,
-  VisibilityState,
-} from "@tanstack/react-table"
+  createMemberCreatedAtSortColumn,
+  createMemberIdentityColumns,
+  createMemberPrivilegeColumn,
+  createMemberSearchColumn,
+} from "@/components/member-table/columns";
+import {
+  getBulkPrivilegeOptions,
+  MemberRow,
+} from "@/components/member-table/shared";
+import {
+  bulkUpdateMemberPrivilege,
+  updateMemberPrivilege,
+} from "@/lib/members/client-actions";
+import { useCurrentPrivilege } from "@/lib/use-current-privilege";
+import { useCurrentUserId } from "@/lib/use-current-user-id";
+import { useMemberPageSizeDefault } from "@/lib/table-settings";
+import { PRIVILEGE_LEVELS } from "@/lib/privilege-config";
+import {
+  canAssignPrivilege,
+  canEditMemberPrivileges,
+  canSetOwnPrivilege,
+  getMaxAssignablePrivilege,
+  memberPrivilege,
+} from "@/lib/privilege-checks";
+import { toast } from "sonner";
+
+export type UserRow = MemberRow;
 
 /**
- * Liquid Glass Users Page
- * - Uses shadcn/ui + TanStack Table
- * - Columns: id, firstname, lastname, email
- * - Row actions: "Mer info" and Delete (red)
- * - Responsive + dark/light aware + liquid glass aesthetic
+ * Builds voluntary table columns.
+ *
+ * How: Reuses shared member columns and keeps an empty actions column to match table layout.
+ * @returns ColumnDef<UserRow, unknown>[]
  */
-
-// ----- Types -----------------------------------------------------------------
-export type UserRow = {
-  id: string | number
-  firstname: string
-  lastname: string
-  email: string
-  is_voluntary?: boolean | null
-  privilege_type?: number | null
-  added_by?: string | null
-  created_at?: string | null
-  profile_id?: string | null
-}
-
-const PILL_CLASS = "rounded-full px-2.5 py-0.5 text-xs font-medium"
-
-async function copyToClipboard(value: string, label: string) {
-  try {
-    await navigator.clipboard.writeText(value)
-    toast.success(`${label} kopiert.`)
-  } catch {
-    toast.error(`Kunne ikke kopiere ${label.toLowerCase()}.`)
-  }
-}
-
-type AddedByProfile = {
-  firstname?: string | null
-  lastname?: string | null
-  email?: string | null
-}
-
-
-function MemberDetailsDialog({
-  open,
-  onOpenChange,
-  member,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  member: UserRow | null;
-}) {
-  const [addedByProfile, setAddedByProfile] = React.useState<AddedByProfile | null>(null)
-  const [loadingAddedBy, setLoadingAddedBy] = React.useState(false)
-
-  React.useEffect(() => {
-    let active = true
-    const load = async () => {
-      if (!open || !member?.added_by) {
-        setAddedByProfile(null)
-        return
-      }
-      setLoadingAddedBy(true)
-      const supabase = createClient()
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("firstname, lastname, email")
-        .eq("id", member.added_by)
-        .single<AddedByProfile>()
-      if (!active) {
-        return
-      }
-      setAddedByProfile(profile ?? null)
-      setLoadingAddedBy(false)
-    }
-
-    load()
-
-    return () => {
-      active = false
-    }
-  }, [open, member?.added_by])
-
-  const fullName = member ? `${member.firstname ?? ""} ${member.lastname ?? ""}`.trim() : ""
-  const addedByName = addedByProfile
-    ? [addedByProfile.firstname ?? "", addedByProfile.lastname ?? ""].join(" ").trim()
-    : ""
-  const addedByLabel = addedByName || addedByProfile?.email || member?.added_by || "—"
-  const createdAtLabel = member?.created_at ? new Date(member.created_at).toLocaleString() : "—"
-  const profileLink = member?.profile_id && member?.email ? `/dashboard/users?email=${encodeURIComponent(member.email)}` : null
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Medlemsdetaljer</DialogTitle>
-          <DialogDescription>Informasjon om valgt medlem.</DialogDescription>
-        </DialogHeader>
-        {member ? (
-          <div className="grid gap-2 text-sm">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">ID</span>
-              <span className="font-medium">
-                <span className="relative inline-flex items-center group">
-                  <button
-                    type="button"
-                    className="underline-offset-2 hover:underline"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      copyToClipboard(String(member.id), "ID")
-                    }}
-                  >
-                    {member.id}
-                  </button>
-                  <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground/90 px-2 py-1 text-[10px] text-background opacity-0 transition-opacity group-hover:opacity-100">
-                    Kopier
-                  </span>
-                </span>
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Navn</span>
-              <span className="font-medium">{fullName || "—"}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">E-post</span>
-              {member.email ? (
-                <span className="font-medium">
-                  <span className="relative inline-flex items-center group">
-                    <button
-                      type="button"
-                      className="underline-offset-2 hover:underline"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        copyToClipboard(member.email ?? "", "E-post")
-                      }}
-                    >
-                      {member.email}
-                    </button>
-                    <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground/90 px-2 py-1 text-[10px] text-background opacity-0 transition-opacity group-hover:opacity-100">
-                      Kopier
-                    </span>
-                  </span>
-                </span>
-              ) : (
-                <span className="font-medium">—</span>
-              )}
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Frivillig</span>
-              <span className="font-medium">{member.is_voluntary ? "Ja" : "Nei"}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Registrert</span>
-              <span className="font-medium">
-                {profileLink ? (
-                  <a href={profileLink} className="text-xs underline-offset-2 hover:underline">
-                    Se profil
-                  </a>
-                ) : (
-                  "Nei"
-                )}
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Lagt til av</span>
-              <span className="font-medium">
-                {loadingAddedBy ? "Laster..." : addedByLabel}
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Opprettet</span>
-              <span className="font-medium">{createdAtLabel}</span>
-            </div>
-          </div>
-        ) : (
-          <div className="text-sm text-muted-foreground">Ingen medlem valgt.</div>
-        )}
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-// ----- Liquid Glass primitives ----------------------------------------------
-function Glass({ className = "", children }: React.PropsWithChildren<{ className?: string }>) {
-  return (
-    <div
-      className={cn(
-        "relative rounded-2xl border backdrop-blur-xl",
-        "bg-white/65 border-white/50 shadow-[0_1px_0_rgba(255,255,255,0.6),0_10px_30px_-10px_rgba(16,24,40,0.25)]",
-        "dark:bg-white/5 dark:border-white/10 dark:shadow-[0_1px_0_rgba(255,255,255,0.07),0_20px_60px_-20px_rgba(0,0,0,0.6)]",
-        className,
-      )}
-    >
-      {children}
-    </div>
-  )
-}
-
-// ----- Columns ---------------------------------------------------------------
 function buildColumns(
-  onVoluntaryUpdated: (member: UserRow, next: boolean) => void,
+  onPrivilegeChange: (member: UserRow, next: number) => void,
+  canEditPrivileges: boolean,
+  bulkOptions: { value: number; label: string }[],
+  currentPrivilege: number | null | undefined,
 ): ColumnDef<UserRow, unknown>[] {
   return [
-  {
-    id: "search",
-    accessorFn: (row: UserRow) => `${row.firstname ?? ""} ${row.lastname ?? ""} ${row.email ?? ""}`.trim(),
-    filterFn: (row, columnId, value) => {
-      const query = String(value ?? "").trim().toLowerCase()
-      if (!query) {
-        return true
+    createMemberSearchColumn(false),
+    createMemberCreatedAtSortColumn(),
+    ...createMemberIdentityColumns(),
+    createMemberPrivilegeColumn({
+      canEditPrivileges,
+      bulkOptions,
+      currentPrivilege,
+      onPrivilegeChange,
+    }),
+    {
+      id: "actions",
+      header: () => <span className="sr-only">Actions</span>,
+      cell: () => null,
+      enableHiding: false,
+    },
+  ];
+}
+
+/**
+ * Client container for the frivillige page.
+ *
+ * How: Loads local row state from server data, handles privilege updates, and opens shared member details dialog.
+ */
+export default function VoluntaryPage({ initialData }: { initialData: UserRow[] }) {
+  const defaultPageSize = useMemberPageSizeDefault();
+  const [rows, setRows] = React.useState<UserRow[]>(initialData);
+  const [selectedMember, setSelectedMember] = React.useState<UserRow | null>(null);
+  const [detailsOpen, setDetailsOpen] = React.useState(false);
+  const currentUserId = useCurrentUserId();
+
+  const currentPrivilege = useCurrentPrivilege();
+  const canEditPrivileges = canEditMemberPrivileges(currentPrivilege);
+  const allowedMax = getMaxAssignablePrivilege(currentPrivilege);
+  const bulkOptions = React.useMemo(() => getBulkPrivilegeOptions(allowedMax), [allowedMax]);
+
+  React.useEffect(() => {
+    setRows(initialData);
+  }, [initialData]);
+
+  /**
+   * Applies privilege updates to local state and removes rows that drop below frivillig.
+   *
+   * @returns void
+   */
+  const applyPrivilegeToRows = React.useCallback((ids: string[], next: number) => {
+    const idSet = new Set(ids);
+    setRows((prev) => {
+      if (next < PRIVILEGE_LEVELS.VOLUNTARY) {
+        return prev.filter((row) => !idSet.has(String(row.id)));
       }
-      const haystack = String(row.getValue(columnId) ?? "").toLowerCase()
-      return haystack.includes(query)
+      return prev.map((row) => (idSet.has(String(row.id)) ? { ...row, privilege_type: next } : row));
+    });
+    setSelectedMember((prev) => {
+      if (!prev || !idSet.has(String(prev.id))) {
+        return prev;
+      }
+      if (next < PRIVILEGE_LEVELS.VOLUNTARY) {
+        setDetailsOpen(false);
+        return null;
+      }
+      return { ...prev, privilege_type: next };
+    });
+  }, []);
+
+  /**
+   * Applies membership active/inactive updates to local list + selected dialog row.
+   *
+   * @returns void
+   */
+  const applyMembershipStatusToRows = React.useCallback((ids: string[], isActive: boolean) => {
+    const idSet = new Set(ids);
+    setRows((prev) =>
+      prev.map((row) =>
+        idSet.has(String(row.id)) ? { ...row, is_membership_active: isActive } : row,
+      ),
+    );
+    setSelectedMember((prev) => {
+      if (!prev || !idSet.has(String(prev.id))) {
+        return prev;
+      }
+      return { ...prev, is_membership_active: isActive };
+    });
+  }, []);
+
+  /**
+   * Updates one row's privilege after client-side permission checks.
+   *
+   * @returns Promise<void>
+   */
+  const handleRowPrivilegeChange = React.useCallback(
+    async (member: UserRow, next: number) => {
+      const currentValue = memberPrivilege(member.privilege_type);
+      if (!Number.isFinite(next) || next === currentValue) {
+        toast.error("Medlemmet har allerede dette tilgangsnivået.");
+        return;
+      }
+      if (!canEditPrivileges) {
+        toast.error("Du har ikke tilgang til å endre tilgangsnivå.");
+        return;
+      }
+      if (!canAssignPrivilege(currentPrivilege, next, currentValue)) {
+        toast.error("Ugyldig tilgangsnivå for din rolle.");
+        return;
+      }
+      if (currentUserId && String(currentUserId) === String(member.id) && !canSetOwnPrivilege(currentPrivilege, next)) {
+        toast.error("Du kan ikke gi deg selv høyere tilgangsnivå.");
+        return;
+      }
+
+      const toastId = toast.loading("Oppdaterer tilgangsnivå...", { duration: 10000 });
+      const { error } = await updateMemberPrivilege(String(member.id), next);
+      if (error) {
+        toast.error("Kunne ikke oppdatere tilgangsnivå.", { id: toastId, description: error.message, duration: Infinity });
+        return;
+      }
+
+      applyPrivilegeToRows([String(member.id)], next);
+      toast.success("Tilgangsnivå oppdatert.", { id: toastId, duration: 6000 });
     },
-    enableSorting: false,
-    enableHiding: true,
-  },
-  {
-    accessorKey: "email",
-    header: ({ column }) => (
-      <button
-        className="inline-flex items-center gap-1"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      >
-        Email <ArrowUpDown className="h-3.5 w-3.5" />
-      </button>
-    ),
-    cell: ({ row }) => (
-      <span className="relative inline-flex items-center group">
-        <button
-          type="button"
-          className="underline-offset-2 hover:underline"
-          onClick={(event) => {
-            event.stopPropagation()
-            copyToClipboard(String(row.getValue("email") ?? ""), "E-post")
-          }}
-        >
-          {row.getValue("email")}
-        </button>
-        <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground/90 px-2 py-1 text-[10px] text-background opacity-0 transition-opacity group-hover:opacity-100">
-          Kopier
-        </span>
-      </span>
-    ),
-  },
-  {
-    accessorKey: "firstname",
-    header: ({ column }) => (
-      <button
-        className="inline-flex items-center gap-1"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      >
-        First name <ArrowUpDown className="h-3.5 w-3.5" />
-      </button>
-    ),
-    cell: ({ row }) => <span>{row.getValue("firstname")}</span>,
-  },
-  {
-    accessorKey: "lastname",
-    header: ({ column }) => (
-      <button
-        className="inline-flex items-center gap-1"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      >
-        Last name <ArrowUpDown className="h-3.5 w-3.5" />
-      </button>
-    ),
-    cell: ({ row }) => <span>{row.getValue("lastname")}</span>,
-  },
-  {
-    accessorKey: "is_voluntary",
-    header: ({ column }) => (
-      <button
-        className="inline-flex items-center gap-1"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      >
-        Frivillig <ArrowUpDown className="h-3.5 w-3.5" />
-      </button>
-    ),
-    cell: ({ row }) => {
-      const member = row.original as UserRow
-      const isVoluntary = Boolean(member.is_voluntary)
-      return (
-        <button
-          type="button"
-          className="group relative inline-flex items-center"
-          onClick={async (event) => {
-            event.stopPropagation()
-            const supabase = createClient()
-            const next = !isVoluntary
-            const toastId = toast.loading(next ? "Setter som frivillig..." : "Fjerner frivillig...", { duration: 10000 })
-            const { data, error } = await supabase.rpc("set_user_voluntary", {
-              p_user_id: null,
-              p_email: member.email ?? null,
-              p_voluntary: next,
-            })
+    [applyPrivilegeToRows, canEditPrivileges, currentPrivilege, currentUserId],
+  );
 
-            if (error) {
-              toast.error("Kunne ikke oppdatere frivillig-status.", {
-                id: toastId,
-                description: error.message,
-                duration: Infinity,
-              })
-              return
-            }
-
-            if (data?.members_updated === 0) {
-              toast.error("Kunne ikke oppdatere ass_members.", {
-                id: toastId,
-                description: "ass_members update affected 0 rows.",
-                duration: 10000,
-              })
-            } else {
-              toast.success(next ? "Satt som frivillig." : "Fjernet som frivillig.", { id: toastId, duration: 6000 })
-            }
-
-            onVoluntaryUpdated(member, next)
-          }}
-        >
-          <Badge
-            variant="secondary"
-            className={`${PILL_CLASS} transition-colors group-hover:bg-muted/60 group-hover:text-foreground group-hover:ring-1 group-hover:ring-foreground/15`}
-          >
-            {isVoluntary ? "Frivillig" : "Medlem"}
-          </Badge>
-          <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground/90 px-2 py-1 text-[10px] text-background opacity-0 transition-opacity group-hover:opacity-100">
-            {isVoluntary ? "Fjern frivillig" : "Gjør frivillig"}
-          </span>
-        </button>
-      )
-    },
-  },
-  {
-    id: "actions",
-    header: () => <span className="sr-only">Actions</span>,
-    cell: () => null,
-    enableHiding: false,
-  },
-  ]
-}
-
-// ----- DataTable -------------------------------------------------------------
-function DataTable({
-  columns,
-  data,
-  defaultPageSize,
-  onRowClick,
-  onBulkVoluntary,
-}: {
-  columns: ColumnDef<UserRow, unknown>[];
-  data: UserRow[];
-  defaultPageSize: number;
-  onRowClick?: (member: UserRow) => void;
-  onBulkVoluntary: (members: UserRow[], next: boolean) => Promise<void>;
-}) {
-  const [sorting, setSorting] = React.useState<SortingState>([])
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({ search: false })
-  const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: defaultPageSize })
-  const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({})
-  const [selectionMode, setSelectionMode] = React.useState(false)
-  const pageSizeOptions = MEMBER_PAGE_SIZES
-
-  const table = useReactTable({
-    data,
-    columns,
-    state: { sorting, columnFilters, columnVisibility, pagination, rowSelection },
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    onColumnVisibilityChange: setColumnVisibility,
-    onPaginationChange: setPagination,
-    onRowSelectionChange: setRowSelection,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    enableRowSelection: true,
-  })
-
-  React.useEffect(() => {
-    setPagination((prev) => ({ ...prev, pageSize: defaultPageSize, pageIndex: 0 }))
-  }, [defaultPageSize])
-
-  React.useEffect(() => {
-    if (!selectionMode) {
-      table.resetRowSelection()
-    }
-  }, [selectionMode, table])
-
-  const selectedRows = table.getSelectedRowModel().rows
-  const selectedMembers = selectedRows.map((row) => row.original as UserRow)
-  const hasSelection = selectedMembers.length > 0
-  const hasSearchFilter = Boolean(table.getColumn("search")?.getFilterValue())
-
-  return (
-    <div className="space-y-3">
-      {/* Toolbar */}
-      <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 items-center gap-2">
-          <div className="relative w-full max-w-xs">
-            <Input
-              placeholder="Søk navn eller e-post…"
-              value={(table.getColumn("search")?.getFilterValue() as string) ?? ""}
-              onChange={(e) => table.getColumn("search")?.setFilterValue(e.target.value)}
-              className="rounded-xl bg-background/60"
-            />
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-              <Filter className="h-4 w-4" />
-            </span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant={selectionMode ? "secondary" : "outline"}
-            className="rounded-xl"
-            onClick={() => setSelectionMode((prev) => !prev)}
-          >
-            {selectionMode ? "Avslutt valg" : "Velg rader"}
-          </Button>
-        </div>
-      </div>
-      {hasSelection ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/60 bg-background/60 px-3 py-2 text-sm">
-          <span className="font-medium">{selectedMembers.length} valgt</span>
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-xl"
-            onClick={async () => {
-              await onBulkVoluntary(selectedMembers, false)
-              table.resetRowSelection()
-            }}
-          >
-            Fjern frivillig
-          </Button>
-          <Button size="sm" variant="ghost" className="rounded-xl" onClick={() => table.resetRowSelection()}>
-            Nullstill valg
-          </Button>
-        </div>
-      ) : null}
-
-      {/* Table */}
-      <Glass>
-        <div className="overflow-x-auto rounded-2xl">
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id} className="whitespace-nowrap">
-                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => {
-                  const member = row.original as UserRow;
-                  return (
-                    <TableRow
-                      key={row.id}
-                      data-state={row.getIsSelected() && "selected"}
-                      onClick={() => {
-                        if (selectionMode) {
-                          row.toggleSelected()
-                          return
-                        }
-                        onRowClick?.(member)
-                      }}
-                      onKeyDown={(event) => {
-                        if (!selectionMode && !onRowClick) {
-                          return;
-                        }
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          if (selectionMode) {
-                            row.toggleSelected()
-                          } else {
-                            onRowClick?.(member)
-                          }
-                        }
-                      }}
-                      tabIndex={selectionMode || onRowClick ? 0 : undefined}
-                      aria-label={
-                        selectionMode
-                          ? `Velg ${member.firstname} ${member.lastname}`
-                          : onRowClick
-                            ? `Vis detaljer for ${member.firstname} ${member.lastname}`
-                            : undefined
-                      }
-                      className={cn(
-                        (selectionMode || onRowClick) && "cursor-pointer hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      )}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id} className="align-middle">
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  );
-                })
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={columns.length} className="h-24 text-center">
-                    <div className="space-y-2">
-                      <div>Ingen resultater.</div>
-                      {hasSearchFilter ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="rounded-xl"
-                          onClick={() => table.getColumn("search")?.setFilterValue("")}
-                        >
-                          Nullstill filter
-                        </Button>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </Glass>
-
-      {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <div className="text-xs text-muted-foreground">
-          Viser {table.getRowModel().rows.length} av {table.getFilteredRowModel().rows.length} rader
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Rader per side</span>
-          <select
-            value={table.getState().pagination.pageSize}
-            onChange={(e) => {
-              const next = Number(e.target.value)
-              if (Number.isNaN(next)) {
-                return
-              }
-              table.setPageSize(next)
-              table.setPageIndex(0)
-            }}
-            className="h-8 w-20 rounded-xl border border-border/60 bg-background/60 px-2 text-xs"
-            style={{ fontVariantNumeric: "tabular-nums" }}
-          >
-            {pageSizeOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-xl"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Forrige
-          </Button>
-          {/* Go to page input */}
-          <span className="text-xs">Gå til side</span>
-          <Input
-            type="number"
-            min={1}
-            max={table.getPageCount()}
-            value={table.getState().pagination.pageIndex + 1}
-            onChange={e => {
-              let page = Number(e.target.value) - 1;
-              if (!isNaN(page)) {
-                page = Math.max(0, Math.min(page, table.getPageCount() - 1));
-                table.setPageIndex(page);
-              }
-            }}
-            className="w-16 h-8 px-2 py-1 text-xs"
-            style={{ fontVariantNumeric: "tabular-nums" }}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-xl"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Neste
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-
-// ----- Page ------------------------------------------------------------------
-export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
-
-  // If no data is provided, show a tiny demo set for layout/dev
-  //get data from supabase
-  const defaultPageSize = useMemberPageSizeDefault()
-  const [rows, setRows] = React.useState<UserRow[]>(initialData)
-  const [selectedMember, setSelectedMember] = React.useState<UserRow | null>(null)
-  const [detailsOpen, setDetailsOpen] = React.useState(false)
-  const currentPrivilege = useCurrentPrivilege()
-  const canManageVoluntary = (currentPrivilege ?? 0) >= 2
-  const columns = React.useMemo(
-    () =>
-      buildColumns((member, next) => {
-        setRows((prev) =>
-          prev.map((row) => (String(row.id) === String(member.id) ? { ...row, is_voluntary: next } : row)),
-        )
-        setSelectedMember((prev) =>
-          prev && String(prev.id) === String(member.id) ? { ...prev, is_voluntary: next } : prev,
-        )
-      }),
-    [],
-  )
-  const handleBulkVoluntary = React.useCallback(
-    async (members: UserRow[], next: boolean) => {
+  /**
+   * Bulk-updates privileges for all selected rows the current actor is allowed to change.
+   *
+   * @returns Promise<void>
+   */
+  const handleBulkPrivilege = React.useCallback(
+    async (members: UserRow[], next: number) => {
       if (!members.length) {
-        return
+        return;
       }
-      const confirmed = window.confirm(`Fjern frivillig for ${members.length} personer?`)
-      if (!confirmed) {
-        return
+      if (!canEditPrivileges) {
+        toast.error("Du har ikke tilgang til å endre tilgangsnivå.");
+        return;
       }
-      if (!canManageVoluntary) {
-        toast.error("Du har ikke tilgang til å endre frivillig-status.")
-        return
+      if (!canAssignPrivilege(currentPrivilege, next)) {
+        toast.error("Ugyldig tilgangsnivå for din rolle.");
+        return;
       }
-      const toastId = toast.loading("Fjerner frivillige...", { duration: 10000 })
-      const supabaseClient = createClient()
-      let successCount = 0
-      let errorCount = 0
+      const unchangedIds: string[] = [];
+      const blockedIds: string[] = [];
+      const eligibleIds: string[] = [];
       for (const member of members) {
-        const { error } = await supabaseClient.rpc("set_user_voluntary", {
-          p_user_id: null,
-          p_email: member.email ?? null,
-          p_voluntary: next,
-        })
-        if (error) {
-          errorCount += 1
-        } else {
-          successCount += 1
+        const currentValue = memberPrivilege(member.privilege_type);
+        const memberId = String(member.id);
+        if (currentValue === next) {
+          unchangedIds.push(memberId);
+          continue;
         }
+        if (!canAssignPrivilege(currentPrivilege, next, currentValue)) {
+          blockedIds.push(memberId);
+          continue;
+        }
+        eligibleIds.push(memberId);
       }
-      if (errorCount > 0) {
-        toast.error("Kunne ikke oppdatere alle frivillige.", { id: toastId, duration: Infinity })
-      } else {
-        toast.success(`Oppdatert ${successCount} frivillige.`, { id: toastId, duration: 6000 })
+      if (!eligibleIds.length) {
+        if (unchangedIds.length > 0 && blockedIds.length === 0) {
+          toast.error("Alle valgte medlemmer har allerede dette tilgangsnivået.");
+          return;
+        }
+        toast.error("Ingen valgte medlemmer kan oppdateres med dette nivået.");
+        return;
       }
+
+      const toastId = toast.loading("Oppdaterer tilgangsnivå...", { duration: 10000 });
+      const { error } = await bulkUpdateMemberPrivilege(eligibleIds, next);
+      if (error) {
+        toast.error("Kunne ikke oppdatere tilgangsnivå.", { id: toastId, description: error.message, duration: Infinity });
+        return;
+      }
+
+      applyPrivilegeToRows(eligibleIds, next);
+      const skippedCount = unchangedIds.length + blockedIds.length;
+      if (skippedCount > 0) {
+        toast.warning("Noen valgte medlemmer ble hoppet over.", {
+          id: toastId,
+          description: `Oppdatert ${eligibleIds.length}, hoppet over ${skippedCount}.`,
+          duration: 7000,
+        });
+        return;
+      }
+      toast.success("Tilgangsnivå oppdatert.", {
+        id: toastId,
+        description: members.length > 1 ? `Oppdatert ${eligibleIds.length} medlemmer.` : undefined,
+        duration: 6000,
+      });
     },
-    [canManageVoluntary],
-  )
+    [applyPrivilegeToRows, canEditPrivileges, currentPrivilege],
+  );
+
+  const columns = React.useMemo(
+    () => buildColumns(handleRowPrivilegeChange, canEditPrivileges, bulkOptions, currentPrivilege),
+    [handleRowPrivilegeChange, canEditPrivileges, bulkOptions, currentPrivilege],
+  );
 
   return (
     <div className="space-y-6">
@@ -694,28 +256,68 @@ export default function UsersPage({ initialData }: { initialData: UserRow[] }) {
           <CardDescription>Sorter, filtrer og håndter frivillige</CardDescription>
         </CardHeader>
         <CardContent className="px-0">
-          <DataTable
+          <MemberDataTable
             columns={columns}
             data={rows}
             defaultPageSize={defaultPageSize}
-            onBulkVoluntary={handleBulkVoluntary}
+            defaultSorting={[{ id: "privilege_type", desc: true }]}
+            filterMode="voluntary-roles"
+            onBulkPrivilege={handleBulkPrivilege}
+            canEditPrivileges={canEditPrivileges}
+            bulkOptions={bulkOptions}
             onRowClick={(member) => {
-              setSelectedMember(member)
-              setDetailsOpen(true)
+              setSelectedMember(member);
+              setDetailsOpen(true);
             }}
           />
         </CardContent>
       </Card>
+
       <MemberDetailsDialog
         open={detailsOpen}
         onOpenChange={(open) => {
-          setDetailsOpen(open)
+          setDetailsOpen(open);
           if (!open) {
-            setSelectedMember(null)
+            setSelectedMember(null);
           }
         }}
         member={selectedMember}
+        currentUserId={currentUserId}
+        currentUserPrivilege={currentPrivilege}
+        onPrivilegeUpdated={(next) => {
+          if (selectedMember) {
+            applyPrivilegeToRows([String(selectedMember.id)], next);
+          }
+        }}
+        onMembershipStatusUpdated={(next) => {
+          if (selectedMember) {
+            applyMembershipStatusToRows([String(selectedMember.id)], next);
+          }
+        }}
+        onNameUpdated={(firstname, lastname) => {
+          if (!selectedMember) {
+            return;
+          }
+          setRows((prev) =>
+            prev.map((row) =>
+              String(row.id) === String(selectedMember.id) ? { ...row, firstname, lastname } : row,
+            ),
+          );
+          setSelectedMember((prev) => (prev ? { ...prev, firstname, lastname } : prev));
+        }}
+        onBanUpdated={(next) => {
+          if (!selectedMember) {
+            return;
+          }
+          setRows((prev) =>
+            prev.map((row) =>
+              String(row.id) === String(selectedMember.id) ? { ...row, is_banned: next } : row,
+            ),
+          );
+          setSelectedMember((prev) => (prev ? { ...prev, is_banned: next } : prev));
+        }}
+        showBanControls={false}
       />
     </div>
-  )
+  );
 }

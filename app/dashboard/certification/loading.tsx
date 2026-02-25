@@ -1,3 +1,11 @@
-export default function Loading() {
-  return <div className="p-6">Laster sertifiseringer…</div>
+import { DashboardLoadingScreen } from "@/components/dashboard/loading-screen";
+
+export default function LoadingCertificationPage() {
+  return (
+    <DashboardLoadingScreen
+      title="Laster sertifisering"
+      description="Henter sertifiseringer og status…"
+      embedded
+    />
+  );
 }

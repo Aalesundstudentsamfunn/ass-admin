@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Image from "next/image";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ItemType } from "./page";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { EquipmentImage } from "@/components/equipment/equipment-image";
 
 
 
@@ -38,13 +38,16 @@ export default function WrappedUtstyrPage({ items }: { items: ItemType[] }) {
                     <Card key={item.id.toString()} className="overflow-hidden">
 
                         <CardHeader>
-                            {item.img_path ? (
-                                <div className="relative w-full h-48 rounded-md overflow-hidden">
-                                    <Image src={process.env.NEXT_PUBLIC_SUPABASE_URL + "/storage/v1/object/public/items/" + item.img_path + "." + item.img_type} alt="certificate" fill style={{ objectFit: "cover" }} sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw" />
-                                </div>
-                            ) : (
-                                <div className="h-48 w-full rounded-md bg-muted-foreground/10 flex items-center justify-center text-sm">Ingen bilde</div>
-                            )}
+                            <div className="relative aspect-square w-full overflow-hidden rounded-md">
+                                <EquipmentImage
+                                    imgPath={item.img_path}
+                                    imgType={item.img_type}
+                                    alt={item.itemname ?? "Utstyr"}
+                                    fill
+                                    className="object-cover"
+                                    sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+                                />
+                            </div>
                             <CardTitle className="text-base">
                                 {item.itemname ?? "Uten navn"}
                             </CardTitle>

@@ -1,119 +1,209 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { createClient } from "@/lib/supabase/client"
-import { useCurrentPrivilege } from "@/lib/use-current-privilege"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { cn } from "@/lib/utils"
+/**
+ * Server route for `certification` dashboard view.
+ */
+
+import * as React from "react";
+import { SupabaseClient } from "@supabase/supabase-js";
 import {
   ColumnDef,
+  ColumnFiltersState,
+  SortingState,
+  VisibilityState,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
-  SortingState,
   useReactTable,
-  ColumnFiltersState,
-  VisibilityState,
-} from "@tanstack/react-table"
-import { SupabaseClient } from "@supabase/supabase-js"
-import { useEffect, useState } from "react"
+} from "@tanstack/react-table";
+import { createClient } from "@/lib/supabase/client";
+import { useCurrentPrivilege } from "@/lib/use-current-privilege";
+import { canManageCertificates as hasCertificateAccess } from "@/lib/privilege-checks";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { GlassPanel } from "@/components/ui/glass-panel";
+import { TablePaginationControls } from "@/components/ui/table-pagination-controls";
+
+type HolderProfile = {
+  id: string;
+  firstname: string;
+  lastname: string;
+  email: string;
+};
+
+type CertificateType = {
+  id: number;
+  type: string;
+};
+
+type RelationMaybeArray<T> = T | T[] | null;
+
+type CertificateDbRow = {
+  id: number;
+  created_at: string;
+  application_id: number | null;
+  holder: RelationMaybeArray<HolderProfile>;
+  type: RelationMaybeArray<CertificateType>;
+};
 
 type CertificateRow = {
-  id: number
-  created_at: string
-  application_id: number | null
-  holder: string | null
-  type: { id: number; type: string } | null
-  profiles: { id: string; firstname: string; lastname: string; email: string } | null
+  id: number;
+  created_at: string;
+  application_id: number | null;
+  holder: HolderProfile | null;
+  type: CertificateType | null;
+};
+
+const CERTIFICATE_SELECT = `
+  id,
+  created_at,
+  application_id,
+  holder:profiles!holder ( id, firstname, lastname, email ),
+  type:certificate_type!type ( id, type )
+`;
+
+function normalizeRelation<T>(value: RelationMaybeArray<T> | undefined): T | null {
+  if (!value) {
+    return null;
+  }
+  return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-async function getCertificates(client: SupabaseClient) {
-  const { data: rows, error } = await client
+/**
+ * Normalizes one raw certificate row (with nested relation shape) to flat UI shape.
+ *
+ * How: Collapses `holder`/`type` relation arrays to a single object or `null`.
+ * @returns CertificateRow
+ */
+function normalizeCertificateRow(row: CertificateDbRow): CertificateRow {
+  return {
+    id: row.id,
+    created_at: row.created_at,
+    application_id: row.application_id ?? null,
+    holder: normalizeRelation(row.holder),
+    type: normalizeRelation(row.type),
+  };
+}
+
+/**
+ * Loads certificates with holder/type relations from Supabase.
+ *
+ * How: Queries `certificate`, orders by creation time, and maps each row with `normalizeCertificateRow`.
+ * @returns Promise<CertificateRow[]>
+ */
+async function fetchCertificates(client: SupabaseClient): Promise<CertificateRow[]> {
+  const { data, error } = await client
     .from("certificate")
-    .select(`
-      id,
-      created_at,
-      application_id,
-      holder:profiles!holder ( id, firstname, lastname, email ),
-      type:certificate_type!type ( id, type )
-    `)
-    .order("created_at", { ascending: true })
+    .select(CERTIFICATE_SELECT)
+    .order("created_at", { ascending: true });
 
   if (error) {
-    console.error("Supabase error:", error)
-    return [] as CertificateRow[]
+    console.error("Supabase error while loading certificates:", error);
+    return [];
   }
 
-  // Supabase may return relation fields as arrays; normalize them to single objects or null
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- backend rows are untyped here; mapping to CertificateRow
-  const normalized: CertificateRow[] = (rows || []).map((r: any) => ({
-    id: r.id,
-    created_at: r.created_at,
-    application_id: r.application_id ?? null,
-    holder: r.holder ?? null,
-    profiles: Array.isArray(r.holder) ? (r.holder[0] ?? null) : (r.holder ?? null),
-    type: Array.isArray(r.type) ? (r.type[0] ?? null) : (r.type ?? null),
-  }))
-
-  return normalized
+  return (data ?? []).map((row) => normalizeCertificateRow(row as unknown as CertificateDbRow));
 }
 
-function Glass({ className = "", children }: React.PropsWithChildren<{ className?: string }>) {
-  return (
-    <div
-      className={cn(
-        "relative rounded-2xl border backdrop-blur-xl",
-        "bg-white/65 border-white/50 shadow-[0_1px_0_rgba(255,255,255,0.6),0_10px_30px_-10px_rgba(16,24,40,0.25)]",
-        "dark:bg-white/5 dark:border-white/10 dark:shadow-[0_1px_0_rgba(255,255,255,0.07),0_20px_60px_-20px_rgba(0,0,0,0.6)]",
-        className,
-      )}
-    >
-      {children}
-    </div>
-  )
+/**
+ * Filters certificates by holder name or email.
+ *
+ * How: Applies case-insensitive match over firstname, lastname, full name, and email.
+ * @returns CertificateRow[]
+ */
+function filterCertificates(rows: CertificateRow[], search: string): CertificateRow[] {
+  const query = search.trim().toLowerCase();
+  if (!query) {
+    return rows;
+  }
+
+  return rows.filter((row) => {
+    if (!row.holder) {
+      return false;
+    }
+    const fullName = `${row.holder.firstname ?? ""} ${row.holder.lastname ?? ""}`.trim();
+    return (
+      (row.holder.firstname ?? "").toLowerCase().includes(query) ||
+      (row.holder.lastname ?? "").toLowerCase().includes(query) ||
+      (row.holder.email ?? "").toLowerCase().includes(query) ||
+      fullName.toLowerCase().includes(query)
+    );
+  });
 }
 
-function ActionsCell({ cert, table }: { cert: CertificateRow; table: unknown }) {
-  const [open, setOpen] = useState(false)
-  // Safely narrow the table.options.meta shape without using `any`
-  const meta = (table as { options?: { meta?: { onDelete?: (id: number) => Promise<void> } } })?.options?.meta
-  const onDelete = meta?.onDelete
+/**
+ * Row-level destructive action cell for certificate deletion.
+ *
+ * How: Uses a confirmation dialog before invoking `onDelete`.
+ */
+function ActionsCell({
+  cert,
+  onDelete,
+}: {
+  cert: CertificateRow;
+  onDelete?: (id: number) => Promise<void>;
+}) {
+  const [open, setOpen] = React.useState(false);
+
+  if (!onDelete) {
+    return null;
+  }
 
   return (
     <div className="flex items-center justify-end gap-2">
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button variant="destructive" size="sm" className="rounded-lg">Slett</Button>
+          <Button variant="destructive" size="sm" className="rounded-lg">
+            Slett
+          </Button>
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Bekreft sletting</DialogTitle>
-            <DialogDescription>Er du sikker på at du vil slette sertifikat #{cert.id}? Dette kan ikke angres.</DialogDescription>
+            <DialogDescription>
+              Er du sikker på at du vil slette sertifikat #{cert.id}? Dette kan ikke angres.
+            </DialogDescription>
           </DialogHeader>
           <div className="mt-4 flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setOpen(false)}>Avbryt</Button>
-            <Button variant="destructive" size="sm" onClick={async () => { setOpen(false); if (onDelete) await onDelete(cert.id) }}>Slett</Button>
+            <Button variant="outline" size="sm" onClick={() => setOpen(false)}>
+              Avbryt
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={async () => {
+                setOpen(false);
+                await onDelete(cert.id);
+              }}
+            >
+              Slett
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }
 
-function buildColumns(canManage: boolean): ColumnDef<CertificateRow>[] {
+/**
+ * Builds certification table columns with optional action column.
+ *
+ * How: Uses a stable column model and injects `ActionsCell` only when delete is allowed.
+ * @returns ColumnDef<CertificateRow>[]
+ */
+function buildColumns(onDelete?: (id: number) => Promise<void>): ColumnDef<CertificateRow>[] {
   const columns: ColumnDef<CertificateRow>[] = [
     {
       accessorKey: "id",
@@ -123,62 +213,80 @@ function buildColumns(canManage: boolean): ColumnDef<CertificateRow>[] {
       size: 80,
     },
     {
-      accessorKey: "profiles",
+      accessorKey: "holder",
       header: () => <span>Holder</span>,
       cell: ({ row }) => {
-        const p = row.getValue("profiles") as CertificateRow["profiles"]
-        if (!p) return <span>—</span>
-        return <span>{p.firstname} {p.lastname}</span>
-      }
+        const holder = row.getValue("holder") as CertificateRow["holder"];
+        return <span>{holder ? `${holder.firstname} ${holder.lastname}` : "—"}</span>;
+      },
     },
     {
-      accessorKey: "profiles",
+      accessorKey: "holder",
       id: "email",
-      header: () => <span>Email</span>,
+      header: () => <span>E-post</span>,
       cell: ({ row }) => {
-        const p = row.getValue("profiles") as CertificateRow["profiles"]
-        if (!p || !p.email) return <span>—</span>
-        return <a className="underline-offset-2 hover:underline" href={`mailto:${p.email}`}>{p.email}</a>
-      }
+        const holder = row.getValue("holder") as CertificateRow["holder"];
+        if (!holder?.email) {
+          return <span>—</span>;
+        }
+        return (
+          <a className="underline-offset-2 hover:underline" href={`mailto:${holder.email}`}>
+            {holder.email}
+          </a>
+        );
+      },
     },
     {
       accessorKey: "type",
       header: () => <span>Type</span>,
       cell: ({ row }) => {
-        const t = row.getValue("type") as CertificateRow["type"]
-        return <span>{t?.type ?? "—"}</span>
-      }
+        const type = row.getValue("type") as CertificateRow["type"];
+        return <span>{type?.type ?? "—"}</span>;
+      },
     },
     {
       accessorKey: "application_id",
-      header: () => <span>Application</span>,
+      header: () => <span>Søknad</span>,
       cell: ({ row }) => {
-        const appId = row.getValue("application_id") as number | null
-        if (!appId) return <span>—</span>
+        const applicationId = row.getValue("application_id") as number | null;
+        if (!applicationId) {
+          return <span>—</span>;
+        }
         return (
-          <a href={`/dashboard/certification-application#app-${appId}`} className="underline text-primary">
-            {appId}
+          <a href={`/dashboard/certification-application#app-${applicationId}`} className="underline text-primary">
+            {applicationId}
           </a>
-        )
-      }
+        );
+      },
     },
-  ]
+  ];
 
-  if (canManage) {
+  if (onDelete) {
     columns.push({
       id: "actions",
       header: () => <span className="sr-only">Actions</span>,
-      cell: ({ row, table }) => <ActionsCell cert={row.original} table={table} />
-    })
+      cell: ({ row }) => <ActionsCell cert={row.original} onDelete={onDelete} />,
+    });
   }
 
-  return columns
+  return columns;
 }
 
-function DataTable({ columns, data, onDelete }: { columns: ColumnDef<CertificateRow, CertificateRow>[]; data: CertificateRow[]; onDelete?: (id: number) => Promise<void> }) {
-  const [sorting, setSorting] = React.useState<SortingState>([])
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
+/**
+ * Generic table wrapper for certificate rows.
+ *
+ * How: Owns TanStack sorting/filtering/pagination state and renders shared pagination controls.
+ */
+function DataTable({
+  columns,
+  data,
+}: {
+  columns: ColumnDef<CertificateRow, unknown>[];
+  data: CertificateRow[];
+}) {
+  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
 
   const table = useReactTable({
     data,
@@ -187,16 +295,15 @@ function DataTable({ columns, data, onDelete }: { columns: ColumnDef<Certificate
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
-    meta: { onDelete },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-  })
+  });
 
   return (
     <div className="space-y-3">
-      <Glass>
+      <GlassPanel>
         <div className="overflow-x-auto rounded-2xl">
           <Table>
             <TableHeader>
@@ -204,16 +311,18 @@ function DataTable({ columns, data, onDelete }: { columns: ColumnDef<Certificate
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
                     <TableHead key={header.id} className="whitespace-nowrap">
-                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>
                   ))}
                 </TableRow>
               ))}
             </TableHeader>
             <TableBody>
-              {table.getRowModel().rows?.length ? (
+              {table.getRowModel().rows.length ? (
                 table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                  <TableRow key={row.id}>
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id} className="align-middle">
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -231,133 +340,113 @@ function DataTable({ columns, data, onDelete }: { columns: ColumnDef<Certificate
             </TableBody>
           </Table>
         </div>
-      </Glass>
+      </GlassPanel>
 
-      <div className="flex items-center justify-between">
-        <div className="text-xs text-muted-foreground">
-          Viser {table.getRowModel().rows.length} av {table.getFilteredRowModel().rows.length} rader
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-xl"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Forrige
-          </Button>
-          <span className="text-xs">Gå til side</span>
-          <Input
-            type="number"
-            min={1}
-            max={table.getPageCount()}
-            value={table.getState().pagination.pageIndex + 1}
-            onChange={e => {
-              let page = Number(e.target.value) - 1;
-              if (!isNaN(page)) {
-                page = Math.max(0, Math.min(page, table.getPageCount() - 1));
-                table.setPageIndex(page);
-              }
-            }}
-            className="w-16 h-8 px-2 py-1 text-xs"
-            style={{ fontVariantNumeric: "tabular-nums" }}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-xl"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Neste
-          </Button>
-        </div>
-      </div>
+      <TablePaginationControls
+        rowCount={table.getRowModel().rows.length}
+        filteredCount={table.getFilteredRowModel().rows.length}
+        pageIndex={table.getState().pagination.pageIndex}
+        pageCount={table.getPageCount()}
+        canPrevious={table.getCanPreviousPage()}
+        canNext={table.getCanNextPage()}
+        onPrevious={() => table.previousPage()}
+        onNext={() => table.nextPage()}
+        onPageIndexChange={(page) => table.setPageIndex(page)}
+      />
     </div>
-  )
+  );
 }
 
+/**
+ * Certification dashboard page.
+ *
+ * How: Loads rows from Supabase, applies client search filter, and enables delete actions for authorized roles.
+ */
 export default function CertificationPage() {
-  const supabase = createClient()
-  const [rows, setRows] = useState<CertificateRow[]>([])
-  const [search, setSearch] = useState<string>("")
-  const currentPrivilege = useCurrentPrivilege()
-  const canManageCertificates = (currentPrivilege ?? 0) >= 3
+  const supabase = React.useMemo(() => createClient(), []);
+  const [rows, setRows] = React.useState<CertificateRow[]>([]);
+  const [search, setSearch] = React.useState("");
+  const currentPrivilege = useCurrentPrivilege();
+  const canManageCertificates = hasCertificateAccess(currentPrivilege);
 
-  useEffect(() => {
-    let mounted = true
-    const fetch = async () => {
-      const data = await getCertificates(supabase)
-      if (mounted) setRows(data)
-    }
-    fetch()
-    return () => { mounted = false }
-  }, [supabase])
-
-  // client-side filter by firstname, lastname or email
-  const filtered = React.useMemo(() => {
-    const q = (search || "").trim().toLowerCase()
-    if (!q) return rows
-    return rows.filter(r => {
-      const p = r.profiles
-      if (!p) return false
-      return (
-        (p.firstname || "").toLowerCase().includes(q) ||
-        (p.lastname || "").toLowerCase().includes(q) ||
-        (p.email || "").toLowerCase().includes(q) ||
-        (p.firstname + " " + p.lastname).toLowerCase().includes(q)
-      )
-    })
-  }, [rows, search])
-
-  async function handleDelete(id: number) {
-    const applicationId = filtered.find(r => r.id === id)?.application_id || null
-    let appError = null;
-    if (applicationId !== null) {
-      const { error: _error } = await supabase
-        .from("certification_application")
-        .delete()
-        .eq("id", applicationId)
-      if (_error) {
-        appError = _error
+  React.useEffect(() => {
+    let active = true;
+    const load = async () => {
+      const nextRows = await fetchCertificates(supabase);
+      if (active) {
+        setRows(nextRows);
       }
-    }
-    const { error } = await supabase
-      .from("certificate")
-      .delete()
-      .eq("id", id)
+    };
+    load();
+    return () => {
+      active = false;
+    };
+  }, [supabase]);
 
-    if (error) {
-      console.error("Failed to delete certificate", error)
-      return
-    }
+  const filteredRows = React.useMemo(() => filterCertificates(rows, search), [rows, search]);
 
-    if (appError) {
-      console.error("Failed to delete søknad, må slettes manuelt!", appError)
-    }
+  const handleDelete = React.useCallback(
+    async (certificateId: number) => {
+      const applicationId = rows.find((row) => row.id === certificateId)?.application_id ?? null;
 
-    setRows(prev => prev.filter(r => r.id !== id))
-  }
+      let applicationDeleteError: Error | null = null;
+      if (applicationId !== null) {
+        const { error } = await supabase
+          .from("certification_application")
+          .delete()
+          .eq("id", applicationId);
+        if (error) {
+          applicationDeleteError = error;
+        }
+      }
 
-  const columns = React.useMemo(() => buildColumns(canManageCertificates), [canManageCertificates])
+      const { error: certificateDeleteError } = await supabase
+        .from("certificate")
+        .delete()
+        .eq("id", certificateId);
+
+      if (certificateDeleteError) {
+        console.error("Failed to delete certificate:", certificateDeleteError);
+        return;
+      }
+
+      if (applicationDeleteError) {
+        console.error("Failed to delete related application, must be removed manually:", applicationDeleteError);
+      }
+
+      setRows((prev) => prev.filter((row) => row.id !== certificateId));
+    },
+    [rows, supabase],
+  );
+
+  const columns = React.useMemo(
+    () => buildColumns(canManageCertificates ? handleDelete : undefined),
+    [canManageCertificates, handleDelete],
+  );
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold mb-4">Sertifikater</h1>
-      <p className="text-sm text-muted-foreground mb-4">Oversikt over alle utstedte sertifikater. Klikk på Application for å gå til søknaden.</p>
+      <h1 className="mb-4 text-2xl font-semibold">Sertifikater</h1>
+      <p className="mb-4 text-sm text-muted-foreground">
+        Oversikt over alle utstedte sertifikater. Klikk på Søknad for å gå til søknaden.
+      </p>
+
       <Card className="border-0 bg-transparent shadow-none">
         <CardHeader className="px-0 pt-0">
           <CardTitle>Oversikt</CardTitle>
           <CardDescription>Sorter, søk og se sertifikater.</CardDescription>
           <div className="mb-4 max-w-sm">
-            <Input placeholder="Søk navn eller e-post…" value={search} onChange={e => setSearch(e.target.value)} />
+            <Input
+              placeholder="Søk navn eller e-post…"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
           </div>
         </CardHeader>
         <CardContent className="px-0">
-          <DataTable columns={columns} data={filtered} onDelete={canManageCertificates ? handleDelete : undefined} />
+          <DataTable columns={columns} data={filteredRows} />
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

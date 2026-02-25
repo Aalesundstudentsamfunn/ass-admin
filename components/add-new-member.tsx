@@ -1,163 +1,318 @@
 "use client";
 
 import * as React from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { useActions } from "@/app/dashboard/members/providers";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
+import { useActionState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { useActions } from "@/app/dashboard/members/providers";
 import { createClient } from "@/lib/supabase/client";
 import { watchPrinterQueueStatus } from "@/lib/printer-queue";
-import { useActionState, useEffect } from "react";
 import { useAutoPrintSetting } from "@/lib/auto-print";
+import { AddMemberDialogGlass } from "@/components/add-member-dialog/glass";
+import {
+  MemberActivateForm,
+  MemberBlockedStatePanel,
+  MemberCreateForm,
+  MemberEmailCheckForm,
+} from "@/components/add-member-dialog/stage-content";
+import type {
+  AddMemberDialogStage,
+  CheckEmailActionResult,
+  QueueActionResult,
+} from "@/components/add-member-dialog/types";
 
-// Liquid glass wrapper
-function Glass({ className = "", children }: React.PropsWithChildren<{ className?: string }>) {
-  return <div className={`relative rounded-2xl border backdrop-blur-xl ` + `bg-white/65 border-white/50 shadow-[0_1px_0_rgba(255,255,255,0.6),0_10px_30px_-10px_rgba(16,24,40,0.25)] ` + `dark:bg-white/5 dark:border-white/10 dark:shadow-[0_1px_0_rgba(255,255,255,0.07),0_20px_60px_-20px_rgba(0,0,0,0.6)] ` + className}>{children}</div>;
-}
-
+/**
+ * Add-member modal with 2-step flow:
+ * 1) check email
+ * 2) create or activate membership depending on existing state.
+ */
 export function CreateUserDialog() {
   const [open, setOpen] = React.useState(false);
+  const [stage, setStage] = React.useState<AddMemberDialogStage>("email");
   const [firstname, setFirstname] = React.useState("");
   const [lastname, setLastname] = React.useState("");
   const [email, setEmail] = React.useState("");
+  const [resolvedEmail, setResolvedEmail] = React.useState("");
   const [voluntary, setVoluntary] = React.useState(false);
+  const [existingMember, setExistingMember] = React.useState<CheckEmailActionResult["member"] | null>(null);
   const { autoPrint } = useAutoPrintSetting();
 
-  const { addNewMember } = useActions();
-  const [state, formAction, pending] = useActionState(addNewMember, { ok: false } as {
-    ok: boolean;
-    error?: string;
-    autoPrint?: boolean;
-    queueId?: string | number;
-    queueRef?: string | number;
-    queueInvoker?: string;
-  });
+  const { addNewMember, checkMemberEmail, activateMember } = useActions();
+  const [checkState, checkAction, checkPending] = useActionState(checkMemberEmail, {
+    ok: false,
+  } as CheckEmailActionResult);
+  const [createState, createAction, createPending] = useActionState(addNewMember, {
+    ok: false,
+  } as QueueActionResult);
+  const [activateState, activateAction, activatePending] = useActionState(
+    activateMember,
+    { ok: false } as QueueActionResult,
+  );
+
   const supabase = React.useMemo(() => createClient(), []);
   const toastIdRef = React.useRef<string | number | null>(null);
-  const submittedRef = React.useRef(false);
+  const checkSubmittedRef = React.useRef(false);
+  const createSubmittedRef = React.useRef(false);
+  const activateSubmittedRef = React.useRef(false);
   const unsubscribeRef = React.useRef<(() => void) | null>(null);
   const queueKeyRef = React.useRef<string | null>(null);
 
-  useEffect(() => {
-    if (!submittedRef.current || pending) {
-      return;
-    }
-
-    if (state?.ok) {
-      const shouldAutoPrint = state?.autoPrint ?? true;
-      if (!shouldAutoPrint) {
-        toast.success("Medlem lagt til.", {
-          id: toastIdRef.current ?? undefined,
-          description: "Auto-utskrift er deaktivert. Trykk Print kort for å skrive ut.",
-          duration: 10000,
-        });
-        toastIdRef.current = null;
-        submittedRef.current = false;
-        return;
-      }
-
-      const queueKey = state?.queueId ? `id:${state.queueId}` : state?.queueRef && state?.queueInvoker ? `ref:${state.queueRef}:invoker:${state.queueInvoker}` : null;
-
-      if (!queueKey) {
-        toast.success("Medlem lagt til.", {
-          id: toastIdRef.current ?? undefined,
-          description: "Kortet er lagt i utskriftskø.",
-          duration: 10000,
-        });
-        toastIdRef.current = null;
-        submittedRef.current = false;
-        return;
-      }
-
-      toast.loading("Venter på utskrift...", {
-        id: toastIdRef.current ?? undefined,
-        description: "Medlem lagt til og ligger i utskriftskø.",
-        duration: Infinity,
-      });
-    } else if (state?.error) {
-      toast.error("Kunne ikke opprette medlem.", {
-        id: toastIdRef.current ?? undefined,
-        description: String(state.error),
-        duration: Infinity,
-      });
-      toastIdRef.current = null;
-    }
-
-    submittedRef.current = false;
-  }, [state, pending]);
-
-  useEffect(() => {
-    if (!state?.ok || state?.autoPrint === false || !toastIdRef.current) {
-      return;
-    }
-
-    const queueId = state?.queueId;
-    const queueRef = state?.queueRef;
-    const queueInvoker = state?.queueInvoker;
-    const queueKey = queueId ? `id:${queueId}` : queueRef && queueInvoker ? `ref:${queueRef}:invoker:${queueInvoker}` : null;
-
-    if (!queueKey || queueKeyRef.current === queueKey) {
-      return;
-    }
-
-    queueKeyRef.current = queueKey;
+  /**
+   * Stops any active printer-queue subscription when dialog closes or unmounts.
+   */
+  const stopQueueWatch = React.useCallback(() => {
     if (unsubscribeRef.current) {
       unsubscribeRef.current();
       unsubscribeRef.current = null;
     }
+    queueKeyRef.current = null;
+  }, []);
 
-    unsubscribeRef.current = watchPrinterQueueStatus(supabase, {
-      queueId,
-      ref: queueRef,
-      refInvoker: queueInvoker,
-      timeoutMs: 25000,
-      timeoutErrorMessage: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
-      onCompleted: () => {
-        toast.success("Utskrift fullført.", { id: toastIdRef.current ?? undefined, duration: 10000 });
-        toastIdRef.current = null;
-        queueKeyRef.current = null;
-      },
-      onError: (message) => {
-        toast.error("Utskrift feilet.", {
+  /**
+   * Starts queue watcher after successful create/activate with auto-print enabled.
+   */
+  const startQueueWatch = React.useCallback(
+    ({
+      result,
+      queuedDescription,
+      completedMessage,
+    }: {
+      result: QueueActionResult;
+      queuedDescription: string;
+      completedMessage: string;
+    }) => {
+      const queueId = result?.queueId;
+      const queueRef = result?.queueRef;
+      const queueInvoker = result?.queueInvoker;
+      const queueKey = queueId
+        ? `id:${queueId}`
+        : queueRef && queueInvoker
+          ? `ref:${queueRef}:invoker:${queueInvoker}`
+          : null;
+
+      if (!queueKey) {
+        toast.success(completedMessage, {
           id: toastIdRef.current ?? undefined,
-          description: message,
-          duration: Infinity,
+          duration: 10000,
         });
         toastIdRef.current = null;
-        queueKeyRef.current = null;
-      },
-      onTimeout: () => {
-        toast.error("Utskrift tar lengre tid enn vanlig.", {
-          id: toastIdRef.current ?? undefined,
-          description: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
-          duration: Infinity,
-        });
-      },
-    });
-  }, [state, supabase]);
+        return;
+      }
+
+      if (queueKeyRef.current === queueKey) {
+        return;
+      }
+
+      stopQueueWatch();
+      queueKeyRef.current = queueKey;
+
+      toast.loading("Venter på utskrift...", {
+        id: toastIdRef.current ?? undefined,
+        description: queuedDescription,
+        duration: Infinity,
+      });
+
+      unsubscribeRef.current = watchPrinterQueueStatus(supabase, {
+        queueId,
+        ref: queueRef,
+        refInvoker: queueInvoker,
+        timeoutMs: 25000,
+        timeoutErrorMessage: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
+        onCompleted: () => {
+          toast.success(completedMessage, {
+            id: toastIdRef.current ?? undefined,
+            duration: 10000,
+          });
+          toastIdRef.current = null;
+          queueKeyRef.current = null;
+        },
+        onError: (message) => {
+          toast.error("Utskrift feilet.", {
+            id: toastIdRef.current ?? undefined,
+            description: message,
+            duration: Infinity,
+          });
+          toastIdRef.current = null;
+          queueKeyRef.current = null;
+        },
+        onTimeout: () => {
+          toast.error("Utskrift tar lengre tid enn vanlig.", {
+            id: toastIdRef.current ?? undefined,
+            description: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
+            duration: Infinity,
+          });
+        },
+      });
+    },
+    [stopQueueWatch, supabase],
+  );
+
+  useEffect(() => {
+    if (!checkSubmittedRef.current || checkPending) {
+      return;
+    }
+
+    if (!checkState?.ok) {
+      toast.error("Kunne ikke sjekke e-post.", {
+        id: toastIdRef.current ?? undefined,
+        description: checkState?.error ?? "Ukjent feil.",
+        duration: Infinity,
+      });
+      toastIdRef.current = null;
+      checkSubmittedRef.current = false;
+      return;
+    }
+
+    const nextEmail = String(checkState.email ?? email).trim().toLowerCase();
+    setResolvedEmail(nextEmail);
+
+    if (!checkState.exists) {
+      setStage("create");
+      setExistingMember(null);
+      toast.success("E-post er ledig. Du kan opprette nytt medlem.", {
+        id: toastIdRef.current ?? undefined,
+        duration: 6000,
+      });
+      toastIdRef.current = null;
+      checkSubmittedRef.current = false;
+      return;
+    }
+
+    setExistingMember(checkState.member ?? null);
+    const existing = checkState.member;
+    if (existing) {
+      setFirstname(existing.firstname ?? "");
+      setLastname(existing.lastname ?? "");
+    }
+
+    if (checkState.banned) {
+      setStage("exists-banned");
+    } else if (checkState.active) {
+      setStage("exists-active");
+    } else {
+      setStage("exists-inactive");
+    }
+
+    if (toastIdRef.current) {
+      toast.dismiss(toastIdRef.current);
+    }
+    toastIdRef.current = null;
+    checkSubmittedRef.current = false;
+  }, [checkPending, checkState, email]);
+
+  useEffect(() => {
+    if (!createSubmittedRef.current || createPending) {
+      return;
+    }
+
+    if (!createState?.ok) {
+      toast.error("Kunne ikke opprette medlem.", {
+        id: toastIdRef.current ?? undefined,
+        description: String(createState?.error ?? "Ukjent feil."),
+        duration: Infinity,
+      });
+      toastIdRef.current = null;
+      createSubmittedRef.current = false;
+      return;
+    }
+
+    if (createState?.autoPrint === false) {
+      toast.success("Medlem opprettet.", {
+        id: toastIdRef.current ?? undefined,
+        description: "Auto-utskrift er deaktivert. Trykk Print kort for å skrive ut.",
+        duration: 10000,
+      });
+      toastIdRef.current = null;
+    } else {
+      startQueueWatch({
+        result: createState,
+        queuedDescription: "Medlem opprettet og ligger i utskriftskø.",
+        completedMessage: "Medlem opprettet og utskrift fullført.",
+      });
+    }
+
+    createSubmittedRef.current = false;
+    setFirstname("");
+    setLastname("");
+    setEmail("");
+    setResolvedEmail("");
+    setVoluntary(false);
+    setExistingMember(null);
+    setStage("email");
+    setOpen(false);
+  }, [createPending, createState, startQueueWatch]);
+
+  useEffect(() => {
+    if (!activateSubmittedRef.current || activatePending) {
+      return;
+    }
+
+    if (!activateState?.ok) {
+      toast.error("Kunne ikke aktivere medlemskap.", {
+        id: toastIdRef.current ?? undefined,
+        description: String(activateState?.error ?? "Ukjent feil."),
+        duration: Infinity,
+      });
+      toastIdRef.current = null;
+      activateSubmittedRef.current = false;
+      return;
+    }
+
+    if (activateState?.autoPrint === false) {
+      toast.success("Medlemskap aktivert.", {
+        id: toastIdRef.current ?? undefined,
+        description: "Auto-utskrift er deaktivert. Trykk Print kort for å skrive ut.",
+        duration: 10000,
+      });
+      toastIdRef.current = null;
+    } else {
+      startQueueWatch({
+        result: activateState,
+        queuedDescription: "Medlemskap aktivert og lagt i utskriftskø.",
+        completedMessage: "Medlemskap aktivert og utskrift fullført.",
+      });
+    }
+
+    activateSubmittedRef.current = false;
+    setFirstname("");
+    setLastname("");
+    setEmail("");
+    setResolvedEmail("");
+    setVoluntary(false);
+    setExistingMember(null);
+    setStage("email");
+    setOpen(false);
+  }, [activatePending, activateState, startQueueWatch]);
+
+  useEffect(() => {
+    if (!open) {
+      stopQueueWatch();
+      setStage("email");
+      setExistingMember(null);
+      setResolvedEmail("");
+      setFirstname("");
+      setLastname("");
+      setVoluntary(false);
+    }
+  }, [open, stopQueueWatch]);
 
   useEffect(() => {
     return () => {
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current();
-        unsubscribeRef.current = null;
-      }
+      stopQueueWatch();
     };
-  }, []);
+  }, [stopQueueWatch]);
 
-  useEffect(() => {
-    if (state?.ok) {
-      setFirstname("");
-      setLastname("");
-      setEmail("");
-      setVoluntary(false);
-      setOpen(false);
-    }
-  }, [state, setOpen, setFirstname, setLastname, setEmail, setVoluntary]);
+  const normalizedEmail = resolvedEmail || email.trim().toLowerCase();
+  const isBusy = checkPending || createPending || activatePending;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -167,61 +322,98 @@ export function CreateUserDialog() {
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md border-0 bg-transparent p-0 shadow-none">
-        <Glass className="p-[1px]">
+        <AddMemberDialogGlass className="p-[1px]">
           <div className="rounded-2xl bg-transparent p-6">
             <DialogHeader>
               <DialogTitle>Opprett ny bruker</DialogTitle>
-              <DialogDescription>Fyll inn informasjonen under for å legge til en ny bruker.</DialogDescription>
+              <DialogDescription>
+                Start med e-post. Vi sjekker om medlemskap allerede finnes før oppretting.
+              </DialogDescription>
             </DialogHeader>
 
-            <form
-              action={formAction}
-              className="mt-4 space-y-4"
-              onSubmit={() => {
-                submittedRef.current = true;
-                queueKeyRef.current = null;
-                if (unsubscribeRef.current) {
-                  unsubscribeRef.current();
-                  unsubscribeRef.current = null;
-                }
+            <MemberEmailCheckForm
+              action={checkAction}
+              email={email}
+              isBusy={isBusy}
+              stage={stage}
+              checkPending={checkPending}
+              onEmailChange={setEmail}
+              onSubmitStart={() => {
+                checkSubmittedRef.current = true;
                 if (!toastIdRef.current) {
-                  toastIdRef.current = toast.loading("Oppretter medlem...", { duration: 10000 });
+                  toastIdRef.current = toast.loading("Sjekker e-post...", { duration: 10000 });
                 }
-              }}>
-              <input type="hidden" name="autoPrint" value={autoPrint ? "true" : "false"} />
-              <div className="space-y-2">
-                <Label htmlFor="firstname">Fornavn</Label>
-                <Input id="firstname" name="firstname" placeholder="Ola" value={firstname} onChange={(e) => setFirstname(e.target.value)} required className="rounded-xl" />
-              </div>
+              }}
+            />
 
-              <div className="space-y-2">
-                <Label htmlFor="lastname">Etternavn</Label>
-                <Input id="lastname" placeholder="Nordmann" name="lastname" value={lastname} onChange={(e) => setLastname(e.target.value)} required className="rounded-xl" />
-              </div>
+            {stage === "create" ? (
+              <MemberCreateForm
+                action={createAction}
+                normalizedEmail={normalizedEmail}
+                autoPrint={autoPrint}
+                firstname={firstname}
+                lastname={lastname}
+                voluntary={voluntary}
+                isBusy={isBusy}
+                createPending={createPending}
+                onFirstnameChange={setFirstname}
+                onLastnameChange={setLastname}
+                onVoluntaryChange={setVoluntary}
+                onClose={() => setOpen(false)}
+                onSubmitStart={() => {
+                  createSubmittedRef.current = true;
+                  if (!toastIdRef.current) {
+                    toastIdRef.current = toast.loading("Oppretter medlem...", { duration: 10000 });
+                  }
+                }}
+              />
+            ) : null}
 
-              <div className="space-y-2">
-                <Label htmlFor="email">E-post</Label>
-                <Input id="email" type="email" placeholder="ola@example.com" name="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="rounded-xl" />
-              </div>
+            {stage === "exists-inactive" ? (
+              <MemberActivateForm
+                action={activateAction}
+                normalizedEmail={normalizedEmail}
+                autoPrint={autoPrint}
+                voluntary={voluntary}
+                existingMember={existingMember}
+                isBusy={isBusy}
+                activatePending={activatePending}
+                onVoluntaryChange={setVoluntary}
+                onClose={() => setOpen(false)}
+                onSubmitStart={() => {
+                  activateSubmittedRef.current = true;
+                  if (!toastIdRef.current) {
+                    toastIdRef.current = toast.loading("Aktiverer medlemskap...", {
+                      duration: 10000,
+                    });
+                  }
+                }}
+              />
+            ) : null}
 
-              <div className="flex items-center space-x-2">
-                <Checkbox id="voluntary" name="voluntary" checked={voluntary} onCheckedChange={(v) => setVoluntary(!!v)} />
-                <Label htmlFor="voluntary">Frivillig</Label>
-              </div>
+            {stage === "exists-active" ? (
+              <MemberBlockedStatePanel
+                title="E-posten har allerede aktivt medlemskap."
+                description="Ny bruker kan ikke opprettes på denne e-posten."
+                existingMember={existingMember}
+                isBusy={isBusy}
+                onClose={() => setOpen(false)}
+              />
+            ) : null}
 
-              <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="secondary" onClick={() => setOpen(false)} className="rounded-xl">
-                  Avbryt
-                </Button>
-                <Button className="rounded-xl" disabled={pending}>
-                  {pending ? "Oppretter..." : "Opprett"}
-                </Button>
-              </div>
-              {state.error && <p className="text-red-800">Feil: {state.error}</p>}
-            </form>
+            {stage === "exists-banned" ? (
+              <MemberBlockedStatePanel
+                title="E-posten kan ikke brukes."
+                description="Oppretting eller aktivering er ikke tilgjengelig for denne e-posten."
+                existingMember={existingMember}
+                isBusy={isBusy}
+                onClose={() => setOpen(false)}
+              />
+            ) : null}
           </div>
-        </Glass>
+        </AddMemberDialogGlass>
       </DialogContent>
     </Dialog>
   );
 }
+

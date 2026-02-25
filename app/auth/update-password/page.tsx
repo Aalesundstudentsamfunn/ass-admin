@@ -1,4 +1,7 @@
-import { UpdatePasswordForm } from "@/components/update-password-form";
+/**
+ * Page that lets users set a new password after recovery/invite flows.
+ */
+import { UpdatePasswordForm } from "@/components/auth/update-password-form";
 
 export default function Page() {
   return (

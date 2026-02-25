@@ -1,7 +1,14 @@
+/**
+ * Middleware auth/session synchronizer that refreshes Supabase session cookies.
+ */
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 
+/**
+ * Refreshes Supabase auth session in middleware and redirects unauthenticated
+ * requests away from protected routes.
+ */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -48,9 +55,11 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith("/login") &&
     !request.nextUrl.pathname.startsWith("/auth")
   ) {
-    // no user, potentially respond by redirecting the user to the login page
+    // No user: redirect to login and preserve intended destination.
     const url = request.nextUrl.clone();
+    const nextTarget = `${request.nextUrl.pathname}${request.nextUrl.search}`;
     url.pathname = "/auth/login";
+    url.searchParams.set("next", nextTarget);
     return NextResponse.redirect(url);
   }
 

@@ -1,141 +1,201 @@
-"use client"
-import { createClient } from "@/lib/supabase/client"
-import { useCurrentPrivilege } from "@/lib/use-current-privilege"
-import CertificationTabs from "@/components/certification/certification-tabs"
-import { SupabaseClient } from "@supabase/supabase-js"
-import { useEffect, useState } from "react"
+"use client";
 
-type Application = {
-  id: number
-  created_at: string
-  time_accepted: string | null
-  certificate_id: number | null
-  verified: boolean
-  verified_by: string | null
-  seeker_id: string | null
-  rejected: boolean | null
-  cert_image_id: string | null
-  notes: string | null
-  profiles: {
-    id: string;
-    firstname: string;
-    lastname: string;
-    email: string;
-  } | null
-  type: {
-    id: number;
-    type: string
-  } | null,
-  verified_by_profile?: {
-    id: string;
-    firstname: string;
-    lastname: string;
-    email: string;
-  } | null
-}
+/**
+ * Server route for `certification-application` dashboard view.
+ */
 
-async function getApplications(client: SupabaseClient) {
-  // fetch applications and join profiles
-  const { data: as_data, error } = await client
-    .from("certification_application")
-    .select(`
-    *,
-    profiles:profiles!seeker_id ( id, firstname, lastname,email ),
-    type:certificate_type!certificate_id ( id, type ),
-    verified_by_profile:profiles!verified_by ( id, firstname, lastname,email )
-  `).order("created_at", { ascending: true })
+import * as React from "react";
+import { SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/client";
+import { useCurrentPrivilege } from "@/lib/use-current-privilege";
+import { canManageCertificates as hasCertificateAccess } from "@/lib/privilege-checks";
+import CertificationTabs from "@/components/certification/certification-tabs";
+import { AppShape } from "@/components/certification/certification-card";
 
-  const data = as_data as Application[];
-  await Promise.all(data.map(async d => {
-    //get public url:
-    if (!d.cert_image_id) {
-      d.cert_image_id = null;
-      return;
-    }
-    const { data } = await client.storage
-      .from("certificates")
-      .createSignedUrl(d.cert_image_id, 60); // gyldig i 60 sek
-    d.cert_image_id = data?.signedUrl || null;
-    console.log("Processed cert_image_id for application", process.env.NEXT_PUBLIC_SUPABASE_PROJECT_ID, d.cert_image_id);
-  }));
-  console.log("Fetched data:", data);
+const APPLICATION_SELECT = `
+  *,
+  profiles:profiles!seeker_id ( id, firstname, lastname, email ),
+  type:certificate_type!certificate_id ( id, type ),
+  verified_by_profile:profiles!verified_by ( id, firstname, lastname, email )
+`;
+
+/**
+ * Returns signed certificate url.
+ *
+ * How: Uses deterministic transforms over the provided inputs.
+ * @returns Promise<unknown>
+ */
+async function getSignedCertificateUrl(
+  client: SupabaseClient,
+  path: string | null | undefined,
+): Promise<string | null> {
+  if (!path) {
+    return null;
+  }
+
+  const { data, error } = await client.storage
+    .from("certificates")
+    .createSignedUrl(path, 60);
+
   if (error) {
-    console.error("Supabase error:", error)
-    return []
+    console.error("Could not sign certificate image URL:", error);
+    return null;
   }
 
-  return (data || []) as Application[]
+  return data?.signedUrl ?? null;
 }
 
-export default function CertificationPage() {
-  const supabase = createClient()
-  const [apps, setApps] = useState<Application[]>([])
-  const currentPrivilege = useCurrentPrivilege()
-  const canManageCertificates = (currentPrivilege ?? 0) >= 3
-  useEffect(() => {
-    const fetchData = async () => {
-      const data = await getApplications(supabase)
-      setApps(data)
-    }
-    fetchData()
-  }, [supabase])
+/**
+ * Executes fetch applications logic.
+ *
+ * How: Encapsulates the operation in one reusable function.
+ * @returns Promise<AppShape[]>
+ */
+async function fetchApplications(client: SupabaseClient): Promise<AppShape[]> {
+  const { data, error } = await client
+    .from("certification_application")
+    .select(APPLICATION_SELECT)
+    .order("created_at", { ascending: true });
 
-  const processed = apps.filter((a) => a.verified || a.rejected)
-  const unprocessed = apps.filter((a) => !a.verified && !a.rejected)
-
-  async function handleAccept(appId: number) {
-    // mark verified = true, time_accepted = now
-    const user = await supabase.auth.getUser();
-    if (!user.data.user) {
-      console.error("No authenticated user found");
-      return;
-    }
-    const { error } = await supabase
-      .from("certification_application")
-      .update({ verified: true, time_accepted: new Date().toISOString(), rejected: false, verified_by: user.data.user.id })
-      .eq("id", appId)
-
-    if (error) {
-      console.error("Failed to accept application", error)
-      return
-    }
-
-    setApps((prev) => prev.map(a => a.id === appId ? { ...a, verified: true, time_accepted: new Date().toISOString(), rejected: false } : a))
+  if (error) {
+    console.error("Supabase error while loading applications:", error);
+    return [];
   }
 
-  async function handleReject(appId: number) {
-    const { error } = await supabase
-      .from("certification_application")
-      .update({ rejected: true, verified: false })
-      .eq("id", appId)
+  const rows = (data ?? []) as AppShape[];
+  return Promise.all(
+    rows.map(async (row) => ({
+      ...row,
+      cert_image_id: await getSignedCertificateUrl(client, row.cert_image_id),
+    })),
+  );
+}
 
-    if (error) {
-      console.error("Failed to reject application", error)
-      return
-    }
+/**
+ * Renders certification application page.
+ *
+ */
+export default function CertificationApplicationPage() {
+  const supabase = React.useMemo(() => createClient(), []);
+  const [applications, setApplications] = React.useState<AppShape[]>([]);
+  const currentPrivilege = useCurrentPrivilege();
+  const canManageCertificates = hasCertificateAccess(currentPrivilege);
 
-    setApps((prev) => prev.map(a => a.id === appId ? { ...a, rejected: true, verified: false } : a))
-  }
+  React.useEffect(() => {
+    let active = true;
+    const load = async () => {
+      const rows = await fetchApplications(supabase);
+      if (active) {
+        setApplications(rows);
+      }
+    };
+    load();
+    return () => {
+      active = false;
+    };
+  }, [supabase]);
 
-  async function handleDelete(appId: number) {
-    // delete the application row
-    const { error } = await supabase
-      .from("certification_application")
-      .delete()
-      .eq("id", appId)
+  const processed = React.useMemo(
+    () => applications.filter((application) => application.verified || application.rejected),
+    [applications],
+  );
+  const unprocessed = React.useMemo(
+    () => applications.filter((application) => !application.verified && !application.rejected),
+    [applications],
+  );
 
-    if (error) {
-      console.error("Failed to delete application", error)
-      return
-    }
+  const handleAccept = React.useCallback(
+    async (applicationId: number) => {
+      const { data: authData } = await supabase.auth.getUser();
+      const actorId = authData.user?.id;
+      if (!actorId) {
+        console.error("No authenticated user found.");
+        return;
+      }
 
-    setApps((prev) => prev.filter(a => a.id !== appId))
-  }
+      const acceptedAt = new Date().toISOString();
+      const { error } = await supabase
+        .from("certification_application")
+        .update({
+          verified: true,
+          time_accepted: acceptedAt,
+          rejected: false,
+          verified_by: actorId,
+        })
+        .eq("id", applicationId);
+
+      if (error) {
+        console.error("Failed to accept application:", error);
+        return;
+      }
+
+      setApplications((prev) =>
+        prev.map((application) =>
+          application.id === applicationId
+            ? {
+                ...application,
+                verified: true,
+                rejected: false,
+                time_accepted: acceptedAt,
+                verified_by: actorId,
+              }
+            : application,
+        ),
+      );
+    },
+    [supabase],
+  );
+
+  const handleReject = React.useCallback(
+    async (applicationId: number) => {
+      const { error } = await supabase
+        .from("certification_application")
+        .update({ rejected: true, verified: false })
+        .eq("id", applicationId);
+
+      if (error) {
+        console.error("Failed to reject application:", error);
+        return;
+      }
+
+      setApplications((prev) =>
+        prev.map((application) =>
+          application.id === applicationId
+            ? { ...application, rejected: true, verified: false }
+            : application,
+        ),
+      );
+    },
+    [supabase],
+  );
+
+  const handleDelete = React.useCallback(
+    async (applicationId: number) => {
+      const { error } = await supabase
+        .from("certification_application")
+        .delete()
+        .eq("id", applicationId);
+
+      if (error) {
+        console.error("Failed to delete application:", error);
+        return;
+      }
+
+      setApplications((prev) =>
+        prev.filter((application) => application.id !== applicationId),
+      );
+    },
+    [supabase],
+  );
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold mb-4">Sertifisering</h1>
-      <p className="text-sm text-muted-foreground mb-4">Merk: Søkere kan kun ha én aktiv søknad om gangen, og alle brukere må søke gjennom appen. For å søke på nytt etter et avslag må den tidligere søknaden slettes.</p>
+      <h1 className="mb-4 text-2xl font-semibold">Sertifisering</h1>
+      <p className="mb-4 text-sm text-muted-foreground">
+        Merk: Søkere kan kun ha én aktiv søknad om gangen, og alle brukere må
+        søke gjennom appen. For å søke på nytt etter et avslag må den tidligere
+        søknaden slettes.
+      </p>
 
       <CertificationTabs
         processed={processed}
@@ -146,5 +206,5 @@ export default function CertificationPage() {
         canManage={canManageCertificates}
       />
     </div>
-  )
+  );
 }

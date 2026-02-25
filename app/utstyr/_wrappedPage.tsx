@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import * as React from "react";
 import {
     Dialog,
@@ -14,8 +13,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
+import { PublicNavbar } from "@/components/public/public-navbar";
+import { PublicFooter } from "@/components/public/public-footer";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { EquipmentImage } from "@/components/equipment/equipment-image";
 
 type Item = {
     id: number;
@@ -76,8 +78,9 @@ export default function UtstyrClient({
     const anyOverdue = reservations.some((r) => dueText(r.end_time).overdue);
 
     return (
-        <main className="min-h-screen bg-white p-6">
-            <div className="mx-auto max-w-4xl space-y-8">
+        <main className="flex min-h-screen flex-col bg-background text-foreground">
+            <PublicNavbar />
+            <div className="mx-auto w-full max-w-6xl flex-1 space-y-8 px-4 py-10">
                 {/* Header */}
                 <div>
                     <h1 className="text-3xl font-semibold">Hei {firstname}</h1>
@@ -88,7 +91,7 @@ export default function UtstyrClient({
 
                 {/* Overdue warning */}
                 {anyOverdue && (
-                    <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
+                    <div className="rounded-xl border border-red-300 bg-red-50 p-4 text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300">
                         <p className="font-semibold">Du har lån som er over fristen.</p>
                         <p className="text-sm mt-1">
                             Hvis utstyr ikke leveres i tide kan det føre til sperring for
@@ -113,23 +116,16 @@ export default function UtstyrClient({
                                         className="flex items-center gap-4 rounded-xl border p-4"
                                     >
                                         {/* Bilde */}
-                                        {res.item?.img_path ? (
-                                            <Image
-                                                src={
-                                                    process.env.NEXT_PUBLIC_SUPABASE_URL +
-                                                    "/storage/v1/object/public/items/" +
-                                                    res.item.img_path +
-                                                    "." +
-                                                    res.item.img_type
-                                                }
-                                                alt={res.item.itemname}
-                                                width={80}
-                                                height={80}
-                                                className="h-20 w-20 rounded-lg object-cover"
+                                        <div className="relative h-20 w-20 overflow-hidden rounded-lg bg-muted">
+                                            <EquipmentImage
+                                                imgPath={res.item?.img_path}
+                                                imgType={res.item?.img_type}
+                                                alt={res.item?.itemname ?? "Ukjent utstyr"}
+                                                fill
+                                                className="object-cover"
+                                                sizes="80px"
                                             />
-                                        ) : (
-                                            <div className="h-20 w-20 rounded-lg bg-neutral-100" />
-                                        )}
+                                        </div>
 
                                         {/* Info */}
                                         <div className="flex-1 min-w-0">
@@ -148,7 +144,7 @@ export default function UtstyrClient({
                                             <p
                                                 className={cn(
                                                     "mt-1 text-sm font-medium",
-                                                    due.overdue ? "text-red-600" : "text-neutral-700"
+                                                    due.overdue ? "text-red-600 dark:text-red-300" : "text-foreground/75 dark:text-foreground/70"
                                                 )}
                                             >
                                                 {due.text}
@@ -161,7 +157,7 @@ export default function UtstyrClient({
                                         <div
                                             className={cn(
                                                 "text-sm font-medium",
-                                                due.overdue ? "text-red-600" : "text-blue-600"
+                                                due.overdue ? "text-red-600 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"
                                             )}
                                         >
                                             Aktivt lån
@@ -188,23 +184,16 @@ export default function UtstyrClient({
                                     key={res.id}
                                     className="flex items-center gap-4 rounded-xl border p-4"
                                 >
-                                    {res.item?.img_path ? (
-                                        <Image
-                                            src={
-                                                process.env.NEXT_PUBLIC_SUPABASE_URL +
-                                                "/storage/v1/object/public/items/" +
-                                                res.item.img_path +
-                                                "." +
-                                                res.item.img_type
-                                            }
-                                            alt={res.item.itemname}
-                                            width={80}
-                                            height={80}
-                                            className="h-20 w-20 rounded-lg object-cover"
+                                    <div className="relative h-20 w-20 overflow-hidden rounded-lg bg-muted">
+                                        <EquipmentImage
+                                            imgPath={res.item?.img_path}
+                                            imgType={res.item?.img_type}
+                                            alt={res.item?.itemname ?? "Ukjent utstyr"}
+                                            fill
+                                            className="object-cover"
+                                            sizes="80px"
                                         />
-                                    ) : (
-                                        <div className="h-20 w-20 rounded-lg bg-neutral-100" />
-                                    )}
+                                    </div>
 
                                     <div className="flex-1 min-w-0">
                                         <p className="font-medium truncate">
@@ -218,7 +207,7 @@ export default function UtstyrClient({
                                         </p>
                                     </div>
 
-                                    <div className="text-sm font-medium text-neutral-600">
+                                    <div className="text-sm font-medium text-foreground/70 dark:text-foreground/65">
                                         Returnert
                                     </div>
                                 </div>
@@ -231,6 +220,7 @@ export default function UtstyrClient({
                     )}
                 </section>
             </div>
+            <PublicFooter />
         </main>
     );
 }

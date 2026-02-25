@@ -10,6 +10,9 @@ import { useAutoPrintSetting } from "@/lib/auto-print";
 import { MEMBER_PAGE_SIZES, useMemberPageSizeSetting } from "@/lib/table-settings";
 import * as React from "react";
 
+/**
+ * Renders settings page.
+ */
 export default function SettingsPage() {
   const { autoPrint, setAutoPrint } = useAutoPrintSetting();
   const { pageSize, setPageSize } = useMemberPageSizeSetting();

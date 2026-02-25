@@ -1,3 +1,6 @@
+/**
+ * Server route for `equipment/by-type/[id]` dashboard view.
+ */
 import { createClient } from "@/lib/supabase/server";
 import WrappedItemPage from "./_wrappedPage";
 
