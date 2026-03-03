@@ -23,28 +23,45 @@ function buildEquipmentImageUrl(
   imgType?: string | null,
   bucketPath = "items",
 ) {
-  if (!imgPath || !imgType) {
+  if (!imgPath) {
     return PLACEHOLDER_SRC;
   }
+
+  if (/^https?:\/\//i.test(imgPath)) {
+    return imgPath;
+  }
+
   const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!baseUrl) {
     return PLACEHOLDER_SRC;
   }
 
   const normalizedBucketPath = bucketPath.replace(/^\/+|\/+$/g, "");
-  const encodedPath = imgPath
+  let normalizedPath = imgPath.replace(/^\/+/, "");
+  if (normalizedPath.startsWith(`${normalizedBucketPath}/`)) {
+    normalizedPath = normalizedPath.slice(normalizedBucketPath.length + 1);
+  }
+
+  const hasExtension = /\.[a-z0-9]{2,8}$/i.test(
+    normalizedPath.split("/").pop() ?? "",
+  );
+  const normalizedType =
+    imgType?.trim().replace(/^image\//i, "").replace(/^\./, "") || "webp";
+
+  const encodedPath = normalizedPath
     .split("/")
     .map((part) => encodeURIComponent(part))
     .join("/");
 
-  return `${baseUrl}/storage/v1/object/public/${normalizedBucketPath}/${encodedPath}.${encodeURIComponent(imgType)}`;
+  const suffix = hasExtension ? "" : `.${encodeURIComponent(normalizedType)}`;
+  return `${baseUrl}/storage/v1/object/public/${normalizedBucketPath}/${encodedPath}${suffix}`;
 }
 
 /**
  * Equipment image with safe fallback.
  *
  * Shows local placeholder when:
- * - image path/type is missing
+ * - image path is missing
  * - configured remote URL fails to load
  */
 export function EquipmentImage({
