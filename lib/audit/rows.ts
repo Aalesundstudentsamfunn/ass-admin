@@ -57,6 +57,8 @@ const ACTION_LABELS: Record<string, string> = {
   "member.password_reset.send": "Sendte passordlenke",
   "member.password_bootstrap.send": "Sendte engangspassord",
   "member.card_print.enqueue": "Utskriftskø feilet",
+  "printer.queue.retry": "Retry utskriftsjobb",
+  "printer.queue.cancel": "Avbrøt utskriftsjobb",
   "member.update": "Oppdaterte medlem",
 };
 
@@ -1101,6 +1103,35 @@ function buildChangeLines(row: DbAuditRow): string[] {
       return lines;
     }
     lines.push("Utskrift feilet");
+    return lines;
+  }
+
+  if (action === "printer.queue.retry" || action === "printer.queue.cancel") {
+    const nextStatus = asString(details.next_status);
+    if (nextStatus) {
+      const statusLabel =
+        nextStatus === "queued"
+          ? "I kø"
+          : nextStatus === "claimed"
+            ? "Reservert"
+            : nextStatus === "rendering"
+              ? "Genererer"
+              : nextStatus === "spooled"
+                ? "Spooler"
+                : nextStatus === "printing"
+                  ? "Skriver ut"
+                  : nextStatus === "completed"
+                    ? "Ferdig"
+                    : nextStatus === "needs_review"
+                      ? "Må sjekkes"
+                      : nextStatus === "failed"
+                        ? "Feilet"
+                        : nextStatus === "canceled"
+                          ? "Avbrutt"
+                          : nextStatus;
+      lines.push(`Status: ${statusLabel}`);
+    }
+
     return lines;
   }
 
