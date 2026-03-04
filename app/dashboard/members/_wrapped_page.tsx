@@ -82,9 +82,11 @@ function buildColumns({ onDelete, onPrint, isDeleting, canEditPrivileges, bulkOp
 export default function MembersTablePage({
   initialData,
   canBulkTemporaryPasswords,
+  autoOpenCreateDialog = false,
 }: {
   initialData: UserRow[];
   canBulkTemporaryPasswords: boolean;
+  autoOpenCreateDialog?: boolean;
 }) {
   const router = useRouter();
   const defaultPageSize = useMemberPageSizeDefault();
@@ -163,32 +165,32 @@ export default function MembersTablePage({
           <CardDescription>Sorter, filtrer og håndter medlemmer</CardDescription>
         </CardHeader>
         <CardContent className="px-0">
-          <MemberDataTable
-            columns={columns}
-            data={rows}
-            defaultPageSize={defaultPageSize}
-            onBulkPrivilege={handleBulkPrivilege}
-            onBulkMembershipStatus={handleBulkMembershipStatus}
-            onBulkPasswordReset={handleBulkPasswordReset}
-            onBulkTemporaryPasswords={handleBulkTemporaryPasswordsAction}
-            onBulkPrint={handleBulkPrint}
-            onBulkDelete={handleBulkDelete}
-            canDelete={canDeleteMembers}
-            canManageMembership={canManageMembership}
-            canResetPasswords={canResetPasswords}
-            canBulkTemporaryPasswords={canBulkTemporaryPasswords}
-            canEditPrivileges={canEditPrivileges}
-            bulkOptions={bulkOptions}
-            onRefresh={refresh}
-            showSelectionQuickActions
-            toolbarActions={<CreateUserDialog />}
-            searchParamKey="email"
-            searchPlaceholder="Søk navn, e-post eller UUID…"
-            onRowClick={(member) => {
-              setSelectedMember(member);
-              setDetailsOpen(true);
-            }}
-          />
+        <MemberDataTable
+          columns={columns}
+          data={rows}
+          defaultPageSize={defaultPageSize}
+          onBulkPrivilege={handleBulkPrivilege}
+          onBulkMembershipStatus={handleBulkMembershipStatus}
+          onBulkPasswordReset={handleBulkPasswordReset}
+          onBulkTemporaryPasswords={handleBulkTemporaryPasswordsAction}
+          onBulkPrint={handleBulkPrint}
+          onBulkDelete={handleBulkDelete}
+          canDelete={canDeleteMembers}
+          canManageMembership={canManageMembership}
+          canResetPasswords={canResetPasswords}
+          canBulkTemporaryPasswords={canBulkTemporaryPasswords}
+          canEditPrivileges={canEditPrivileges}
+          bulkOptions={bulkOptions}
+          onRefresh={refresh}
+          showSelectionQuickActions
+          toolbarActions={<CreateUserDialog autoOpen={autoOpenCreateDialog} />}
+          searchParamKey="email"
+          searchPlaceholder="Søk navn, e-post eller UUID…"
+          onRowClick={(member) => {
+            setSelectedMember(member);
+            setDetailsOpen(true);
+          }}
+        />
         </CardContent>
       </Card>
 
