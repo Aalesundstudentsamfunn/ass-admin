@@ -25,26 +25,40 @@ import { MEMBER_PAGE_SIZES } from "@/lib/table-settings";
 import {
   buildSearchHaystack,
   containsTextFilter,
-  sortByDateValue,
 } from "@/lib/table/column-helpers";
-import { formatDate, getInvokerLabel, getStatusMeta, PrinterLogRow } from "./shared";
+import {
+  getInvokerLabel,
+  getStatusMeta,
+  isActiveStatus,
+  isNeedsAttentionStatus,
+  PrinterLogRow,
+} from "./shared";
 
-const DEFAULT_QUEUE_SORT: SortingState = [{ id: "created_at", desc: true }];
+const DEFAULT_QUEUE_SORT: SortingState = [{ id: "id", desc: true }];
 
 type QueueQuickFilterPreset =
-  | "status_failed"
-  | "status_pending"
-  | "status_done"
+  | "status_needs_attention"
+  | "status_active"
+  | "status_queued"
+  | "status_completed"
   | "reset";
 
-function getQueueStatusKey(row: PrinterLogRow): "failed" | "pending" | "done" {
-  if (row.error_msg) {
-    return "failed";
+function getQueueStatusKey(
+  row: PrinterLogRow,
+): "needs_attention" | "active" | "queued" | "completed" | "other" {
+  if (isNeedsAttentionStatus(row.status)) {
+    return "needs_attention";
   }
-  if (row.completed) {
-    return "done";
+  if (isActiveStatus(row.status)) {
+    return "active";
   }
-  return "pending";
+  if (row.status === "queued") {
+    return "queued";
+  }
+  if (row.status === "completed") {
+    return "completed";
+  }
+  return "other";
 }
 
 /**
@@ -73,8 +87,11 @@ function buildColumns(): ColumnDef<PrinterLogRow, unknown>[] {
           row.firstname,
           row.lastname,
           row.email,
+          row.id,
           row.ref ?? "",
-          row.error_msg ?? "",
+          row.user_message_no ?? "",
+          row.error_code ?? "",
+          row.technical_error ?? "",
           getInvokerLabel(row),
           getStatusMeta(row).label,
         ]),
@@ -83,14 +100,27 @@ function buildColumns(): ColumnDef<PrinterLogRow, unknown>[] {
       enableHiding: true,
     },
     {
-      accessorKey: "created_at",
-      sortingFn: sortByDateValue,
+      accessorKey: "id",
+      sortingFn: (rowA, rowB, columnId) => {
+        const left = Number(rowA.getValue(columnId));
+        const right = Number(rowB.getValue(columnId));
+        const leftIsNumber = Number.isFinite(left);
+        const rightIsNumber = Number.isFinite(right);
+        if (leftIsNumber && rightIsNumber) {
+          return left - right;
+        }
+        return String(rowA.getValue(columnId)).localeCompare(
+          String(rowB.getValue(columnId)),
+          "no",
+          { numeric: true, sensitivity: "base" },
+        );
+      },
       header: ({ column }) => (
         <button className="inline-flex items-center gap-1" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Tidspunkt <ArrowUpDown className="h-3.5 w-3.5" />
+          ID <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
       ),
-      cell: ({ row }) => <span>{formatDate(row.original.created_at)}</span>,
+      cell: ({ row }) => <span className="font-medium">{row.original.id}</span>,
     },
     {
       id: "name",
@@ -168,7 +198,9 @@ export function PrinterQueueDataTable({
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({ search: false });
   const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: defaultPageSize });
-  const [statusFilter, setStatusFilter] = React.useState<"all" | "failed" | "pending" | "done">("all");
+  const [statusFilter, setStatusFilter] = React.useState<
+    "all" | "needs_attention" | "active" | "queued" | "completed"
+  >("all");
   const onSortingChange = React.useCallback((updater: React.SetStateAction<SortingState>) => {
     setSorting((previous) => {
       const raw = typeof updater === "function" ? updater(previous) : updater;
@@ -184,23 +216,27 @@ export function PrinterQueueDataTable({
   );
   const activeQuickFilters = React.useMemo(() => {
     const pills: Array<{ key: string; label: string }> = [];
-    if (statusFilter === "failed") {
-      pills.push({ key: "status_failed", label: "Kun feilet" });
-    } else if (statusFilter === "pending") {
-      pills.push({ key: "status_pending", label: "Kun pending" });
-    } else if (statusFilter === "done") {
-      pills.push({ key: "status_done", label: "Kun ferdig" });
+    if (statusFilter === "needs_attention") {
+      pills.push({ key: "status_needs_attention", label: "Kun må følges opp" });
+    } else if (statusFilter === "active") {
+      pills.push({ key: "status_active", label: "Kun aktive" });
+    } else if (statusFilter === "queued") {
+      pills.push({ key: "status_queued", label: "Kun i kø" });
+    } else if (statusFilter === "completed") {
+      pills.push({ key: "status_completed", label: "Kun ferdig" });
     }
     return pills;
   }, [statusFilter]);
   const activeQuickFilterKeys = React.useMemo(() => {
     const keys: string[] = [];
-    if (statusFilter === "failed") {
-      keys.push("status_failed");
-    } else if (statusFilter === "pending") {
-      keys.push("status_pending");
-    } else if (statusFilter === "done") {
-      keys.push("status_done");
+    if (statusFilter === "needs_attention") {
+      keys.push("status_needs_attention");
+    } else if (statusFilter === "active") {
+      keys.push("status_active");
+    } else if (statusFilter === "queued") {
+      keys.push("status_queued");
+    } else if (statusFilter === "completed") {
+      keys.push("status_completed");
     }
     return keys;
   }, [statusFilter]);
@@ -239,14 +275,19 @@ export function PrinterQueueDataTable({
     ]).size;
   const applyQuickFilter = (preset: QueueQuickFilterPreset) => {
     switch (preset) {
-      case "status_failed":
-        setStatusFilter((prev) => (prev === "failed" ? "all" : "failed"));
+      case "status_needs_attention":
+        setStatusFilter((prev) =>
+          prev === "needs_attention" ? "all" : "needs_attention",
+        );
         break;
-      case "status_pending":
-        setStatusFilter((prev) => (prev === "pending" ? "all" : "pending"));
+      case "status_active":
+        setStatusFilter((prev) => (prev === "active" ? "all" : "active"));
         break;
-      case "status_done":
-        setStatusFilter((prev) => (prev === "done" ? "all" : "done"));
+      case "status_queued":
+        setStatusFilter((prev) => (prev === "queued" ? "all" : "queued"));
+        break;
+      case "status_completed":
+        setStatusFilter((prev) => (prev === "completed" ? "all" : "completed"));
         break;
       default:
         setStatusFilter("all");
@@ -261,7 +302,12 @@ export function PrinterQueueDataTable({
       applyQuickFilter("reset");
       return;
     }
-    if (key === "status_failed" || key === "status_pending" || key === "status_done") {
+    if (
+      key === "status_needs_attention" ||
+      key === "status_active" ||
+      key === "status_queued" ||
+      key === "status_completed"
+    ) {
       setStatusFilter("all");
     } else {
       applyQuickFilter("reset");
@@ -277,9 +323,10 @@ export function PrinterQueueDataTable({
         searchPlaceholder="Søk navn, e-post, invoker eller ref..."
         isDefaultSort={isDefaultSort}
         quickFilters={[
-          { key: "status_failed", label: "Kun feilet" },
-          { key: "status_pending", label: "Kun pending" },
-          { key: "status_done", label: "Kun ferdig" },
+          { key: "status_needs_attention", label: "Kun må følges opp" },
+          { key: "status_active", label: "Kun aktive" },
+          { key: "status_queued", label: "Kun i kø" },
+          { key: "status_completed", label: "Kun ferdig" },
           { key: "reset", label: "Nullstill hurtigfiltre" },
         ]}
         onQuickFilterSelect={(key) => applyQuickFilter(key as QueueQuickFilterPreset)}
