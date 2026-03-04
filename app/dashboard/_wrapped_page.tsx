@@ -1,9 +1,14 @@
 "use client"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, Package, TrendingDown, TrendingUp, UserCheck2 } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Package, Printer, ShieldCheck, TrendingDown, TrendingUp, UserCheck2, Users } from "lucide-react"
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { CreateUserDialog } from "@/components/add-new-member";
+import {
+    isPrinterOffline,
+    type PrinterHealthRow,
+} from "@/components/queue/shared";
 
 interface Stats {
     title: string;
@@ -12,6 +17,11 @@ interface Stats {
     icon: React.ElementType;
     trend: string;
 }
+
+type DashboardPageProps = {
+    initialData: Stats[];
+    printerHealth: PrinterHealthRow | null;
+};
 
 type GitHubCommit = {
     sha: string;
@@ -101,8 +111,49 @@ export async function getLatestCommitsFetch(owner: string, repo: string) {
  * Renders dashboard page.
  *
  */
-export default function DashboardPage({ initialData }: { initialData: Stats[] }) {
+export default function DashboardPage({
+    initialData,
+    printerHealth,
+}: DashboardPageProps) {
     const [commits, setCommits] = useState<GitHubCommit[]>([]);
+    const isOffline = isPrinterOffline(printerHealth?.last_heartbeat ?? null);
+    const printerReady = !isOffline;
+    const printerStatusLabel = printerReady ? "PC: Klar for utskrift" : "PC: Frakoblet";
+    const printerConnected = printerHealth?.printer_connected;
+    const printerConnectionKnown = typeof printerConnected === "boolean";
+    const printerConnectedNow = printerConnected === true;
+    const printerConnectionLabel = !printerConnectionKnown
+        ? "Printer: Ukjent"
+        : printerConnectedNow
+          ? "Printer: Tilkoblet"
+          : "Printer: Frakoblet";
+
+    const quickActions = [
+        {
+            href: "/dashboard/equipment",
+            label: "Nytt utstyr",
+            description: "Registrer utstyr",
+            icon: Package,
+        },
+        {
+            href: "/dashboard/queue",
+            label: "Printerkø",
+            description: "Sjekk utskrifter",
+            icon: Printer,
+        },
+        {
+            href: "/dashboard/voluntary",
+            label: "Frivillige",
+            description: "Administrer frivillige",
+            icon: UserCheck2,
+        },
+        {
+            href: "/dashboard/audit",
+            label: "Logg",
+            description: "Se admin-hendelser",
+            icon: ShieldCheck,
+        },
+    ] as const;
 
     useEffect(() => {
         getLatestCommitsFetch("Aalesundstudentsamfunn", "ass-admin").then((data) => {
@@ -112,11 +163,121 @@ export default function DashboardPage({ initialData }: { initialData: Stats[] })
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-3xl font-bold text-balance">Oversikt</h1>
-                <p className="text-pretty text-foreground/75 dark:text-foreground/70">
-                    Administrasjon for frivillige, medlemmer og utstyr i ÅSS.
-                </p>
+            <div className="space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                    <div>
+                        <h1 className="text-3xl font-bold text-balance">Oversikt</h1>
+                        <p className="text-pretty text-foreground/75 dark:text-foreground/70">
+                            Administrasjon for frivillige, medlemmer og utstyr i ÅSS.
+                        </p>
+                    </div>
+                    <div className="hidden flex-none items-center gap-2 lg:flex">
+                        <div
+                            className={`inline-flex items-center gap-2.5 whitespace-nowrap rounded-full border px-4 py-2 text-sm ${
+                                printerReady
+                                    ? "border-emerald-500/45 text-emerald-700 dark:text-emerald-200"
+                                    : "border-rose-500/45 text-rose-700 dark:text-rose-200"
+                            }`}
+                            style={{
+                                backgroundColor: printerReady
+                                    ? "rgba(16, 185, 129, 0.11)"
+                                    : "rgba(244, 63, 94, 0.11)",
+                            }}
+                        >
+                            {printerReady ? (
+                                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
+                            ) : (
+                                <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-300" />
+                            )}
+                            <span className="font-semibold">{printerStatusLabel}</span>
+                        </div>
+                        <div
+                            className={`inline-flex items-center gap-2.5 whitespace-nowrap rounded-full border px-4 py-2 text-sm ${
+                                !printerConnectionKnown
+                                    ? "border-amber-500/45 text-amber-700 dark:text-amber-200"
+                                    : printerConnectedNow
+                                      ? "border-emerald-500/45 text-emerald-700 dark:text-emerald-200"
+                                      : "border-rose-500/45 text-rose-700 dark:text-rose-200"
+                            }`}
+                            style={{
+                                backgroundColor: !printerConnectionKnown
+                                    ? "rgba(245, 158, 11, 0.11)"
+                                    : printerConnectedNow
+                                      ? "rgba(16, 185, 129, 0.11)"
+                                      : "rgba(244, 63, 94, 0.11)",
+                            }}
+                            title={printerHealth?.printer_state_reason ?? undefined}
+                        >
+                            {printerConnectedNow ? (
+                                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
+                            ) : (
+                                <AlertTriangle
+                                    className={`h-4 w-4 ${
+                                        !printerConnectionKnown
+                                            ? "text-amber-600 dark:text-amber-300"
+                                            : "text-rose-600 dark:text-rose-300"
+                                    }`}
+                                />
+                            )}
+                            <span className="font-semibold">{printerConnectionLabel}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="lg:hidden">
+                    <div className="flex flex-wrap gap-2">
+                        <div
+                            className={`inline-flex items-center gap-2.5 rounded-full border px-4 py-2 text-sm ${
+                                printerReady
+                                    ? "border-emerald-500/45 text-emerald-700 dark:text-emerald-200"
+                                    : "border-rose-500/45 text-rose-700 dark:text-rose-200"
+                            }`}
+                            style={{
+                                backgroundColor: printerReady
+                                    ? "rgba(16, 185, 129, 0.11)"
+                                    : "rgba(244, 63, 94, 0.11)",
+                            }}
+                        >
+                            {printerReady ? (
+                                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
+                            ) : (
+                                <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-300" />
+                            )}
+                            <span className="font-semibold">{printerStatusLabel}</span>
+                        </div>
+                        <div
+                            className={`inline-flex items-center gap-2.5 rounded-full border px-4 py-2 text-sm ${
+                                !printerConnectionKnown
+                                    ? "border-amber-500/45 text-amber-700 dark:text-amber-200"
+                                    : printerConnectedNow
+                                      ? "border-emerald-500/45 text-emerald-700 dark:text-emerald-200"
+                                      : "border-rose-500/45 text-rose-700 dark:text-rose-200"
+                            }`}
+                            style={{
+                                backgroundColor: !printerConnectionKnown
+                                    ? "rgba(245, 158, 11, 0.11)"
+                                    : printerConnectedNow
+                                      ? "rgba(16, 185, 129, 0.11)"
+                                      : "rgba(244, 63, 94, 0.11)",
+                            }}
+                            title={printerHealth?.printer_state_reason ?? undefined}
+                        >
+                            {printerConnectedNow ? (
+                                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
+                            ) : (
+                                <AlertTriangle
+                                    className={`h-4 w-4 ${
+                                        !printerConnectionKnown
+                                            ? "text-amber-600 dark:text-amber-300"
+                                            : "text-rose-600 dark:text-rose-300"
+                                    }`}
+                                />
+                            )}
+                            <span className="font-semibold">{printerConnectionLabel}</span>
+                        </div>
+                    </div>
+                </div>
+
             </div>
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -152,49 +313,61 @@ export default function DashboardPage({ initialData }: { initialData: Stats[] })
                         <CardDescription>Siste commits fra gutta i IT</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="space-y-4">
-                            {commits.map((activity, index) => (
-                                <div
-                                    key={index}
-                                    className="flex items-center justify-between py-2 border-b border-border last:border-0"
-                                >
-                                    <div>
-                                        <p className="text-sm font-medium text-foreground">{activity.message}</p>
-                                        <p className="text-xs text-muted-foreground">
-                                            {activity.author} - {activity.date ? new Date(activity.date).toLocaleString() : "Ukjent dato"}
-                                        </p>
+                            <div className="space-y-4">
+                                {commits.map((activity, index) => (
+                                    <div
+                                        key={index}
+                                        className="flex items-center justify-between py-2 border-b border-border last:border-0"
+                                    >
+                                        <div>
+                                            <p className="text-sm font-medium text-foreground">{activity.message}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {activity.author} - {activity.date ? new Date(activity.date).toLocaleString() : "Ukjent dato"}
+                                            </p>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
                     </CardContent>
                 </Card>
 
                 <Card>
                     <CardHeader>
                         <CardTitle>Hurtighandlinger</CardTitle>
-                        <CardDescription>Vanlige administrative oppgaver</CardDescription>
+                        <CardDescription>Vanlige oppgaver i adminpanelet</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="grid gap-3">
-                            <Link href={"/dashboard/members"}>
-                                <button className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/10 transition-colors text-left">
-                                    <Users className="h-5 w-5 text-foreground/55 dark:text-foreground/50" />
-                                    <div>
-                                        <p className="font-medium text-foreground">Legg til nytt Åss medlem</p>
-                                        <p className="text-xs text-muted-foreground">Registrer nytt medlem og skriv ut kort</p>
-                                    </div>
-                                </button>
-                            </Link>
-                            <Link href={"/dashboard/equipment"}>
-                                <button className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/10 transition-colors text-left">
-                                    <Package className="h-5 w-5 text-foreground/55 dark:text-foreground/50" />
-                                    <div>
-                                        <p className="font-medium text-foreground">Legg til nytt utstyr</p>
-                                        <p className="text-xs text-muted-foreground">Registrer nytt utlånsobjekt</p>
-                                    </div>
-                                </button>
-                            </Link>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                            <CreateUserDialog
+                                trigger={
+                                    <button
+                                        type="button"
+                                        className="group rounded-lg border border-border/70 p-3 text-left transition-colors hover:bg-accent/10"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <Users className="h-4 w-4 text-foreground/65 transition-colors group-hover:text-foreground" />
+                                            <span className="text-sm font-medium">Nytt medlem</span>
+                                        </div>
+                                        <p className="mt-1 text-xs text-muted-foreground">Åpne oppretting</p>
+                                    </button>
+                                }
+                            />
+                            {quickActions.map((action) => {
+                                const Icon = action.icon;
+                                return (
+                                    <Link
+                                        key={action.href}
+                                        href={action.href}
+                                        className="group rounded-lg border border-border/70 p-3 transition-colors hover:bg-accent/10"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <Icon className="h-4 w-4 text-foreground/65 transition-colors group-hover:text-foreground" />
+                                            <span className="text-sm font-medium">{action.label}</span>
+                                        </div>
+                                        <p className="mt-1 text-xs text-muted-foreground">{action.description}</p>
+                                    </Link>
+                                );
+                            })}
                         </div>
                     </CardContent>
                 </Card>
