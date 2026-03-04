@@ -19,11 +19,19 @@ function toClientActionError(payload: unknown, fallback: string): ClientActionEr
 /**
  * Updates one member's privilege in `members`.
  */
-export async function updateMemberPrivilege(memberId: string | number, nextPrivilege: number) {
+export async function updateMemberPrivilege(
+  memberId: string | number,
+  nextPrivilege: number,
+  options?: { clearCommitteeOnDemote?: boolean },
+) {
   const response = await fetch("/api/admin/members/privilege", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ member_id: String(memberId), privilege_type: nextPrivilege }),
+    body: JSON.stringify({
+      member_id: String(memberId),
+      privilege_type: nextPrivilege,
+      clear_committee_on_demote: options?.clearCommitteeOnDemote === true,
+    }),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -63,6 +71,22 @@ export async function updateMemberName(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id: memberId, firstname, lastname }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  return { response, payload };
+}
+
+/**
+ * Calls API endpoint to update member committee.
+ */
+export async function updateMemberCommittee(
+  memberId: string | number,
+  committee: string | null,
+) {
+  const response = await fetch("/api/admin/members/update-committee", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ member_id: memberId, committee }),
   });
   const payload = await response.json().catch(() => ({}));
   return { response, payload };

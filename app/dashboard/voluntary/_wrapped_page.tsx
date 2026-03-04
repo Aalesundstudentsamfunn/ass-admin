@@ -19,6 +19,10 @@ import {
   bulkUpdateMemberPrivilege,
   updateMemberPrivilege,
 } from "@/lib/members/client-actions";
+import {
+  askCommitteeDemotionDecision,
+  isDemotionBelowVoluntary,
+} from "@/lib/members/committee-demotion-prompt";
 import { useCurrentPrivilege } from "@/lib/use-current-privilege";
 import { useCurrentUserId } from "@/lib/use-current-user-id";
 import { useMemberPageSizeDefault } from "@/lib/table-settings";
@@ -91,13 +95,17 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
    *
    * @returns void
    */
-  const applyPrivilegeToRows = React.useCallback((ids: string[], next: number) => {
+  const applyPrivilegeToRows = React.useCallback((ids: string[], next: number, clearCommittee = false) => {
     const idSet = new Set(ids);
     setRows((prev) => {
       if (next < PRIVILEGE_LEVELS.VOLUNTARY) {
         return prev.filter((row) => !idSet.has(String(row.id)));
       }
-      return prev.map((row) => (idSet.has(String(row.id)) ? { ...row, privilege_type: next } : row));
+      return prev.map((row) =>
+        idSet.has(String(row.id))
+          ? { ...row, privilege_type: next, ...(clearCommittee ? { committee: null } : {}) }
+          : row,
+      );
     });
     setSelectedMember((prev) => {
       if (!prev || !idSet.has(String(prev.id))) {
@@ -107,7 +115,7 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
         setDetailsOpen(false);
         return null;
       }
-      return { ...prev, privilege_type: next };
+      return { ...prev, privilege_type: next, ...(clearCommittee ? { committee: null } : {}) };
     });
   }, []);
 
@@ -155,15 +163,25 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
         toast.error("Du kan ikke gi deg selv høyere tilgangsnivå.");
         return;
       }
+      let clearCommitteeOnDemote = false;
+      if (isDemotionBelowVoluntary(currentValue, next)) {
+        const decision = await askCommitteeDemotionDecision("dette medlemmet");
+        if (decision === null) {
+          return;
+        }
+        clearCommitteeOnDemote = decision;
+      }
 
       const toastId = toast.loading("Oppdaterer tilgangsnivå...", { duration: 10000 });
-      const { error } = await updateMemberPrivilege(String(member.id), next);
+      const { error } = await updateMemberPrivilege(String(member.id), next, {
+        clearCommitteeOnDemote,
+      });
       if (error) {
         toast.error("Kunne ikke oppdatere tilgangsnivå.", { id: toastId, description: error.message, duration: Infinity });
         return;
       }
 
-      applyPrivilegeToRows([String(member.id)], next);
+      applyPrivilegeToRows([String(member.id)], next, clearCommitteeOnDemote);
       toast.success("Tilgangsnivå oppdatert.", { id: toastId, duration: 6000 });
     },
     [applyPrivilegeToRows, canEditPrivileges, currentPrivilege, currentUserId],
@@ -190,6 +208,7 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
       const unchangedIds: string[] = [];
       const blockedIds: string[] = [];
       const eligibleIds: string[] = [];
+      let hasDemotionTargets = false;
       for (const member of members) {
         const currentValue = memberPrivilege(member.privilege_type);
         const memberId = String(member.id);
@@ -202,6 +221,9 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
           continue;
         }
         eligibleIds.push(memberId);
+        if (isDemotionBelowVoluntary(currentValue, next)) {
+          hasDemotionTargets = true;
+        }
       }
       if (!eligibleIds.length) {
         if (unchangedIds.length > 0 && blockedIds.length === 0) {
@@ -211,15 +233,25 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
         toast.error("Ingen valgte medlemmer kan oppdateres med dette nivået.");
         return;
       }
+      let clearCommitteeOnDemote = false;
+      if (hasDemotionTargets) {
+        const decision = await askCommitteeDemotionDecision("de valgte medlemmene");
+        if (decision === null) {
+          return;
+        }
+        clearCommitteeOnDemote = decision;
+      }
 
       const toastId = toast.loading("Oppdaterer tilgangsnivå...", { duration: 10000 });
-      const { error } = await bulkUpdateMemberPrivilege(eligibleIds, next);
+      const { error } = await bulkUpdateMemberPrivilege(eligibleIds, next, {
+        clearCommitteeOnDemote,
+      });
       if (error) {
         toast.error("Kunne ikke oppdatere tilgangsnivå.", { id: toastId, description: error.message, duration: Infinity });
         return;
       }
 
-      applyPrivilegeToRows(eligibleIds, next);
+      applyPrivilegeToRows(eligibleIds, next, clearCommitteeOnDemote);
       const skippedCount = unchangedIds.length + blockedIds.length;
       if (skippedCount > 0) {
         toast.warning("Noen valgte medlemmer ble hoppet over.", {
@@ -283,9 +315,9 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
         member={selectedMember}
         currentUserId={currentUserId}
         currentUserPrivilege={currentPrivilege}
-        onPrivilegeUpdated={(next) => {
+        onPrivilegeUpdated={(next, options) => {
           if (selectedMember) {
-            applyPrivilegeToRows([String(selectedMember.id)], next);
+            applyPrivilegeToRows([String(selectedMember.id)], next, options?.clearCommittee === true);
           }
         }}
         onMembershipStatusUpdated={(next) => {
@@ -303,6 +335,17 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
             ),
           );
           setSelectedMember((prev) => (prev ? { ...prev, firstname, lastname } : prev));
+        }}
+        onCommitteeUpdated={(committee) => {
+          if (!selectedMember) {
+            return;
+          }
+          setRows((prev) =>
+            prev.map((row) =>
+              String(row.id) === String(selectedMember.id) ? { ...row, committee } : row,
+            ),
+          );
+          setSelectedMember((prev) => (prev ? { ...prev, committee } : prev));
         }}
         onBanUpdated={(next) => {
           if (!selectedMember) {

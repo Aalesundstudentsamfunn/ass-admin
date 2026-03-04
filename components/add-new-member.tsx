@@ -50,6 +50,7 @@ export function CreateUserDialog({
   const [email, setEmail] = React.useState("");
   const [resolvedEmail, setResolvedEmail] = React.useState("");
   const [voluntary, setVoluntary] = React.useState(false);
+  const [committee, setCommittee] = React.useState("");
   const [printPending, setPrintPending] = React.useState(false);
   const [existingMember, setExistingMember] = React.useState<CheckEmailActionResult["member"] | null>(null);
   const { autoPrint } = useAutoPrintSetting();
@@ -271,6 +272,7 @@ export function CreateUserDialog({
     setEmail("");
     setResolvedEmail("");
     setVoluntary(false);
+    setCommittee("");
     setExistingMember(null);
     setStage("email");
     setOpen(false);
@@ -304,6 +306,7 @@ export function CreateUserDialog({
     setEmail("");
     setResolvedEmail("");
     setVoluntary(false);
+    setCommittee("");
     setExistingMember(null);
     setStage("email");
     setOpen(false);
@@ -317,6 +320,7 @@ export function CreateUserDialog({
       setFirstname("");
       setLastname("");
       setVoluntary(false);
+      setCommittee("");
     }
   }, [open]);
 
@@ -440,11 +444,18 @@ export function CreateUserDialog({
                 firstname={firstname}
                 lastname={lastname}
                 voluntary={voluntary}
+                committee={committee}
                 isBusy={isBusy}
                 createPending={createPending}
                 onFirstnameChange={setFirstname}
                 onLastnameChange={setLastname}
-                onVoluntaryChange={setVoluntary}
+                onVoluntaryChange={(value) => {
+                  setVoluntary(value);
+                  if (!value) {
+                    setCommittee("");
+                  }
+                }}
+                onCommitteeChange={setCommittee}
                 onClose={() => setOpen(false)}
                 onSubmitStart={() => {
                   createSubmittedRef.current = true;

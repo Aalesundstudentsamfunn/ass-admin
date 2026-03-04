@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import DashboardShell from "./DashboardShell";
 import { canAccessDashboard } from "@/lib/privilege-checks";
 import { PRIVILEGE_LEVELS } from "@/lib/privilege-config";
+import { CommitteeDemotionPromptProvider } from "@/components/members/committee-demotion-prompt-provider";
 
 /**
  * Renders dashboard layout.
@@ -51,6 +52,7 @@ export default async function DashboardLayout({
         email: user.email,
       }}
     >
+      <CommitteeDemotionPromptProvider />
       {children}
     </DashboardShell>
   );

@@ -5,6 +5,8 @@ import { AlertTriangle, CheckCircle2, Package, Printer, ShieldCheck, TrendingDow
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { CreateUserDialog } from "@/components/add-new-member";
+import { useDashboardSessionOptional } from "@/components/dashboard/session-context";
+import { canViewAuditLogs } from "@/lib/privilege-checks";
 import {
     isPrinterOffline,
     type PrinterHealthRow,
@@ -115,6 +117,8 @@ export default function DashboardPage({
     initialData,
     printerHealth,
 }: DashboardPageProps) {
+    const dashboardSession = useDashboardSessionOptional();
+    const canSeeAuditLogs = canViewAuditLogs(dashboardSession?.privilegeType);
     const [commits, setCommits] = useState<GitHubCommit[]>([]);
     const isOffline = isPrinterOffline(printerHealth?.last_heartbeat ?? null);
     const printerReady = !isOffline;
@@ -154,6 +158,9 @@ export default function DashboardPage({
             icon: ShieldCheck,
         },
     ] as const;
+    const visibleQuickActions = canSeeAuditLogs
+      ? quickActions
+      : quickActions.filter((action) => action.href !== "/dashboard/audit");
 
     useEffect(() => {
         getLatestCommitsFetch("Aalesundstudentsamfunn", "ass-admin").then((data) => {
@@ -352,7 +359,7 @@ export default function DashboardPage({
                                     </button>
                                 }
                             />
-                            {quickActions.map((action) => {
+                            {visibleQuickActions.map((action) => {
                                 const Icon = action.icon;
                                 return (
                                     <Link

@@ -6,14 +6,13 @@
 import { NextResponse } from "next/server";
 import { assertPermission } from "@/lib/server/assert-permission";
 import { logAdminAction } from "@/lib/server/admin-audit-log";
-import { isVoluntaryOrHigher } from "@/lib/privilege-checks";
 
 type MemberRow = {
   id: string;
   firstname: string | null;
   lastname: string | null;
   email: string | null;
-  privilege_type: number | null;
+  committee: string | null;
   is_banned: boolean | null;
 };
 
@@ -51,7 +50,7 @@ export async function POST(request: Request) {
 
     const { data: members, error: membersError } = await supabase
       .from("members")
-      .select("id, firstname, lastname, email, privilege_type, is_banned")
+      .select("id, firstname, lastname, email, committee, is_banned")
       .in("id", memberIds);
 
     if (membersError) {
@@ -88,7 +87,7 @@ export async function POST(request: Request) {
           email: member.email ?? "",
           ref: member.id,
           ref_invoker: userId,
-          is_voluntary: isVoluntaryOrHigher(member.privilege_type),
+          committee: member.committee ?? null,
           status: "queued",
           status_updated_at: new Date().toISOString(),
           user_message_no: null,

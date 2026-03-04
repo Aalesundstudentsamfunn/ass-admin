@@ -14,6 +14,11 @@ import {
   updateMembershipStatus,
 } from "@/lib/members/client-actions";
 import { watchPrinterQueueStatus } from "@/lib/printer-queue";
+import { PRIVILEGE_LEVELS } from "@/lib/privilege-config";
+import {
+  askCommitteeDemotionDecision,
+  isDemotionBelowVoluntary,
+} from "@/lib/members/committee-demotion-prompt";
 import {
   canAssignPrivilege,
   canSetOwnPrivilege,
@@ -200,15 +205,28 @@ export function useMembersPageActions({
         toast.error("Du kan ikke gi deg selv høyere tilgangsnivå.");
         return;
       }
+      let clearCommitteeOnDemote = false;
+      if (isDemotionBelowVoluntary(currentValue, next)) {
+        const decision = await askCommitteeDemotionDecision("dette medlemmet");
+        if (decision === null) {
+          return;
+        }
+        clearCommitteeOnDemote = decision;
+      }
 
       // Persist to DB first, then patch local list/dialog state on success.
       const toastId = toast.loading("Oppdaterer tilgangsnivå...", { duration: 10000 });
-      const { error } = await updateMemberPrivilege(idOf(member.id), next);
+      const { error } = await updateMemberPrivilege(idOf(member.id), next, {
+        clearCommitteeOnDemote,
+      });
       if (error) {
         toast.error("Kunne ikke oppdatere tilgangsnivå.", { id: toastId, description: error.message, duration: Infinity });
         return;
       }
-      patchMembersByIds(setRows, setSelectedMember, [idOf(member.id)], { privilege_type: next });
+      patchMembersByIds(setRows, setSelectedMember, [idOf(member.id)], {
+        privilege_type: next,
+        ...(clearCommitteeOnDemote ? { committee: null } : {}),
+      });
       toast.success("Tilgangsnivå oppdatert.", { id: toastId, duration: 6000 });
     },
     [canEditPrivileges, currentPrivilege, currentUserId, setRows, setSelectedMember],
@@ -276,6 +294,7 @@ export function useMembersPageActions({
       const unchangedIds: string[] = [];
       const blockedIds: string[] = [];
       const eligibleIds: string[] = [];
+      let hasDemotionTargets = false;
       for (const member of members) {
         const currentValue = memberPrivilege(member.privilege_type);
         const memberId = idOf(member.id);
@@ -288,6 +307,9 @@ export function useMembersPageActions({
           continue;
         }
         eligibleIds.push(memberId);
+        if (isDemotionBelowVoluntary(currentValue, next)) {
+          hasDemotionTargets = true;
+        }
       }
       if (!eligibleIds.length) {
         if (unchangedIds.length > 0 && blockedIds.length === 0) {
@@ -297,9 +319,19 @@ export function useMembersPageActions({
         toast.error("Ingen valgte medlemmer kan oppdateres med dette nivået.");
         return;
       }
+      let clearCommitteeOnDemote = false;
+      if (hasDemotionTargets && next < PRIVILEGE_LEVELS.VOLUNTARY) {
+        const decision = await askCommitteeDemotionDecision("de valgte medlemmene");
+        if (decision === null) {
+          return;
+        }
+        clearCommitteeOnDemote = decision;
+      }
 
       const toastId = toast.loading("Oppdaterer tilgangsnivå...", { duration: 10000 });
-      const { error } = await bulkUpdateMemberPrivilege(eligibleIds, next);
+      const { error } = await bulkUpdateMemberPrivilege(eligibleIds, next, {
+        clearCommitteeOnDemote,
+      });
       if (error) {
         toast.error("Kunne ikke oppdatere tilgangsnivå.", {
           id: toastId,
@@ -309,7 +341,10 @@ export function useMembersPageActions({
         return;
       }
 
-      patchMembersByIds(setRows, setSelectedMember, eligibleIds, { privilege_type: next });
+      patchMembersByIds(setRows, setSelectedMember, eligibleIds, {
+        privilege_type: next,
+        ...(clearCommitteeOnDemote ? { committee: null } : {}),
+      });
       const skippedCount = unchangedIds.length + blockedIds.length;
       if (skippedCount > 0) {
         toast.warning("Noen valgte medlemmer ble hoppet over.", {

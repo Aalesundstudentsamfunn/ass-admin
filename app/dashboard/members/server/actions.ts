@@ -293,7 +293,17 @@ export async function addNewMember(
   const normalizedEmail = normalizeMemberEmail(String(formData.get("email") ?? ""));
   const lastname = String(formData.get("lastname") ?? "");
   const voluntary = Boolean(formData.get("voluntary"));
+  const rawCommittee = String(formData.get("committee") ?? "").trim();
+  const committee = rawCommittee.length ? rawCommittee : null;
   const autoPrint = shouldAutoPrint(formData.get("autoPrint"));
+
+  if (voluntary) {
+    if (!committee) {
+      return { ok: false, error: "Komité må velges for frivillig." };
+    }
+  } else if (committee !== null) {
+    return { ok: false, error: "Komité kan bare settes for frivillig." };
+  }
 
   try {
     const sb = await createClient();
@@ -378,6 +388,7 @@ export async function addNewMember(
 
     const { userId } = await ensureAuthUser(normalizedEmail, firstname, lastname);
     const privilegeType = toMemberPrivilege(voluntary);
+    const committeeForMember = voluntary ? committee : null;
 
     const { data: newMember, error: insertError } = await sb
       .from("members")
@@ -386,11 +397,12 @@ export async function addNewMember(
         email: normalizedEmail,
         firstname,
         lastname,
+        committee: committeeForMember,
         privilege_type: privilegeType,
         is_membership_active: true,
         created_by: createdBy,
       })
-      .select("id, firstname, lastname, email, privilege_type, created_by")
+      .select("id, firstname, lastname, email, committee, privilege_type, created_by")
       .single();
 
     if (insertError || !newMember) {
@@ -405,6 +417,20 @@ export async function addNewMember(
       return { ok: false, error: insertError?.message ?? "Failed to add new member." };
     }
 
+    await logMemberAction(sb, {
+      actorId: createdBy,
+      action: "member.create",
+      targetId: newMember.id,
+      status: "ok",
+      details: {
+        email: newMember.email,
+        privilege_type: privilegeType,
+        committee: committeeForMember,
+        is_membership_active: true,
+        auto_print: autoPrint,
+      },
+    });
+
     if (!autoPrint) {
       revalidatePath("/dashboard/members");
       return { ok: true, autoPrint: false };
@@ -414,7 +440,7 @@ export async function addNewMember(
       sb,
       newMember,
       createdBy,
-      privilegeType,
+      committeeForMember,
     );
 
     if (queueError) {
@@ -426,6 +452,7 @@ export async function addNewMember(
         errorMessage: `added user but failed to add to printer queue: ${queueError.message}`,
         details: {
           email: newMember.email,
+          committee: committeeForMember,
           auto_print: true,
           auth_user_id: userId,
         },

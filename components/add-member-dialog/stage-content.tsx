@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { COMMITTEE_OPTIONS } from "@/lib/committee-options";
 import type { AddMemberDialogStage, CheckEmailActionResult } from "./types";
 
 /**
@@ -29,7 +30,39 @@ export function MemberEmailCheckForm({ action, email, isBusy, stage, checkPendin
 /**
  * Form for creating a brand new member after email check.
  */
-export function MemberCreateForm({ action, normalizedEmail, autoPrint, firstname, lastname, voluntary, isBusy, createPending, onFirstnameChange, onLastnameChange, onVoluntaryChange, onClose, onSubmitStart }: { action: (payload: FormData) => void; normalizedEmail: string; autoPrint: boolean; firstname: string; lastname: string; voluntary: boolean; isBusy: boolean; createPending: boolean; onFirstnameChange: (value: string) => void; onLastnameChange: (value: string) => void; onVoluntaryChange: (value: boolean) => void; onClose: () => void; onSubmitStart: () => void }) {
+export function MemberCreateForm({
+  action,
+  normalizedEmail,
+  autoPrint,
+  firstname,
+  lastname,
+  voluntary,
+  committee,
+  isBusy,
+  createPending,
+  onFirstnameChange,
+  onLastnameChange,
+  onVoluntaryChange,
+  onCommitteeChange,
+  onClose,
+  onSubmitStart,
+}: {
+  action: (payload: FormData) => void;
+  normalizedEmail: string;
+  autoPrint: boolean;
+  firstname: string;
+  lastname: string;
+  voluntary: boolean;
+  committee: string;
+  isBusy: boolean;
+  createPending: boolean;
+  onFirstnameChange: (value: string) => void;
+  onLastnameChange: (value: string) => void;
+  onVoluntaryChange: (value: boolean) => void;
+  onCommitteeChange: (value: string) => void;
+  onClose: () => void;
+  onSubmitStart: () => void;
+}) {
   return (
     <form action={action} className="mt-4 space-y-4" onSubmit={onSubmitStart}>
       <input type="hidden" name="email" value={normalizedEmail} />
@@ -55,6 +88,30 @@ export function MemberCreateForm({ action, normalizedEmail, autoPrint, firstname
           Frivillig
         </Label>
       </div>
+
+      {voluntary ? (
+        <div className="space-y-2">
+          <Label htmlFor="committee" className="text-foreground">
+            Komité
+          </Label>
+          <select
+            id="committee"
+            name="committee"
+            value={committee}
+            onChange={(event) => onCommitteeChange(event.target.value)}
+            required
+            className="h-12 w-full rounded-xl border-zinc-400/80 bg-white px-3 text-zinc-900 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
+            disabled={isBusy}
+          >
+            <option value="">Velg komité</option>
+            {COMMITTEE_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
 
       <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="secondary" onClick={onClose} className="h-11 rounded-xl border border-border/80 bg-background text-foreground hover:bg-accent" disabled={isBusy}>

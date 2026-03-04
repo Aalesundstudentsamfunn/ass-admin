@@ -19,11 +19,19 @@ function toClientActionError(payload: unknown, fallback: string): ClientActionEr
 /**
  * Updates privilege_type for a single member row.
  */
-export async function updateMemberPrivilege(memberId: string, nextPrivilege: number) {
+export async function updateMemberPrivilege(
+  memberId: string,
+  nextPrivilege: number,
+  options?: { clearCommitteeOnDemote?: boolean },
+) {
   const response = await fetch("/api/admin/members/privilege", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ member_id: memberId, privilege_type: nextPrivilege }),
+    body: JSON.stringify({
+      member_id: memberId,
+      privilege_type: nextPrivilege,
+      clear_committee_on_demote: options?.clearCommitteeOnDemote === true,
+    }),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -38,11 +46,16 @@ export async function updateMemberPrivilege(memberId: string, nextPrivilege: num
 export async function bulkUpdateMemberPrivilege(
   memberIds: string[],
   nextPrivilege: number,
+  options?: { clearCommitteeOnDemote?: boolean },
 ) {
   const response = await fetch("/api/admin/members/privilege", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ member_ids: memberIds, privilege_type: nextPrivilege }),
+    body: JSON.stringify({
+      member_ids: memberIds,
+      privilege_type: nextPrivilege,
+      clear_committee_on_demote: options?.clearCommitteeOnDemote === true,
+    }),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {

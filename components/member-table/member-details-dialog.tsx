@@ -5,8 +5,13 @@ import { CheckCircle2, Pencil, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { COMMITTEE_OPTIONS } from "@/lib/committee-options";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import {
+  askCommitteeDemotionDecision,
+  isDemotionBelowVoluntary,
+} from "@/lib/members/committee-demotion-prompt";
 import {
   canAssignPrivilege,
   canBanMembers,
@@ -30,6 +35,7 @@ import {
 import {
   sendMemberPasswordReset,
   updateMemberBanStatus,
+  updateMemberCommittee,
   updateMemberMembershipStatus,
   updateMemberName,
   updateMemberPrivilege,
@@ -53,6 +59,7 @@ export function MemberDetailsDialog({
   onPrivilegeUpdated,
   onMembershipStatusUpdated,
   onNameUpdated,
+  onCommitteeUpdated,
   onBanUpdated,
   showBanControls = true,
 }: {
@@ -61,9 +68,10 @@ export function MemberDetailsDialog({
   member: MemberRow | null;
   currentUserId?: string | null;
   currentUserPrivilege?: number | null;
-  onPrivilegeUpdated: (next: number) => void;
+  onPrivilegeUpdated: (next: number, options?: { clearCommittee?: boolean }) => void;
   onMembershipStatusUpdated: (next: boolean) => void;
   onNameUpdated: (firstname: string, lastname: string) => void;
+  onCommitteeUpdated: (committee: string | null) => void;
   onBanUpdated: (next: boolean) => void;
   showBanControls?: boolean;
 }) {
@@ -78,6 +86,8 @@ export function MemberDetailsDialog({
   const [isEditingName, setIsEditingName] = React.useState(false);
   const [firstnameDraft, setFirstnameDraft] = React.useState("");
   const [lastnameDraft, setLastnameDraft] = React.useState("");
+  const [isEditingCommittee, setIsEditingCommittee] = React.useState(false);
+  const [committeeDraft, setCommitteeDraft] = React.useState("");
 
   React.useEffect(() => {
     let active = true;
@@ -110,8 +120,10 @@ export function MemberDetailsDialog({
   React.useEffect(() => {
     setFirstnameDraft(member?.firstname ?? "");
     setLastnameDraft(member?.lastname ?? "");
+    setCommitteeDraft(member?.committee ?? "");
     setIsEditingName(false);
-  }, [member?.id, member?.firstname, member?.lastname]);
+    setIsEditingCommittee(false);
+  }, [member?.id, member?.firstname, member?.lastname, member?.committee]);
 
   const fullName = member ? `${member.firstname ?? ""} ${member.lastname ?? ""}`.trim() : "";
   const addedByName = addedByProfile
@@ -129,6 +141,7 @@ export function MemberDetailsDialog({
   const canEditTarget = canEditMemberPrivileges(currentPrivilege);
   const canEditThisTarget = canEditPrivilegeForTarget(currentPrivilege, targetPrivilege);
   const canEditMembershipStatus = canManageMembershipStatus(currentPrivilege);
+  const canEditCommittee = canManageMembershipStatus(currentPrivilege) && canEditThisTarget;
   const canSendPasswordReset = canResetPasswords(currentPrivilege);
   const canViewBanControls = showBanControls && canBanMembers(currentPrivilege);
   const allowedMax = getMaxAssignablePrivilege(currentPrivilege);
@@ -169,9 +182,19 @@ export function MemberDetailsDialog({
       toast.error("Ugyldig tilgangsnivå for din rolle.");
       return;
     }
+    let clearCommitteeOnDemote = false;
+    if (isDemotionBelowVoluntary(targetPrivilege, next)) {
+      const decision = await askCommitteeDemotionDecision("dette medlemmet");
+      if (decision === null) {
+        return;
+      }
+      clearCommitteeOnDemote = decision;
+    }
     const toastId = toast.loading("Oppdaterer tilgangsnivå...", { duration: 10000 });
     setIsSaving(true);
-    const { error } = await updateMemberPrivilege(member.id, next);
+    const { error } = await updateMemberPrivilege(member.id, next, {
+      clearCommitteeOnDemote,
+    });
     if (error) {
       toast.error("Kunne ikke oppdatere tilgangsnivå.", {
         id: toastId,
@@ -181,7 +204,7 @@ export function MemberDetailsDialog({
       setIsSaving(false);
       return;
     }
-    onPrivilegeUpdated(next);
+    onPrivilegeUpdated(next, { clearCommittee: clearCommitteeOnDemote });
     toast.success("Tilgangsnivå oppdatert.", { id: toastId, duration: 6000 });
     setIsSaving(false);
   };
@@ -251,6 +274,48 @@ export function MemberDetailsDialog({
       toast.success("Navn oppdatert.", { id: toastId, duration: 6000 });
     } catch (error: unknown) {
       toast.error("Kunne ikke oppdatere navn.", {
+        id: toastId,
+        description: error instanceof Error ? error.message : "Ukjent feil.",
+        duration: Infinity,
+      });
+    }
+    setIsSaving(false);
+  };
+
+  const handleCommitteeSave = async () => {
+    if (!member) {
+      return;
+    }
+    if (!canEditCommittee) {
+      toast.error("Du har ikke tilgang til å oppdatere komité.");
+      return;
+    }
+
+    const committeeValue = committeeDraft.trim();
+    const nextCommittee = committeeValue.length ? committeeValue : null;
+    if ((member.committee ?? null) === nextCommittee) {
+      setIsEditingCommittee(false);
+      return;
+    }
+
+    const toastId = toast.loading("Oppdaterer komité...", { duration: 10000 });
+    setIsSaving(true);
+    try {
+      const { response, payload } = await updateMemberCommittee(member.id, nextCommittee);
+      if (!response.ok) {
+        toast.error("Kunne ikke oppdatere komité.", {
+          id: toastId,
+          description: payload?.error ?? "Ukjent feil.",
+          duration: Infinity,
+        });
+        setIsSaving(false);
+        return;
+      }
+      onCommitteeUpdated(nextCommittee);
+      setIsEditingCommittee(false);
+      toast.success("Komité oppdatert.", { id: toastId, duration: 6000 });
+    } catch (error: unknown) {
+      toast.error("Kunne ikke oppdatere komité.", {
         id: toastId,
         description: error instanceof Error ? error.message : "Ukjent feil.",
         duration: Infinity,
@@ -359,6 +424,58 @@ export function MemberDetailsDialog({
                 <span className="font-medium">{PRIVILEGE_OPTIONS.find((option) => option.value === targetPrivilege)?.label ?? `Nivå ${targetPrivilege}`}</span>
               )}
             </DetailRow>
+            {canEditCommittee ? (
+              <div className="grid gap-2">
+                <DetailRow label="Komité">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 font-medium hover:opacity-80 ml-auto"
+                    onClick={() => setIsEditingCommittee((prev) => !prev)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                    <span>{member.committee || "—"}</span>
+                  </button>
+                </DetailRow>
+                {isEditingCommittee ? (
+                  <div className="flex w-full flex-wrap items-center gap-2">
+                    <select
+                      value={committeeDraft}
+                      onChange={(event) => setCommitteeDraft(event.target.value)}
+                      className="h-8 min-w-[12rem] flex-1 rounded-xl border border-border/60 bg-background/60 px-2 text-xs"
+                      disabled={isSaving}
+                    >
+                      <option value="">Ingen komité</option>
+                      {COMMITTEE_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="ml-auto flex items-center gap-2">
+                      <Button size="sm" variant="outline" className="rounded-xl" onClick={handleCommitteeSave} disabled={isSaving}>
+                        Lagre
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="rounded-xl"
+                        disabled={isSaving}
+                        onClick={() => {
+                          setCommitteeDraft(member?.committee ?? "");
+                          setIsEditingCommittee(false);
+                        }}
+                      >
+                        Avbryt
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <DetailRow label="Komité">
+                <span className="font-medium">{member.committee || "—"}</span>
+              </DetailRow>
+            )}
             {canEditMembershipStatus ? (
               <DetailRow label="Aktivt medlemskap">
                 <span className="inline-flex items-center gap-2">

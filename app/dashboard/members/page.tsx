@@ -22,6 +22,7 @@ function mapToUserRows(rows: Record<string, unknown>[]): UserRow[] {
     is_banned: (row.is_banned as boolean | null | undefined) ?? null,
     profile_id: null,
     privilege_type: (row.privilege_type as number | null | undefined) ?? null,
+    committee: (row.committee as string | null | undefined) ?? null,
   }));
 }
 

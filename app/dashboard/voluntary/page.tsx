@@ -9,7 +9,7 @@ export default async function MembersPage() {
   const supabase = await createClient();
   const { data: rows, error } = await supabase
     .from("members")
-    .select("id, firstname, lastname, email, privilege_type, created_by, created_at, password_set_at, is_membership_active, is_banned")
+    .select("id, firstname, lastname, email, committee, privilege_type, created_by, created_at, password_set_at, is_membership_active, is_banned")
     .gte("privilege_type", PRIVILEGE_LEVELS.VOLUNTARY);
   if (error) {
     return <div>Error: {error?.message}</div>

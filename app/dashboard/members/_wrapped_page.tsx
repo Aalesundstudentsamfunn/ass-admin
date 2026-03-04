@@ -205,9 +205,15 @@ export default function MembersTablePage({
         member={selectedMember}
         currentUserId={currentUserId}
         currentUserPrivilege={currentPrivilege ?? null}
-        onPrivilegeUpdated={(next) => patchSelectedMember({ privilege_type: next })}
+        onPrivilegeUpdated={(next, options) =>
+          patchSelectedMember({
+            privilege_type: next,
+            ...(options?.clearCommittee ? { committee: null } : {}),
+          })
+        }
         onMembershipStatusUpdated={(next) => patchSelectedMember({ is_membership_active: next })}
         onNameUpdated={(firstname, lastname) => patchSelectedMember({ firstname, lastname })}
+        onCommitteeUpdated={(committee) => patchSelectedMember({ committee })}
         onBanUpdated={(next) => patchSelectedMember({ is_banned: next })}
       />
     </div>

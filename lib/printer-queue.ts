@@ -20,7 +20,7 @@ export type PrinterQueueEntry = {
   email: string;
   ref: string | number;
   ref_invoker: string;
-  is_voluntary: boolean;
+  committee: string | null;
 };
 
 export type PrinterQueueRow = {
