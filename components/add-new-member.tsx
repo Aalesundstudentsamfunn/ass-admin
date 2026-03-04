@@ -36,8 +36,14 @@ import type {
  * 1) check email
  * 2) create or activate membership depending on existing state.
  */
-export function CreateUserDialog() {
-  const [open, setOpen] = React.useState(false);
+export function CreateUserDialog({
+  autoOpen = false,
+  trigger,
+}: {
+  autoOpen?: boolean;
+  trigger?: React.ReactElement;
+} = {}) {
+  const [open, setOpen] = React.useState(autoOpen);
   const [stage, setStage] = React.useState<AddMemberDialogStage>("email");
   const [firstname, setFirstname] = React.useState("");
   const [lastname, setLastname] = React.useState("");
@@ -128,11 +134,19 @@ export function CreateUserDialog() {
         ref: queueRef,
         refInvoker: queueInvoker,
         timeoutMs: 25000,
-        timeoutErrorMessage: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
         onCompleted: () => {
           toast.success(completedMessage, {
             id: toastIdRef.current ?? undefined,
             duration: 10000,
+          });
+          toastIdRef.current = null;
+          queueKeyRef.current = null;
+        },
+        onNeedsReview: (message) => {
+          toast.warning("Utskrift må sjekkes manuelt.", {
+            id: toastIdRef.current ?? undefined,
+            description: message,
+            duration: Infinity,
           });
           toastIdRef.current = null;
           queueKeyRef.current = null;
@@ -146,10 +160,19 @@ export function CreateUserDialog() {
           toastIdRef.current = null;
           queueKeyRef.current = null;
         },
-        onTimeout: () => {
-          toast.error("Utskrift tar lengre tid enn vanlig.", {
+        onCanceled: (message) => {
+          toast.error("Utskrift avbrutt.", {
             id: toastIdRef.current ?? undefined,
-            description: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
+            description: message,
+            duration: Infinity,
+          });
+          toastIdRef.current = null;
+          queueKeyRef.current = null;
+        },
+        onTimeout: () => {
+          toast.loading("Utskrift tar lengre tid enn vanlig.", {
+            id: toastIdRef.current ?? undefined,
+            description: "Vi følger fortsatt med og oppdaterer deg automatisk.",
             duration: Infinity,
           });
         },
@@ -288,7 +311,6 @@ export function CreateUserDialog() {
 
   useEffect(() => {
     if (!open) {
-      stopQueueWatch();
       setStage("email");
       setExistingMember(null);
       setResolvedEmail("");
@@ -296,13 +318,19 @@ export function CreateUserDialog() {
       setLastname("");
       setVoluntary(false);
     }
-  }, [open, stopQueueWatch]);
+  }, [open]);
 
   useEffect(() => {
     return () => {
       stopQueueWatch();
     };
   }, [stopQueueWatch]);
+
+  useEffect(() => {
+    if (autoOpen) {
+      setOpen(true);
+    }
+  }, [autoOpen]);
 
   /**
    * Enqueues card printing for an already-existing member found by email lookup.
@@ -373,9 +401,11 @@ export function CreateUserDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="rounded-xl">
-          <Plus className="mr-1 h-4 w-4" /> Ny bruker
-        </Button>
+        {trigger ?? (
+          <Button className="rounded-xl">
+            <Plus className="mr-1 h-4 w-4" /> Ny bruker
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-w-md border-0 bg-transparent p-0 shadow-none">
         <AddMemberDialogGlass className="p-[1px]">
