@@ -89,8 +89,11 @@ export async function POST(request: Request) {
           ref: member.id,
           ref_invoker: userId,
           is_voluntary: isVoluntaryOrHigher(member.privilege_type),
-          completed: false,
-          error_msg: null,
+          status: "queued",
+          status_updated_at: new Date().toISOString(),
+          user_message_no: null,
+          error_code: null,
+          technical_error: null,
         })
         .select("id")
         .single();
