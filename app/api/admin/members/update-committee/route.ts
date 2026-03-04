@@ -9,7 +9,8 @@ import { logAdminAction } from "@/lib/server/admin-audit-log";
 import { assertPermission } from "@/lib/server/assert-permission";
 
 /**
- * Updates member committee with server-side validation and per-target privilege checks.
+ * Committee updates are intentionally disabled in UI/API.
+ * Committee can only be set at member creation time; later changes must happen in DB manually.
  */
 export async function POST(request: Request) {
   try {
@@ -54,54 +55,27 @@ export async function POST(request: Request) {
       );
     }
 
-    const previousCommittee =
-      typeof targetMember.committee === "string" && targetMember.committee.trim()
-        ? targetMember.committee
-        : null;
-
-    if (previousCommittee === nextCommittee) {
-      return NextResponse.json({ ok: true, unchanged: true, committee: previousCommittee });
-    }
-
-    const { error: updateError } = await supabase
-      .from("members")
-      .update({ committee: nextCommittee })
-      .eq("id", memberId);
-
-    if (updateError) {
-      await logAdminAction(supabase, {
-        actorId: userId,
-        action: "member.committee.update",
-        targetTable: "members",
-        targetId: memberId,
-        status: "error",
-        errorMessage: updateError.message,
-        details: {
-          member_id: memberId,
-          previous_committee: previousCommittee,
-          committee: nextCommittee,
-        },
-      });
-      return NextResponse.json({ error: updateError.message }, { status: 400 });
-    }
-
     await logAdminAction(supabase, {
       actorId: userId,
       action: "member.committee.update",
       targetTable: "members",
       targetId: memberId,
-      status: "ok",
+      status: "error",
+      errorMessage: "Committee updates via API are disabled.",
       details: {
         member_id: memberId,
-        previous_committee: previousCommittee,
-        committee: nextCommittee,
+        attempted_committee: nextCommittee,
+        privilege_type: targetMember.privilege_type,
       },
     });
 
-    return NextResponse.json({
-      ok: true,
-      committee: nextCommittee,
-    });
+    return NextResponse.json(
+      {
+        error:
+          "Komité kan kun settes ved opprettelse. Senere endringer må gjøres direkte i databasen.",
+      },
+      { status: 400 },
+    );
   } catch (error: unknown) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Ukjent feil" },

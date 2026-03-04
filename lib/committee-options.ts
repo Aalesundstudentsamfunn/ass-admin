@@ -1,5 +1,5 @@
 export const COMMITTEE_OPTIONS = [
-  "Aktivitetsgruppe",
+  "Gruppeleder",
   "Markedsføring",
   "Arrangement",
   "U.-KA.-Revy",

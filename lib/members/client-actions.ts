@@ -22,7 +22,6 @@ function toClientActionError(payload: unknown, fallback: string): ClientActionEr
 export async function updateMemberPrivilege(
   memberId: string,
   nextPrivilege: number,
-  options?: { clearCommitteeOnDemote?: boolean },
 ) {
   const response = await fetch("/api/admin/members/privilege", {
     method: "POST",
@@ -30,7 +29,6 @@ export async function updateMemberPrivilege(
     body: JSON.stringify({
       member_id: memberId,
       privilege_type: nextPrivilege,
-      clear_committee_on_demote: options?.clearCommitteeOnDemote === true,
     }),
   });
   const payload = await response.json().catch(() => ({}));
@@ -46,7 +44,6 @@ export async function updateMemberPrivilege(
 export async function bulkUpdateMemberPrivilege(
   memberIds: string[],
   nextPrivilege: number,
-  options?: { clearCommitteeOnDemote?: boolean },
 ) {
   const response = await fetch("/api/admin/members/privilege", {
     method: "POST",
@@ -54,7 +51,6 @@ export async function bulkUpdateMemberPrivilege(
     body: JSON.stringify({
       member_ids: memberIds,
       privilege_type: nextPrivilege,
-      clear_committee_on_demote: options?.clearCommitteeOnDemote === true,
     }),
   });
   const payload = await response.json().catch(() => ({}));

@@ -6,7 +6,6 @@
 import { NextResponse } from "next/server";
 import { assertPermission } from "@/lib/server/assert-permission";
 import { canAssignPrivilege, canSetOwnPrivilege, memberPrivilege } from "@/lib/privilege-checks";
-import { PRIVILEGE_LEVELS } from "@/lib/privilege-config";
 import { logAdminAction } from "@/lib/server/admin-audit-log";
 
 /**
@@ -16,7 +15,6 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const nextPrivilege = Number(body?.privilege_type);
-    const clearCommitteeOnDemote = body?.clear_committee_on_demote === true;
     const singleId = String(body?.member_id ?? "").trim();
     const idsFromArray: string[] = Array.isArray(body?.member_ids)
       ? body.member_ids
@@ -54,7 +52,6 @@ export async function POST(request: Request) {
         details: {
           member_ids: memberIds,
           privilege_type: nextPrivilege,
-          clear_committee_on_demote: clearCommitteeOnDemote,
         },
       });
       return NextResponse.json({ error: targetError.message }, { status: 400 });
@@ -105,7 +102,6 @@ export async function POST(request: Request) {
           invalid_member_ids: invalidIds,
           unchanged_member_ids: unchangedIds,
           privilege_type: nextPrivilege,
-          clear_committee_on_demote: clearCommitteeOnDemote,
         },
       });
       return NextResponse.json(
@@ -118,18 +114,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, updated: 0, unchanged: unchangedIds.length });
     }
 
-    const shouldClearCommittee =
-      clearCommitteeOnDemote && nextPrivilege < PRIVILEGE_LEVELS.VOLUNTARY;
-    const updatePatch: { privilege_type: number; committee?: null } = {
-      privilege_type: nextPrivilege,
-    };
-    if (shouldClearCommittee) {
-      updatePatch.committee = null;
-    }
-
     const { error: updateError } = await supabase
       .from("members")
-      .update(updatePatch)
+      .update({ privilege_type: nextPrivilege })
       .in("id", idsToUpdate);
 
     if (updateError) {
@@ -143,8 +130,6 @@ export async function POST(request: Request) {
         details: {
           member_ids: idsToUpdate,
           privilege_type: nextPrivilege,
-          clear_committee_on_demote: clearCommitteeOnDemote,
-          committee_cleared: shouldClearCommittee,
         },
       });
       return NextResponse.json({ error: updateError.message }, { status: 400 });
@@ -163,8 +148,6 @@ export async function POST(request: Request) {
         member_ids: idsToUpdate,
         privilege_type: nextPrivilege,
         previous_privilege_type: singlePrevious,
-        clear_committee_on_demote: clearCommitteeOnDemote,
-        committee_cleared: shouldClearCommittee,
         updated_count: idsToUpdate.length,
         unchanged_count: unchangedIds.length,
       },
