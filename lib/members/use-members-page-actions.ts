@@ -146,17 +146,26 @@ export function useMembersPageActions({
     watchPrinterQueueStatus(supabaseClient, {
       queueId,
       timeoutMs: 25000,
-      timeoutErrorMessage: "Sjekk om printer-PC er koblet på internett. Kontakt IT om det ikke går.",
       onCompleted: () => {
         toast.success("Utskrift sendt til printer.", { id: toastId, duration: 10000 });
+      },
+      onNeedsReview: (message) => {
+        toast.warning("Utskrift må sjekkes manuelt.", {
+          id: toastId,
+          description: message,
+          duration: Infinity,
+        });
       },
       onError: (message) => {
         toast.error("Utskrift feilet.", { id: toastId, description: message, duration: Infinity });
       },
+      onCanceled: (message) => {
+        toast.error("Utskrift avbrutt.", { id: toastId, description: message, duration: Infinity });
+      },
       onTimeout: () => {
-        toast.error("Utskrift tar lengre tid enn vanlig.", {
+        toast.loading("Utskrift tar lengre tid enn vanlig.", {
           id: toastId,
-          description: "Sjekk om printer-PC er koblet på internett. Kontakt IT om det ikke går.",
+          description: "Vi følger fortsatt med og oppdaterer deg automatisk.",
           duration: Infinity,
         });
       },

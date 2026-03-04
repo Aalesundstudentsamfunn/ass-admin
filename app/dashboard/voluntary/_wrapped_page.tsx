@@ -256,19 +256,19 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
           <CardDescription>Sorter, filtrer og håndter frivillige</CardDescription>
         </CardHeader>
         <CardContent className="px-0">
-          <MemberDataTable
-            columns={columns}
-            data={rows}
-            defaultPageSize={defaultPageSize}
-            filterMode="voluntary-roles"
-            onBulkPrivilege={handleBulkPrivilege}
-            canEditPrivileges={canEditPrivileges}
-            bulkOptions={bulkOptions}
-            onRowClick={(member) => {
-              setSelectedMember(member);
-              setDetailsOpen(true);
-            }}
-          />
+        <MemberDataTable
+          columns={columns}
+          data={rows}
+          defaultPageSize={defaultPageSize}
+          filterMode="voluntary-roles"
+          onBulkPrivilege={handleBulkPrivilege}
+          canEditPrivileges={canEditPrivileges}
+          bulkOptions={bulkOptions}
+          onRowClick={(member) => {
+            setSelectedMember(member);
+            setDetailsOpen(true);
+          }}
+        />
         </CardContent>
       </Card>
 

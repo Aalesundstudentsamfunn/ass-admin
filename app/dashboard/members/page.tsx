@@ -28,7 +28,16 @@ function mapToUserRows(rows: Record<string, unknown>[]): UserRow[] {
 /**
  * Loads active members table data and wires member server actions into the page provider.
  */
-export default async function MembersPage() {
+export default async function MembersPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const newParamRaw = resolvedSearchParams.new;
+  const newParam = Array.isArray(newParamRaw) ? newParamRaw[0] : newParamRaw;
+  const autoOpenCreateDialog = newParam === "1" || newParam === "true";
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -63,7 +72,11 @@ export default async function MembersPage() {
       checkMemberEmail={checkMemberEmail}
       activateMember={activateMember}
     >
-      <DataTable initialData={rows} canBulkTemporaryPasswords={canBulkTemporaryPasswords} />
+      <DataTable
+        initialData={rows}
+        canBulkTemporaryPasswords={canBulkTemporaryPasswords}
+        autoOpenCreateDialog={autoOpenCreateDialog}
+      />
     </ActionsProvider>
   );
 }
