@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { assertPermission } from "@/lib/server/assert-permission";
 import { logAdminAction } from "@/lib/server/admin-audit-log";
 import { parseCommitteeId } from "@/lib/committee-options";
+import { fetchCommitteeNameByIdMap } from "@/lib/server/committee-type";
 
 type MemberRow = {
   id: string;
@@ -15,12 +16,6 @@ type MemberRow = {
   email: string | null;
   committee: number | string | null;
   is_banned: boolean | null;
-};
-
-type CommitteeTypeRow = {
-  id: number;
-  committee_name?: string | null;
-  name?: string | null;
 };
 
 /**
@@ -76,37 +71,15 @@ export async function POST(request: Request) {
     );
     const committeeNameById = new Map<number, string>();
     if (committeeIds.length > 0) {
-      let committeeTypeResult = await supabase
-        .from("committee_type")
-        .select("id, committee_name")
-        .in("id", committeeIds);
-      if (committeeTypeResult.error) {
-        committeeTypeResult = await supabase
-          .from("committee_type")
-          .select("id, name")
-          .in("id", committeeIds);
+      const { nameById, error: committeeError } = await fetchCommitteeNameByIdMap(
+        supabase,
+        committeeIds,
+      );
+      if (committeeError) {
+        return NextResponse.json({ error: committeeError }, { status: 400 });
       }
-      if (committeeTypeResult.error) {
-        committeeTypeResult = await supabase
-          .from("committee_types")
-          .select("id, committee_name")
-          .in("id", committeeIds);
-      }
-      if (committeeTypeResult.error) {
-        committeeTypeResult = await supabase
-          .from("committee_types")
-          .select("id, name")
-          .in("id", committeeIds);
-      }
-      if (committeeTypeResult.error) {
-        return NextResponse.json({ error: committeeTypeResult.error.message }, { status: 400 });
-      }
-      for (const row of (committeeTypeResult.data ?? []) as CommitteeTypeRow[]) {
-        if (typeof row.committee_name === "string" && row.committee_name.trim()) {
-          committeeNameById.set(row.id, row.committee_name.trim());
-        } else if (typeof row.name === "string" && row.name.trim()) {
-          committeeNameById.set(row.id, row.name.trim());
-        }
+      for (const [id, name] of nameById.entries()) {
+        committeeNameById.set(id, name);
       }
     }
 

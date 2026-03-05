@@ -15,9 +15,10 @@ import {
 } from "@/components/ui/dialog";
 import { useActions } from "@/app/dashboard/members/providers";
 import { createClient } from "@/lib/supabase/client";
-import { watchPrinterQueueStatus } from "@/lib/printer-queue";
+import { watchPrintJobWithGrace } from "@/lib/printer-queue/print-monitor";
 import { useAutoPrintSetting } from "@/lib/auto-print";
 import { normalizeCommitteeOptions } from "@/lib/committee-options";
+import { fetchCommitteeOptions } from "@/lib/server/committee-type";
 import { AddMemberDialogGlass } from "@/components/add-member-dialog/glass";
 import {
   MemberActivateForm,
@@ -134,61 +135,23 @@ export function CreateUserDialog({
 
       stopQueueWatch();
       queueKeyRef.current = queueKey;
-
-      toast.loading("Venter på utskrift...", {
-        id: toastIdRef.current ?? undefined,
-        description: queuedDescription,
-        duration: Infinity,
-      });
-
-      unsubscribeRef.current = watchPrinterQueueStatus(supabase, {
+      const stop = watchPrintJobWithGrace({
+        supabase,
         queueId,
         ref: queueRef,
         refInvoker: queueInvoker,
-        timeoutMs: 25000,
-        onCompleted: () => {
-          toast.success(completedMessage, {
-            id: toastIdRef.current ?? undefined,
-            duration: 10000,
-          });
-          toastIdRef.current = null;
+        toastId: toastIdRef.current ?? undefined,
+        queuedDescription,
+        completedMessage,
+        onSettled: () => {
+          if (unsubscribeRef.current === stop) {
+            unsubscribeRef.current = null;
+          }
           queueKeyRef.current = null;
-        },
-        onNeedsReview: (message) => {
-          toast.warning("Utskrift må sjekkes manuelt.", {
-            id: toastIdRef.current ?? undefined,
-            description: message,
-            duration: Infinity,
-          });
           toastIdRef.current = null;
-          queueKeyRef.current = null;
-        },
-        onError: (message) => {
-          toast.error("Utskrift feilet.", {
-            id: toastIdRef.current ?? undefined,
-            description: message,
-            duration: Infinity,
-          });
-          toastIdRef.current = null;
-          queueKeyRef.current = null;
-        },
-        onCanceled: (message) => {
-          toast.error("Utskrift avbrutt.", {
-            id: toastIdRef.current ?? undefined,
-            description: message,
-            duration: Infinity,
-          });
-          toastIdRef.current = null;
-          queueKeyRef.current = null;
-        },
-        onTimeout: () => {
-          toast.loading("Utskrift tar lengre tid enn vanlig.", {
-            id: toastIdRef.current ?? undefined,
-            description: "Vi følger fortsatt med og oppdaterer deg automatisk.",
-            duration: Infinity,
-          });
         },
       });
+      unsubscribeRef.current = stop;
     },
     [stopQueueWatch, supabase],
   );
@@ -347,52 +310,11 @@ export function CreateUserDialog({
     }
     let active = true;
     const loadCommitteeOptions = async () => {
-      let result = await supabase
-        .from("committee_type")
-        .select("id, committee_name")
-        .order("id", { ascending: true });
-      if (result.error) {
-        result = await supabase
-          .from("committee_type")
-          .select("id, name")
-          .order("id", { ascending: true });
-      }
-      if (result.error) {
-        result = await supabase
-          .from("committee_types")
-          .select("id, committee_name")
-          .order("id", { ascending: true });
-      }
-      if (result.error) {
-        result = await supabase
-          .from("committee_types")
-          .select("id, name")
-          .order("id", { ascending: true });
-      }
-      if (result.error) {
-        return;
-      }
-      const { data } = result;
+      const { options } = await fetchCommitteeOptions(supabase);
       if (!active) {
         return;
       }
-      setLoadedCommitteeOptions(
-        normalizeCommitteeOptions(
-          (
-            (data ?? []) as Array<{
-              id: unknown;
-              committee_name?: unknown;
-              name?: unknown;
-            }>
-          ).map((row) => ({
-            id: row.id,
-            name:
-              typeof row.committee_name === "string" && row.committee_name.trim()
-                ? row.committee_name
-                : (row.name ?? ""),
-          })),
-        ),
-      );
+      setLoadedCommitteeOptions(options);
     };
     void loadCommitteeOptions();
     return () => {

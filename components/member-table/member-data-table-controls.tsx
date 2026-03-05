@@ -10,6 +10,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { requestActionConfirm } from "@/lib/feedback/action-confirm";
 import { isVoluntaryOrHigher } from "@/lib/privilege-checks";
 import type { MemberRow, PrivilegeOption } from "./shared";
 
@@ -129,7 +130,13 @@ export function MemberBulkActionsBar({
 
   const runBulkAction = React.useCallback(
     async (action: () => Promise<void>, confirmMessage: string) => {
-      if (!window.confirm(confirmMessage)) {
+      const confirmed = await requestActionConfirm({
+        title: "Bekreft handling",
+        description: confirmMessage,
+        confirmLabel: "Bekreft",
+        cancelLabel: "Avbryt",
+      });
+      if (!confirmed) {
         return;
       }
       setIsApplying(true);

@@ -6,10 +6,9 @@ import { addNewMember, activateMember, checkMemberEmail } from "./server/actions
 import { normalizePrivilege } from "@/lib/privilege-checks";
 import { canUseBulkTemporaryPasswordAction } from "@/lib/server/temporary-password-access";
 import {
-  buildCommitteeNameById,
-  normalizeCommitteeOptions,
   parseCommitteeId,
 } from "@/lib/committee-options";
+import { fetchCommitteeNameByIdMap } from "@/lib/server/committee-type";
 
 /**
  * Maps raw `members` rows to the table shape used by members/voluntary views.
@@ -74,51 +73,15 @@ export default async function MembersPage({
     .from("members")
     .select("*")
     .order("created_at", { ascending: false });
-  let committeeTypeResult = await supabase
-    .from("committee_type")
-    .select("id, committee_name")
-    .order("id", { ascending: true });
-  if (committeeTypeResult.error) {
-    committeeTypeResult = await supabase
-      .from("committee_type")
-      .select("id, name")
-      .order("id", { ascending: true });
-  }
-  if (committeeTypeResult.error) {
-    committeeTypeResult = await supabase
-      .from("committee_types")
-      .select("id, committee_name")
-      .order("id", { ascending: true });
-  }
-  if (committeeTypeResult.error) {
-    committeeTypeResult = await supabase
-      .from("committee_types")
-      .select("id, name")
-      .order("id", { ascending: true });
-  }
+  const {
+    options: committeeOptions,
+    nameById: committeeNameById,
+  } = await fetchCommitteeNameByIdMap(supabase);
 
   if (error) {
     return <div>Error: {error.message}</div>;
   }
 
-  const committeeOptions = normalizeCommitteeOptions(
-    (
-      (committeeTypeResult.data ?? []) as Array<{
-        id: unknown;
-        committee_name?: unknown;
-        name?: unknown;
-      }>
-    ).map(
-      (row) => ({
-        id: row.id,
-        name:
-          typeof row.committee_name === "string" && row.committee_name.trim()
-            ? row.committee_name
-            : (row.name ?? ""),
-      }),
-    ),
-  );
-  const committeeNameById = buildCommitteeNameById(committeeOptions);
   const rows = mapToUserRows(
     (data ?? []) as Record<string, unknown>[],
     committeeNameById,

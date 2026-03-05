@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import DashboardShell from "./DashboardShell";
+import DashboardClientProviders from "./client-providers";
 import { canAccessDashboard } from "@/lib/privilege-checks";
 import { PRIVILEGE_LEVELS } from "@/lib/privilege-config";
 
@@ -43,15 +44,17 @@ export default async function DashboardLayout({
   const metaName = (user.user_metadata?.full_name ?? user.user_metadata?.name ?? "").trim();
 
   return (
-    <DashboardShell
-      dashboardSession={{
-        userId: user.id,
-        privilegeType,
-        name: fullName || metaName || null,
-        email: user.email,
-      }}
-    >
-      {children}
-    </DashboardShell>
+    <DashboardClientProviders sessionUserId={user.id}>
+      <DashboardShell
+        dashboardSession={{
+          userId: user.id,
+          privilegeType,
+          name: fullName || metaName || null,
+          email: user.email,
+        }}
+      >
+        {children}
+      </DashboardShell>
+    </DashboardClientProviders>
   );
 }

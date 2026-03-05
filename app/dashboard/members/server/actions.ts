@@ -6,6 +6,7 @@ import { shouldAutoPrint } from "@/lib/members/shared";
 import { parseCommitteeId } from "@/lib/committee-options";
 import { isMembershipActive } from "@/lib/privilege-checks";
 import { logAdminAction } from "@/lib/server/admin-audit-log";
+import { fetchCommitteeNameByIdMap } from "@/lib/server/committee-type";
 import type {
   AddMemberActionResult,
   CheckMemberEmailResult,
@@ -26,12 +27,6 @@ type ExistingMemberLookup = {
   privilege_type: number | null;
   is_membership_active: boolean | null;
   is_banned: boolean | null;
-};
-
-type CommitteeTypeRow = {
-  id: number;
-  committee_name?: string | null;
-  name?: string | null;
 };
 
 /**
@@ -397,41 +392,14 @@ export async function addNewMember(
     let committeeForMemberId: number | null = null;
     let committeeForPrint: string | null = null;
     if (voluntary && committeeId !== null) {
-      let committeeTypeResult = await sb
-        .from("committee_type")
-        .select("id, committee_name")
-        .eq("id", committeeId)
-        .maybeSingle<CommitteeTypeRow>();
-      if (committeeTypeResult.error) {
-        committeeTypeResult = await sb
-          .from("committee_type")
-          .select("id, name")
-          .eq("id", committeeId)
-          .maybeSingle<CommitteeTypeRow>();
+      const { nameById, error: committeeError } = await fetchCommitteeNameByIdMap(sb, [
+        committeeId,
+      ]);
+      const committeeLabel = nameById.get(committeeId) ?? "";
+      if (committeeError || !committeeLabel) {
+        return { ok: false, error: committeeError ?? "Ugyldig komitévalg." };
       }
-      if (committeeTypeResult.error) {
-        committeeTypeResult = await sb
-          .from("committee_types")
-          .select("id, committee_name")
-          .eq("id", committeeId)
-          .maybeSingle<CommitteeTypeRow>();
-      }
-      if (committeeTypeResult.error) {
-        committeeTypeResult = await sb
-          .from("committee_types")
-          .select("id, name")
-          .eq("id", committeeId)
-          .maybeSingle<CommitteeTypeRow>();
-      }
-      const committeeType = committeeTypeResult.data;
-      const committeeLabel =
-        typeof committeeType?.committee_name === "string" && committeeType.committee_name.trim()
-          ? committeeType.committee_name.trim()
-          : (committeeType?.name?.trim() ?? "");
-      if (committeeTypeResult.error || !committeeLabel) {
-        return { ok: false, error: committeeTypeResult.error?.message ?? "Ugyldig komitévalg." };
-      }
-      committeeForMemberId = committeeType.id;
+      committeeForMemberId = committeeId;
       committeeForPrint = committeeLabel;
     }
 

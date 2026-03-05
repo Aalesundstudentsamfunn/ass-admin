@@ -28,6 +28,7 @@ import {
   getMaxAssignablePrivilege,
   memberPrivilege,
 } from "@/lib/privilege-checks";
+import { withLoadingToast } from "@/lib/feedback/toast-mutation";
 import { toast } from "sonner";
 
 export type UserRow = MemberRow;
@@ -177,10 +178,18 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
         return;
       }
 
-      const toastId = toast.loading("Oppdaterer tilgangsnivå...", { duration: 10000 });
-      const { error } = await bulkUpdateMemberPrivilege(eligibleIds, next);
-      if (error) {
-        toast.error("Kunne ikke oppdatere tilgangsnivå.", { id: toastId, description: error.message, duration: Infinity });
+      const result = await withLoadingToast({
+        loadingMessage: "Oppdaterer tilgangsnivå...",
+        errorMessage: "Kunne ikke oppdatere tilgangsnivå.",
+        action: async () => {
+          const { error } = await bulkUpdateMemberPrivilege(eligibleIds, next);
+          if (error) {
+            throw new Error(error.message);
+          }
+          return true;
+        },
+      });
+      if (!result) {
         return;
       }
 
@@ -188,14 +197,12 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
       const skippedCount = unchangedIds.length + blockedIds.length;
       if (skippedCount > 0) {
         toast.warning("Noen valgte medlemmer ble hoppet over.", {
-          id: toastId,
           description: `Oppdatert ${eligibleIds.length}, hoppet over ${skippedCount}.`,
           duration: 7000,
         });
         return;
       }
       toast.success("Tilgangsnivå oppdatert.", {
-        id: toastId,
         description: members.length > 1 ? `Oppdatert ${eligibleIds.length} medlemmer.` : undefined,
         duration: 6000,
       });

@@ -2,10 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { PRIVILEGE_LEVELS } from "@/lib/privilege-config";
 import DataTable from "./_wrapped_page";
 import {
-  buildCommitteeNameById,
-  normalizeCommitteeOptions,
   parseCommitteeId,
 } from "@/lib/committee-options";
+import { fetchCommitteeNameByIdMap } from "@/lib/server/committee-type";
 
 /**
  * Renders members page.
@@ -16,48 +15,7 @@ export default async function MembersPage() {
     .from("members")
     .select("id, firstname, lastname, email, committee, privilege_type, created_by, created_at, password_set_at, is_membership_active, is_banned")
     .gte("privilege_type", PRIVILEGE_LEVELS.VOLUNTARY);
-  let committeeTypeResult = await supabase
-    .from("committee_type")
-    .select("id, committee_name")
-    .order("id", { ascending: true });
-  if (committeeTypeResult.error) {
-    committeeTypeResult = await supabase
-      .from("committee_type")
-      .select("id, name")
-      .order("id", { ascending: true });
-  }
-  if (committeeTypeResult.error) {
-    committeeTypeResult = await supabase
-      .from("committee_types")
-      .select("id, committee_name")
-      .order("id", { ascending: true });
-  }
-  if (committeeTypeResult.error) {
-    committeeTypeResult = await supabase
-      .from("committee_types")
-      .select("id, name")
-      .order("id", { ascending: true });
-  }
-  const committeeTypeRows = committeeTypeResult.data;
-
-  const committeeOptions = normalizeCommitteeOptions(
-    (
-      (committeeTypeRows ?? []) as Array<{
-        id: unknown;
-        committee_name?: unknown;
-        name?: unknown;
-      }>
-    ).map(
-      (row) => ({
-        id: row.id,
-        name:
-          typeof row.committee_name === "string" && row.committee_name.trim()
-            ? row.committee_name
-            : (row.name ?? ""),
-      }),
-    ),
-  );
-  const committeeNameById = buildCommitteeNameById(committeeOptions);
+  const { nameById: committeeNameById } = await fetchCommitteeNameByIdMap(supabase);
 
   if (error) {
     return <div>Error: {error?.message}</div>;

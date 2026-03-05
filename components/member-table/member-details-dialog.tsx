@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { requestActionConfirm } from "@/lib/feedback/action-confirm";
+import { withLoadingToast } from "@/lib/feedback/toast-mutation";
 import { createClient } from "@/lib/supabase/client";
 import {
   canAssignPrivilege,
@@ -169,20 +171,22 @@ export function MemberDetailsDialog({
       toast.error("Ugyldig tilgangsnivå for din rolle.");
       return;
     }
-    const toastId = toast.loading("Oppdaterer tilgangsnivå...", { duration: 10000 });
     setIsSaving(true);
-    const { error } = await updateMemberPrivilege(member.id, next);
-    if (error) {
-      toast.error("Kunne ikke oppdatere tilgangsnivå.", {
-        id: toastId,
-        description: error.message,
-        duration: Infinity,
-      });
-      setIsSaving(false);
-      return;
+    const result = await withLoadingToast({
+      loadingMessage: "Oppdaterer tilgangsnivå...",
+      errorMessage: "Kunne ikke oppdatere tilgangsnivå.",
+      successMessage: "Tilgangsnivå oppdatert.",
+      action: async () => {
+        const { error } = await updateMemberPrivilege(member.id, next);
+        if (error) {
+          throw new Error(error.message);
+        }
+        return true;
+      },
+    });
+    if (result) {
+      onPrivilegeUpdated(next);
     }
-    onPrivilegeUpdated(next);
-    toast.success("Tilgangsnivå oppdatert.", { id: toastId, duration: 6000 });
     setIsSaving(false);
   };
 
@@ -199,20 +203,22 @@ export function MemberDetailsDialog({
       return;
     }
 
-    const toastId = toast.loading("Oppdaterer medlemsstatus...", { duration: 10000 });
     setIsSaving(true);
-    const { response, payload } = await updateMemberMembershipStatus(member.id, next);
-    if (!response.ok) {
-      toast.error("Kunne ikke oppdatere medlemsstatus.", {
-        id: toastId,
-        description: payload?.error ?? "Ukjent feil.",
-        duration: Infinity,
-      });
-      setIsSaving(false);
-      return;
+    const result = await withLoadingToast({
+      loadingMessage: "Oppdaterer medlemsstatus...",
+      errorMessage: "Kunne ikke oppdatere medlemsstatus.",
+      successMessage: "Medlemsstatus oppdatert.",
+      action: async () => {
+        const { response, payload } = await updateMemberMembershipStatus(member.id, next);
+        if (!response.ok) {
+          throw new Error(payload?.error ?? "Ukjent feil.");
+        }
+        return true;
+      },
+    });
+    if (result) {
+      onMembershipStatusUpdated(next);
     }
-    onMembershipStatusUpdated(next);
-    toast.success("Medlemsstatus oppdatert.", { id: toastId, duration: 6000 });
     setIsSaving(false);
   };
 
@@ -234,27 +240,21 @@ export function MemberDetailsDialog({
       return;
     }
 
-    const toastId = toast.loading("Oppdaterer navn...", { duration: 10000 });
     setIsSaving(true);
-    try {
-      const { response, payload } = await updateMemberName(member.id, firstname, lastname);
-      if (!response.ok) {
-        toast.error("Kunne ikke oppdatere navn.", {
-          id: toastId,
-          description: payload?.error ?? "Ukjent feil.",
-          duration: Infinity,
-        });
-        setIsSaving(false);
-        return;
-      }
+    const result = await withLoadingToast({
+      loadingMessage: "Oppdaterer navn...",
+      errorMessage: "Kunne ikke oppdatere navn.",
+      successMessage: "Navn oppdatert.",
+      action: async () => {
+        const { response, payload } = await updateMemberName(member.id, firstname, lastname);
+        if (!response.ok) {
+          throw new Error(payload?.error ?? "Ukjent feil.");
+        }
+        return true;
+      },
+    });
+    if (result) {
       onNameUpdated(firstname, lastname);
-      toast.success("Navn oppdatert.", { id: toastId, duration: 6000 });
-    } catch (error: unknown) {
-      toast.error("Kunne ikke oppdatere navn.", {
-        id: toastId,
-        description: error instanceof Error ? error.message : "Ukjent feil.",
-        duration: Infinity,
-      });
     }
     setIsSaving(false);
   };
@@ -457,47 +457,45 @@ export function MemberDetailsDialog({
                       return;
                     }
                     const nextBanned = !banned;
-                    const confirmed = window.confirm(
+                    const confirmed = await requestActionConfirm({
+                      title: nextBanned ? "Utestenge bruker?" : "Oppheve utestenging?",
+                      description:
                       nextBanned
                         ? "Er du sikker på at du vil utestenge denne brukeren?"
                         : "Er du sikker på at du vil oppheve utestengingen for denne brukeren?",
-                    );
+                      confirmLabel: nextBanned ? "Utesteng" : "Opphev",
+                      cancelLabel: "Avbryt",
+                      variant: nextBanned ? "destructive" : "default",
+                    });
                     if (!confirmed) {
                       return;
                     }
-                    const toastId = toast.loading(
-                      nextBanned ? "Utestenger bruker..." : "Opphever utestenging...",
-                      { duration: 10000 },
-                    );
                     setIsSaving(true);
-                    try {
-                      const { response, payload } = await updateMemberBanStatus(
-                        member.id,
-                        nextBanned,
-                      );
-                      if (!response.ok) {
-                        toast.error(nextBanned ? "Kunne ikke utestenge bruker." : "Kunne ikke oppheve utestengingen.", {
-                          id: toastId,
-                          description: payload?.error ?? "Ukjent feil.",
-                          duration: Infinity,
-                        });
-                        setIsSaving(false);
-                        return;
-                      }
-                      toast.success(
-                        nextBanned ? "Bruker ble Utestengt." : "Utestenging opphevet.",
-                        { id: toastId, duration: 6000 },
-                      );
+                    const result = await withLoadingToast({
+                      loadingMessage:
+                        nextBanned ? "Utestenger bruker..." : "Opphever utestenging...",
+                      errorMessage: nextBanned
+                        ? "Kunne ikke utestenge bruker."
+                        : "Kunne ikke oppheve utestengingen.",
+                      successMessage: nextBanned
+                        ? "Bruker ble Utestengt."
+                        : "Utestenging opphevet.",
+                      action: async () => {
+                        const { response, payload } = await updateMemberBanStatus(
+                          member.id,
+                          nextBanned,
+                        );
+                        if (!response.ok) {
+                          throw new Error(payload?.error ?? "Ukjent feil.");
+                        }
+                        return true;
+                      },
+                    });
+                    if (result) {
                       if (nextBanned) {
                         onMembershipStatusUpdated(false);
                       }
                       onBanUpdated(nextBanned);
-                    } catch (error: unknown) {
-                      toast.error(nextBanned ? "Kunne ikke utestenge bruker." : "Kunne ikke oppheve utestengingen.", {
-                        id: toastId,
-                        description: error instanceof Error ? error.message : "Ukjent feil.",
-                        duration: Infinity,
-                      });
                     }
                     setIsSaving(false);
                   }}
