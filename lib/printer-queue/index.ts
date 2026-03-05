@@ -1,7 +1,18 @@
 /**
- * Printer queue data helpers for enqueueing jobs and watching completion/error state.
+ * Printer queue data helpers for enqueueing jobs and watching lifecycle state.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+export type PrinterJobStatus =
+  | "queued"
+  | "claimed"
+  | "rendering"
+  | "spooled"
+  | "printing"
+  | "completed"
+  | "needs_review"
+  | "failed"
+  | "canceled";
 
 export type PrinterQueueEntry = {
   firstname: string;
@@ -9,14 +20,57 @@ export type PrinterQueueEntry = {
   email: string;
   ref: string | number;
   ref_invoker: string;
-  is_voluntary: boolean;
+  committee: string | null;
 };
 
 export type PrinterQueueRow = {
   id: string | number;
-  completed: boolean;
-  error_msg: string | null;
+  status: PrinterJobStatus;
+  status_updated_at: string | null;
+  attempt_count: number | null;
+  user_message_no: string | null;
+  error_code: string | null;
+  technical_error: string | null;
+  claimed_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
 };
+
+const TERMINAL_STATUSES = new Set<PrinterJobStatus>([
+  "completed",
+  "needs_review",
+  "failed",
+  "canceled",
+]);
+
+function normalizeStatus(value: unknown): PrinterJobStatus | null {
+  switch (value) {
+    case "queued":
+    case "claimed":
+    case "rendering":
+    case "spooled":
+    case "printing":
+    case "completed":
+    case "needs_review":
+    case "failed":
+    case "canceled":
+      return value;
+    default:
+      return null;
+  }
+}
+
+/**
+ * `printer_queue.committee` is treated as NOT NULL in some deployments.
+ * Normalize nullable/blank values to empty string for safe inserts.
+ */
+function normalizeQueueCommittee(value: string | null | undefined) {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : "";
+}
 
 /**
  * Inserts a new print request in `public.printer_queue`.
@@ -29,15 +83,20 @@ export async function enqueuePrinterQueue(
     .from("printer_queue")
     .insert({
       ...entry,
-      completed: false,
-      error_msg: null,
+      committee: normalizeQueueCommittee(entry.committee),
+      status: "queued",
+      user_message_no: null,
+      error_code: null,
+      technical_error: null,
     })
-    .select("id, completed, error_msg")
+    .select(
+      "id, status, status_updated_at, attempt_count, user_message_no, error_code, technical_error, claimed_at, started_at, finished_at",
+    )
     .single();
 }
 
 /**
- * Subscribes to queue updates and polls as fallback until completion/error.
+ * Subscribes to queue updates and polls as fallback until terminal status.
  *
  * Returns an unsubscribe function that clears realtime + polling resources.
  */
@@ -49,22 +108,24 @@ export function watchPrinterQueueStatus(
     refInvoker,
     onCompleted,
     onError,
+    onNeedsReview,
+    onCanceled,
     onUpdate,
     pollingIntervalMs = 3000,
     timeoutMs = 30000,
     onTimeout,
-    timeoutErrorMessage,
   }: {
     queueId?: string | number;
     ref?: string | number;
     refInvoker?: string;
     onCompleted?: () => void;
     onError?: (message: string) => void;
+    onNeedsReview?: (message: string) => void;
+    onCanceled?: (message: string) => void;
     onUpdate?: (row: PrinterQueueRow) => void;
     pollingIntervalMs?: number;
     timeoutMs?: number;
     onTimeout?: () => void;
-    timeoutErrorMessage?: string;
   },
 ) {
   const filter = queueId
@@ -97,50 +158,33 @@ export function watchPrinterQueueStatus(
   };
 
   const handleRow = (row: PrinterQueueRow) => {
+    const status = normalizeStatus(row?.status);
+    if (!status) {
+      return;
+    }
+
+    if (!TERMINAL_STATUSES.has(status)) {
+      onUpdate?.(row);
+      return;
+    }
+
     onUpdate?.(row);
 
-    if (row?.error_msg) {
-      if (timeoutTriggered && row.error_msg === timeoutErrorMessage) {
-        cleanup();
-        return;
-      }
-      onError?.(row.error_msg);
-      cleanup();
-    } else if (row?.completed) {
+    const userMessage = row.user_message_no || "Ukjent status fra printerkøen.";
+    if (status === "completed") {
       onCompleted?.();
-      cleanup();
+    } else if (status === "needs_review") {
+      onNeedsReview?.(userMessage);
+    } else if (status === "canceled") {
+      onCanceled?.(userMessage);
+    } else {
+      onError?.(userMessage);
     }
+    cleanup();
   };
 
-  const markTimeoutError = async () => {
-    if (!timeoutErrorMessage) return;
-    let targetId = queueId;
-
-    if (targetId === undefined && ref !== undefined && refInvoker) {
-      const { data } = await supabase
-        .from("printer_queue")
-        .select("id, completed, error_msg")
-        .eq("ref", ref)
-        .eq("ref_invoker", refInvoker)
-        .order("id", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (!data || data.completed || data.error_msg) {
-        return;
-      }
-      targetId = data.id;
-    }
-
-    if (targetId === undefined) return;
-
-    await supabase
-      .from("printer_queue")
-      .update({ error_msg: timeoutErrorMessage })
-      .eq("id", targetId)
-      .eq("completed", false)
-      .is("error_msg", null);
-  };
+  const projection =
+    "id, status, status_updated_at, attempt_count, user_message_no, error_code, technical_error, claimed_at, started_at, finished_at";
 
   const pollStatus = async () => {
     if (isClosed) return;
@@ -148,7 +192,7 @@ export function watchPrinterQueueStatus(
       if (queueId !== undefined) {
         const { data, error } = await supabase
           .from("printer_queue")
-          .select("id, completed, error_msg")
+          .select(projection)
           .eq("id", queueId)
           .maybeSingle();
 
@@ -158,7 +202,7 @@ export function watchPrinterQueueStatus(
       } else if (ref !== undefined && refInvoker) {
         const { data, error } = await supabase
           .from("printer_queue")
-          .select("id, completed, error_msg")
+          .select(projection)
           .eq("ref", ref)
           .eq("ref_invoker", refInvoker)
           .order("id", { ascending: false })
@@ -191,8 +235,8 @@ export function watchPrinterQueueStatus(
   if (timeoutMs > 0) {
     timeoutId = setTimeout(() => {
       if (isClosed) return;
+      if (timeoutTriggered) return;
       timeoutTriggered = true;
-      void markTimeoutError();
       onTimeout?.();
     }, timeoutMs);
   }

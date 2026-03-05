@@ -15,6 +15,9 @@ export type MemberRow = {
   created_at?: string | null;
   profile_id?: string | null;
   privilege_type?: number | null;
+  committee?: string | null;
+  committee_id?: number | null;
+  committee_rank?: number | null;
   is_membership_active?: boolean | null;
   is_banned?: boolean | null;
   password_set_at?: string | null;

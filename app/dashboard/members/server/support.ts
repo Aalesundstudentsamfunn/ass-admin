@@ -68,7 +68,7 @@ export const queueMemberCardPrint = (
   sb: MemberServerClient,
   member: PrintableMember,
   createdBy: string,
-  privilegeType: number,
+  committee: string | null,
 ) =>
   enqueuePrinterQueue(sb, {
     firstname: member.firstname,
@@ -76,7 +76,7 @@ export const queueMemberCardPrint = (
     email: member.email,
     ref: member.id,
     ref_invoker: createdBy,
-    is_voluntary: privilegeType >= PRIVILEGE_LEVELS.VOLUNTARY,
+    committee,
   });
 
 /**

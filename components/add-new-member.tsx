@@ -15,8 +15,10 @@ import {
 } from "@/components/ui/dialog";
 import { useActions } from "@/app/dashboard/members/providers";
 import { createClient } from "@/lib/supabase/client";
-import { watchPrinterQueueStatus } from "@/lib/printer-queue";
+import { watchPrintJobWithGrace } from "@/lib/printer-queue/print-monitor";
 import { useAutoPrintSetting } from "@/lib/auto-print";
+import { normalizeCommitteeOptions } from "@/lib/committee-options";
+import { fetchCommitteeOptions } from "@/lib/server/committee-type";
 import { AddMemberDialogGlass } from "@/components/add-member-dialog/glass";
 import {
   MemberActivateForm,
@@ -25,6 +27,7 @@ import {
   MemberEmailCheckForm,
 } from "@/components/add-member-dialog/stage-content";
 import { enqueueMemberPrintJobs } from "@/lib/members/client-actions";
+import type { CommitteeOption } from "@/lib/committee-options";
 import type {
   AddMemberDialogStage,
   CheckEmailActionResult,
@@ -36,17 +39,33 @@ import type {
  * 1) check email
  * 2) create or activate membership depending on existing state.
  */
-export function CreateUserDialog() {
-  const [open, setOpen] = React.useState(false);
+export function CreateUserDialog({
+  autoOpen = false,
+  trigger,
+  committeeOptions,
+}: {
+  autoOpen?: boolean;
+  trigger?: React.ReactElement;
+  committeeOptions?: CommitteeOption[];
+} = {}) {
+  const [open, setOpen] = React.useState(autoOpen);
   const [stage, setStage] = React.useState<AddMemberDialogStage>("email");
   const [firstname, setFirstname] = React.useState("");
   const [lastname, setLastname] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [resolvedEmail, setResolvedEmail] = React.useState("");
   const [voluntary, setVoluntary] = React.useState(false);
+  const [committee, setCommittee] = React.useState("");
+  const [loadedCommitteeOptions, setLoadedCommitteeOptions] = React.useState<CommitteeOption[]>([]);
   const [printPending, setPrintPending] = React.useState(false);
   const [existingMember, setExistingMember] = React.useState<CheckEmailActionResult["member"] | null>(null);
   const { autoPrint } = useAutoPrintSetting();
+  const providedCommitteeOptions = React.useMemo(
+    () => normalizeCommitteeOptions((committeeOptions ?? []) as Array<{ id: unknown; name: unknown }>),
+    [committeeOptions],
+  );
+  const resolvedCommitteeOptions =
+    providedCommitteeOptions.length > 0 ? providedCommitteeOptions : loadedCommitteeOptions;
 
   const { addNewMember, checkMemberEmail, activateMember } = useActions();
   const [checkState, checkAction, checkPending] = useActionState(checkMemberEmail, {
@@ -116,44 +135,23 @@ export function CreateUserDialog() {
 
       stopQueueWatch();
       queueKeyRef.current = queueKey;
-
-      toast.loading("Venter på utskrift...", {
-        id: toastIdRef.current ?? undefined,
-        description: queuedDescription,
-        duration: Infinity,
-      });
-
-      unsubscribeRef.current = watchPrinterQueueStatus(supabase, {
+      const stop = watchPrintJobWithGrace({
+        supabase,
         queueId,
         ref: queueRef,
         refInvoker: queueInvoker,
-        timeoutMs: 25000,
-        timeoutErrorMessage: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
-        onCompleted: () => {
-          toast.success(completedMessage, {
-            id: toastIdRef.current ?? undefined,
-            duration: 10000,
-          });
-          toastIdRef.current = null;
+        toastId: toastIdRef.current ?? undefined,
+        queuedDescription,
+        completedMessage,
+        onSettled: () => {
+          if (unsubscribeRef.current === stop) {
+            unsubscribeRef.current = null;
+          }
           queueKeyRef.current = null;
-        },
-        onError: (message) => {
-          toast.error("Utskrift feilet.", {
-            id: toastIdRef.current ?? undefined,
-            description: message,
-            duration: Infinity,
-          });
           toastIdRef.current = null;
-          queueKeyRef.current = null;
-        },
-        onTimeout: () => {
-          toast.error("Utskrift tar lengre tid enn vanlig.", {
-            id: toastIdRef.current ?? undefined,
-            description: "Sjekk printer-PCen. Hvis den er offline, kontakt IT.",
-            duration: Infinity,
-          });
         },
       });
+      unsubscribeRef.current = stop;
     },
     [stopQueueWatch, supabase],
   );
@@ -248,6 +246,7 @@ export function CreateUserDialog() {
     setEmail("");
     setResolvedEmail("");
     setVoluntary(false);
+    setCommittee("");
     setExistingMember(null);
     setStage("email");
     setOpen(false);
@@ -281,6 +280,7 @@ export function CreateUserDialog() {
     setEmail("");
     setResolvedEmail("");
     setVoluntary(false);
+    setCommittee("");
     setExistingMember(null);
     setStage("email");
     setOpen(false);
@@ -288,21 +288,45 @@ export function CreateUserDialog() {
 
   useEffect(() => {
     if (!open) {
-      stopQueueWatch();
       setStage("email");
       setExistingMember(null);
       setResolvedEmail("");
       setFirstname("");
       setLastname("");
       setVoluntary(false);
+      setCommittee("");
     }
-  }, [open, stopQueueWatch]);
+  }, [open]);
 
   useEffect(() => {
     return () => {
       stopQueueWatch();
     };
   }, [stopQueueWatch]);
+
+  useEffect(() => {
+    if (!open || providedCommitteeOptions.length > 0) {
+      return;
+    }
+    let active = true;
+    const loadCommitteeOptions = async () => {
+      const { options } = await fetchCommitteeOptions(supabase);
+      if (!active) {
+        return;
+      }
+      setLoadedCommitteeOptions(options);
+    };
+    void loadCommitteeOptions();
+    return () => {
+      active = false;
+    };
+  }, [open, providedCommitteeOptions.length, supabase]);
+
+  useEffect(() => {
+    if (autoOpen) {
+      setOpen(true);
+    }
+  }, [autoOpen]);
 
   /**
    * Enqueues card printing for an already-existing member found by email lookup.
@@ -373,9 +397,11 @@ export function CreateUserDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="rounded-xl">
-          <Plus className="mr-1 h-4 w-4" /> Ny bruker
-        </Button>
+        {trigger ?? (
+          <Button className="rounded-xl">
+            <Plus className="mr-1 h-4 w-4" /> Ny bruker
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-w-md border-0 bg-transparent p-0 shadow-none">
         <AddMemberDialogGlass className="p-[1px]">
@@ -410,11 +436,19 @@ export function CreateUserDialog() {
                 firstname={firstname}
                 lastname={lastname}
                 voluntary={voluntary}
+                committee={committee}
+                committeeOptions={resolvedCommitteeOptions}
                 isBusy={isBusy}
                 createPending={createPending}
                 onFirstnameChange={setFirstname}
                 onLastnameChange={setLastname}
-                onVoluntaryChange={setVoluntary}
+                onVoluntaryChange={(value) => {
+                  setVoluntary(value);
+                  if (!value) {
+                    setCommittee("");
+                  }
+                }}
+                onCommitteeChange={setCommittee}
                 onClose={() => setOpen(false)}
                 onSubmitStart={() => {
                   createSubmittedRef.current = true;
