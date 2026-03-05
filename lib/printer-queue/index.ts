@@ -61,6 +61,18 @@ function normalizeStatus(value: unknown): PrinterJobStatus | null {
 }
 
 /**
+ * `printer_queue.committee` is treated as NOT NULL in some deployments.
+ * Normalize nullable/blank values to empty string for safe inserts.
+ */
+function normalizeQueueCommittee(value: string | null | undefined) {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : "";
+}
+
+/**
  * Inserts a new print request in `public.printer_queue`.
  */
 export async function enqueuePrinterQueue(
@@ -71,6 +83,7 @@ export async function enqueuePrinterQueue(
     .from("printer_queue")
     .insert({
       ...entry,
+      committee: normalizeQueueCommittee(entry.committee),
       status: "queued",
       user_message_no: null,
       error_code: null,

@@ -103,6 +103,7 @@ export async function POST(request: Request) {
       const committeeId = parseCommitteeId(member.committee);
       const committeeName =
         committeeId === null ? null : committeeNameById.get(committeeId) ?? null;
+      const queueCommittee = typeof committeeName === "string" ? committeeName.trim() : "";
 
       const { data: queueRow, error: queueError } = await supabase
         .from("printer_queue")
@@ -112,7 +113,7 @@ export async function POST(request: Request) {
           email: member.email ?? "",
           ref: member.id,
           ref_invoker: userId,
-          committee: committeeName,
+          committee: queueCommittee,
           status: "queued",
           status_updated_at: new Date().toISOString(),
           user_message_no: null,
