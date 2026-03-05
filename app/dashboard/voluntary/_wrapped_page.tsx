@@ -6,9 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { MemberDataTable } from "@/components/member-table/member-data-table";
 import { MemberDetailsDialog } from "@/components/member-table/member-details-dialog";
 import {
+  createMemberCommitteeColumn,
   createMemberCreatedAtSortColumn,
   createMemberIdentityColumns,
-  createMemberPrivilegeColumn,
   createMemberSearchColumn,
 } from "@/components/member-table/columns";
 import {
@@ -17,7 +17,6 @@ import {
 } from "@/components/member-table/shared";
 import {
   bulkUpdateMemberPrivilege,
-  updateMemberPrivilege,
 } from "@/lib/members/client-actions";
 import { useCurrentPrivilege } from "@/lib/use-current-privilege";
 import { useCurrentUserId } from "@/lib/use-current-user-id";
@@ -26,13 +25,13 @@ import { PRIVILEGE_LEVELS } from "@/lib/privilege-config";
 import {
   canAssignPrivilege,
   canEditMemberPrivileges,
-  canSetOwnPrivilege,
   getMaxAssignablePrivilege,
   memberPrivilege,
 } from "@/lib/privilege-checks";
 import { toast } from "sonner";
 
 export type UserRow = MemberRow;
+const VOLUNTARY_DEFAULT_SORT = [{ id: "committee", desc: false }];
 
 /**
  * Builds voluntary table columns.
@@ -41,20 +40,14 @@ export type UserRow = MemberRow;
  * @returns ColumnDef<UserRow, unknown>[]
  */
 function buildColumns(
-  onPrivilegeChange: (member: UserRow, next: number) => void,
-  canEditPrivileges: boolean,
-  bulkOptions: { value: number; label: string }[],
-  currentPrivilege: number | null | undefined,
 ): ColumnDef<UserRow, unknown>[] {
   return [
     createMemberSearchColumn(false),
     createMemberCreatedAtSortColumn(),
     ...createMemberIdentityColumns(),
-    createMemberPrivilegeColumn({
-      canEditPrivileges,
-      bulkOptions,
-      currentPrivilege,
-      onPrivilegeChange,
+    createMemberCommitteeColumn({
+      usePrivilegePill: true,
+      sortByPrivilegeWithinCommittee: true,
     }),
     {
       id: "actions",
@@ -142,43 +135,6 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
   }, []);
 
   /**
-   * Updates one row's privilege after client-side permission checks.
-   *
-   * @returns Promise<void>
-   */
-  const handleRowPrivilegeChange = React.useCallback(
-    async (member: UserRow, next: number) => {
-      const currentValue = memberPrivilege(member.privilege_type);
-      if (!Number.isFinite(next) || next === currentValue) {
-        toast.error("Medlemmet har allerede dette tilgangsnivået.");
-        return;
-      }
-      if (!canEditPrivileges) {
-        toast.error("Du har ikke tilgang til å endre tilgangsnivå.");
-        return;
-      }
-      if (!canAssignPrivilege(currentPrivilege, next, currentValue)) {
-        toast.error("Ugyldig tilgangsnivå for din rolle.");
-        return;
-      }
-      if (currentUserId && String(currentUserId) === String(member.id) && !canSetOwnPrivilege(currentPrivilege, next)) {
-        toast.error("Du kan ikke gi deg selv høyere tilgangsnivå.");
-        return;
-      }
-      const toastId = toast.loading("Oppdaterer tilgangsnivå...", { duration: 10000 });
-      const { error } = await updateMemberPrivilege(String(member.id), next);
-      if (error) {
-        toast.error("Kunne ikke oppdatere tilgangsnivå.", { id: toastId, description: error.message, duration: Infinity });
-        return;
-      }
-
-      applyPrivilegeToRows([String(member.id)], next);
-      toast.success("Tilgangsnivå oppdatert.", { id: toastId, duration: 6000 });
-    },
-    [applyPrivilegeToRows, canEditPrivileges, currentPrivilege, currentUserId],
-  );
-
-  /**
    * Bulk-updates privileges for all selected rows the current actor is allowed to change.
    *
    * @returns Promise<void>
@@ -248,8 +204,8 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
   );
 
   const columns = React.useMemo(
-    () => buildColumns(handleRowPrivilegeChange, canEditPrivileges, bulkOptions, currentPrivilege),
-    [handleRowPrivilegeChange, canEditPrivileges, bulkOptions, currentPrivilege],
+    () => buildColumns(),
+    [],
   );
 
   return (
@@ -269,6 +225,7 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
           columns={columns}
           data={rows}
           defaultPageSize={defaultPageSize}
+          defaultSorting={VOLUNTARY_DEFAULT_SORT}
           filterMode="voluntary-roles"
           onBulkPrivilege={handleBulkPrivilege}
           canEditPrivileges={canEditPrivileges}

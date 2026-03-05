@@ -14,6 +14,7 @@ import { getBulkPrivilegeOptions, MemberRow } from "@/components/member-table/sh
 import { useCurrentPrivilege } from "@/lib/use-current-privilege";
 import { useCurrentUserId } from "@/lib/use-current-user-id";
 import { useMemberPageSizeDefault } from "@/lib/table-settings";
+import type { CommitteeOption } from "@/lib/committee-options";
 import { canDeleteMembers as canDeleteMembersByPrivilege, canEditMemberPrivileges, canManageMembershipStatus, canResetPasswords as canResetPasswordsByPrivilege, getMaxAssignablePrivilege } from "@/lib/privilege-checks";
 import { useMembersPageActions } from "@/lib/members/use-members-page-actions";
 
@@ -82,10 +83,12 @@ function buildColumns({ onDelete, onPrint, isDeleting, canEditPrivileges, bulkOp
 export default function MembersTablePage({
   initialData,
   canBulkTemporaryPasswords,
+  committeeOptions = [],
   autoOpenCreateDialog = false,
 }: {
   initialData: UserRow[];
   canBulkTemporaryPasswords: boolean;
+  committeeOptions?: CommitteeOption[];
   autoOpenCreateDialog?: boolean;
 }) {
   const router = useRouter();
@@ -183,7 +186,12 @@ export default function MembersTablePage({
           bulkOptions={bulkOptions}
           onRefresh={refresh}
           showSelectionQuickActions
-          toolbarActions={<CreateUserDialog autoOpen={autoOpenCreateDialog} />}
+          toolbarActions={
+            <CreateUserDialog
+              autoOpen={autoOpenCreateDialog}
+              committeeOptions={committeeOptions}
+            />
+          }
           searchParamKey="email"
           searchPlaceholder="Søk navn, e-post eller UUID…"
           onRowClick={(member) => {

@@ -6,14 +6,21 @@
 import { NextResponse } from "next/server";
 import { assertPermission } from "@/lib/server/assert-permission";
 import { logAdminAction } from "@/lib/server/admin-audit-log";
+import { parseCommitteeId } from "@/lib/committee-options";
 
 type MemberRow = {
   id: string;
   firstname: string | null;
   lastname: string | null;
   email: string | null;
-  committee: string | null;
+  committee: number | string | null;
   is_banned: boolean | null;
+};
+
+type CommitteeTypeRow = {
+  id: number;
+  committee_name?: string | null;
+  name?: string | null;
 };
 
 /**
@@ -60,6 +67,48 @@ export async function POST(request: Request) {
     const memberById = new Map(
       ((members ?? []) as MemberRow[]).map((member) => [String(member.id), member]),
     );
+    const committeeIds = Array.from(
+      new Set(
+        ((members ?? []) as MemberRow[])
+          .map((member) => parseCommitteeId(member.committee))
+          .filter((value): value is number => value !== null),
+      ),
+    );
+    const committeeNameById = new Map<number, string>();
+    if (committeeIds.length > 0) {
+      let committeeTypeResult = await supabase
+        .from("committee_type")
+        .select("id, committee_name")
+        .in("id", committeeIds);
+      if (committeeTypeResult.error) {
+        committeeTypeResult = await supabase
+          .from("committee_type")
+          .select("id, name")
+          .in("id", committeeIds);
+      }
+      if (committeeTypeResult.error) {
+        committeeTypeResult = await supabase
+          .from("committee_types")
+          .select("id, committee_name")
+          .in("id", committeeIds);
+      }
+      if (committeeTypeResult.error) {
+        committeeTypeResult = await supabase
+          .from("committee_types")
+          .select("id, name")
+          .in("id", committeeIds);
+      }
+      if (committeeTypeResult.error) {
+        return NextResponse.json({ error: committeeTypeResult.error.message }, { status: 400 });
+      }
+      for (const row of (committeeTypeResult.data ?? []) as CommitteeTypeRow[]) {
+        if (typeof row.committee_name === "string" && row.committee_name.trim()) {
+          committeeNameById.set(row.id, row.committee_name.trim());
+        } else if (typeof row.name === "string" && row.name.trim()) {
+          committeeNameById.set(row.id, row.name.trim());
+        }
+      }
+    }
 
     const queued: Array<{ queue_id: string | number; member_id: string }> = [];
     const failed: Array<{ id: string; message: string }> = [];
@@ -78,6 +127,9 @@ export async function POST(request: Request) {
         failed.push({ id: memberId, message: "Noe gikk galt, ta kontakt med IT." });
         continue;
       }
+      const committeeId = parseCommitteeId(member.committee);
+      const committeeName =
+        committeeId === null ? null : committeeNameById.get(committeeId) ?? null;
 
       const { data: queueRow, error: queueError } = await supabase
         .from("printer_queue")
@@ -87,7 +139,7 @@ export async function POST(request: Request) {
           email: member.email ?? "",
           ref: member.id,
           ref_invoker: userId,
-          committee: member.committee ?? null,
+          committee: committeeName,
           status: "queued",
           status_updated_at: new Date().toISOString(),
           user_message_no: null,

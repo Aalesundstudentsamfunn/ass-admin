@@ -17,6 +17,7 @@ import { useActions } from "@/app/dashboard/members/providers";
 import { createClient } from "@/lib/supabase/client";
 import { watchPrinterQueueStatus } from "@/lib/printer-queue";
 import { useAutoPrintSetting } from "@/lib/auto-print";
+import { normalizeCommitteeOptions } from "@/lib/committee-options";
 import { AddMemberDialogGlass } from "@/components/add-member-dialog/glass";
 import {
   MemberActivateForm,
@@ -25,6 +26,7 @@ import {
   MemberEmailCheckForm,
 } from "@/components/add-member-dialog/stage-content";
 import { enqueueMemberPrintJobs } from "@/lib/members/client-actions";
+import type { CommitteeOption } from "@/lib/committee-options";
 import type {
   AddMemberDialogStage,
   CheckEmailActionResult,
@@ -39,9 +41,11 @@ import type {
 export function CreateUserDialog({
   autoOpen = false,
   trigger,
+  committeeOptions,
 }: {
   autoOpen?: boolean;
   trigger?: React.ReactElement;
+  committeeOptions?: CommitteeOption[];
 } = {}) {
   const [open, setOpen] = React.useState(autoOpen);
   const [stage, setStage] = React.useState<AddMemberDialogStage>("email");
@@ -51,9 +55,16 @@ export function CreateUserDialog({
   const [resolvedEmail, setResolvedEmail] = React.useState("");
   const [voluntary, setVoluntary] = React.useState(false);
   const [committee, setCommittee] = React.useState("");
+  const [loadedCommitteeOptions, setLoadedCommitteeOptions] = React.useState<CommitteeOption[]>([]);
   const [printPending, setPrintPending] = React.useState(false);
   const [existingMember, setExistingMember] = React.useState<CheckEmailActionResult["member"] | null>(null);
   const { autoPrint } = useAutoPrintSetting();
+  const providedCommitteeOptions = React.useMemo(
+    () => normalizeCommitteeOptions((committeeOptions ?? []) as Array<{ id: unknown; name: unknown }>),
+    [committeeOptions],
+  );
+  const resolvedCommitteeOptions =
+    providedCommitteeOptions.length > 0 ? providedCommitteeOptions : loadedCommitteeOptions;
 
   const { addNewMember, checkMemberEmail, activateMember } = useActions();
   const [checkState, checkAction, checkPending] = useActionState(checkMemberEmail, {
@@ -331,6 +342,65 @@ export function CreateUserDialog({
   }, [stopQueueWatch]);
 
   useEffect(() => {
+    if (!open || providedCommitteeOptions.length > 0) {
+      return;
+    }
+    let active = true;
+    const loadCommitteeOptions = async () => {
+      let result = await supabase
+        .from("committee_type")
+        .select("id, committee_name")
+        .order("id", { ascending: true });
+      if (result.error) {
+        result = await supabase
+          .from("committee_type")
+          .select("id, name")
+          .order("id", { ascending: true });
+      }
+      if (result.error) {
+        result = await supabase
+          .from("committee_types")
+          .select("id, committee_name")
+          .order("id", { ascending: true });
+      }
+      if (result.error) {
+        result = await supabase
+          .from("committee_types")
+          .select("id, name")
+          .order("id", { ascending: true });
+      }
+      if (result.error) {
+        return;
+      }
+      const { data } = result;
+      if (!active) {
+        return;
+      }
+      setLoadedCommitteeOptions(
+        normalizeCommitteeOptions(
+          (
+            (data ?? []) as Array<{
+              id: unknown;
+              committee_name?: unknown;
+              name?: unknown;
+            }>
+          ).map((row) => ({
+            id: row.id,
+            name:
+              typeof row.committee_name === "string" && row.committee_name.trim()
+                ? row.committee_name
+                : (row.name ?? ""),
+          })),
+        ),
+      );
+    };
+    void loadCommitteeOptions();
+    return () => {
+      active = false;
+    };
+  }, [open, providedCommitteeOptions.length, supabase]);
+
+  useEffect(() => {
     if (autoOpen) {
       setOpen(true);
     }
@@ -445,6 +515,7 @@ export function CreateUserDialog({
                 lastname={lastname}
                 voluntary={voluntary}
                 committee={committee}
+                committeeOptions={resolvedCommitteeOptions}
                 isBusy={isBusy}
                 createPending={createPending}
                 onFirstnameChange={setFirstname}

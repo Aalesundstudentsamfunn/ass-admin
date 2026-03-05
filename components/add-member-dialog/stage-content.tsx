@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { COMMITTEE_OPTIONS } from "@/lib/committee-options";
+import type { CommitteeOption } from "@/lib/committee-options";
 import type { AddMemberDialogStage, CheckEmailActionResult } from "./types";
 
 /**
@@ -38,6 +38,7 @@ export function MemberCreateForm({
   lastname,
   voluntary,
   committee,
+  committeeOptions,
   isBusy,
   createPending,
   onFirstnameChange,
@@ -54,6 +55,7 @@ export function MemberCreateForm({
   lastname: string;
   voluntary: boolean;
   committee: string;
+  committeeOptions: CommitteeOption[];
   isBusy: boolean;
   createPending: boolean;
   onFirstnameChange: (value: string) => void;
@@ -104,9 +106,9 @@ export function MemberCreateForm({
             disabled={isBusy}
           >
             <option value="">Velg komité</option>
-            {COMMITTEE_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}
+            {committeeOptions.map((option) => (
+              <option key={option.id} value={String(option.id)}>
+                {option.name}
               </option>
             ))}
           </select>
