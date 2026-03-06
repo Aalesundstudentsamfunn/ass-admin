@@ -119,7 +119,6 @@ export default function UtstyrClient({
                                         <div className="relative h-20 w-20 overflow-hidden rounded-lg bg-muted">
                                             <EquipmentImage
                                                 imgPath={res.item?.img_path}
-                                                imgType={res.item?.img_type}
                                                 alt={res.item?.itemname ?? "Ukjent utstyr"}
                                                 fill
                                                 className="object-cover"
@@ -187,7 +186,6 @@ export default function UtstyrClient({
                                     <div className="relative h-20 w-20 overflow-hidden rounded-lg bg-muted">
                                         <EquipmentImage
                                             imgPath={res.item?.img_path}
-                                            imgType={res.item?.img_type}
                                             alt={res.item?.itemname ?? "Ukjent utstyr"}
                                             fill
                                             className="object-cover"

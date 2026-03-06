@@ -6,8 +6,7 @@ import Image from "next/image";
 const PLACEHOLDER_SRC = "/images/equipment-placeholder.webp";
 
 type EquipmentImageProps = {
-  imgPath?: string | null;
-  imgType?: string | null;
+  imgPath?: string[] | string | null;
   alt: string;
   bucketPath?: string;
   className?: string;
@@ -19,42 +18,27 @@ type EquipmentImageProps = {
 };
 
 function buildEquipmentImageUrl(
-  imgPath?: string | null,
-  imgType?: string | null,
+  imgPath?: string[] | string | null,
   bucketPath = "items",
 ) {
-  if (!imgPath) {
+  // Handle array - use first image
+  const pathString = Array.isArray(imgPath) ? imgPath[0] : imgPath;
+  
+  if (!pathString) {
     return PLACEHOLDER_SRC;
   }
 
-  if (/^https?:\/\//i.test(imgPath)) {
-    return imgPath;
+  if (/^https?:\/\//i.test(pathString)) {
+    return pathString;
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  
   if (!baseUrl) {
     return PLACEHOLDER_SRC;
   }
 
-  const normalizedBucketPath = bucketPath.replace(/^\/+|\/+$/g, "");
-  let normalizedPath = imgPath.replace(/^\/+/, "");
-  if (normalizedPath.startsWith(`${normalizedBucketPath}/`)) {
-    normalizedPath = normalizedPath.slice(normalizedBucketPath.length + 1);
-  }
-
-  const hasExtension = /\.[a-z0-9]{2,8}$/i.test(
-    normalizedPath.split("/").pop() ?? "",
-  );
-  const normalizedType =
-    imgType?.trim().replace(/^image\//i, "").replace(/^\./, "") || "webp";
-
-  const encodedPath = normalizedPath
-    .split("/")
-    .map((part) => encodeURIComponent(part))
-    .join("/");
-
-  const suffix = hasExtension ? "" : `.${encodeURIComponent(normalizedType)}`;
-  return `${baseUrl}/storage/v1/object/public/${normalizedBucketPath}/${encodedPath}${suffix}`;
+  return `${baseUrl}/storage/v1/object/public/${bucketPath}/${pathString}`;
 }
 
 /**
@@ -66,7 +50,6 @@ function buildEquipmentImageUrl(
  */
 export function EquipmentImage({
   imgPath,
-  imgType,
   alt,
   bucketPath = "items",
   className,
@@ -77,12 +60,12 @@ export function EquipmentImage({
   priority,
 }: EquipmentImageProps) {
   const [src, setSrc] = React.useState(() =>
-    buildEquipmentImageUrl(imgPath, imgType, bucketPath),
+    buildEquipmentImageUrl(imgPath, bucketPath),
   );
 
   React.useEffect(() => {
-    setSrc(buildEquipmentImageUrl(imgPath, imgType, bucketPath));
-  }, [imgPath, imgType, bucketPath]);
+    setSrc(buildEquipmentImageUrl(imgPath, bucketPath));
+  }, [imgPath, bucketPath]);
 
   return (
     <Image

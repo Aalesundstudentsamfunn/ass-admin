@@ -217,8 +217,7 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
                 <section className="relative aspect-[10/11] w-full overflow-hidden rounded-2xl border border-border/60 bg-muted/20">
                         <EquipmentImage
                             imgPath={item.img_path}
-                            imgType={item.img_type}
-                            alt={item.itemname}
+                            alt={item.itemname ?? "Utstyr"}
                             fill
                             priority
                             className="object-cover"
