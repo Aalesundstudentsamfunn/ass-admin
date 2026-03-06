@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ItemType } from "./page";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -28,33 +28,6 @@ export default function WrappedUtstyrPage({ itemTypes, groupId }: { itemTypes: I
     const [certificateTypes, setCertificateTypes] = useState<CertificateType[]>([]);
     const [submitting, setSubmitting] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
-    const [typeImages, setTypeImages] = useState<Record<number, string[] | null>>({});
-
-    useEffect(() => {
-        const fetchImages = async () => {
-            const imageMap: Record<number, string[] | null> = {};
-            
-            for (const itemType of itemTypes) {
-                const { data } = await supabase
-                    .schema("item_schema")
-                    .from("items")
-                    .select("img_path")
-                    .eq("item_type", itemType.id)
-                    .limit(1)
-                    .single();
-                
-                if (data?.img_path) {
-                    imageMap[itemType.id] = data.img_path;
-                }
-            }
-            
-            setTypeImages(imageMap);
-        };
-
-        if (itemTypes.length > 0) {
-            fetchImages();
-        }
-    }, [itemTypes, supabase]);
 
     useEffect(() => {
         const fetchCertificateTypes = async () => {
@@ -180,11 +153,12 @@ export default function WrappedUtstyrPage({ itemTypes, groupId }: { itemTypes: I
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {filtered?.map((item) => (
-                    <Card key={item.id.toString()} className="overflow-hidden">
+                    <Link key={item.id.toString()} href={`/dashboard/equipment/by-type/${item.id}`}>
+                    <Card className="overflow-hidden">
                         <CardHeader>
                             <div className="relative aspect-square w-full overflow-hidden rounded-md">
                                 <EquipmentImage
-                                    imgPath={typeImages[item.id] ?? null}
+                                    imgPath={item.items?.[0]?.img_path ?? null}
                                     bucketPath="items"
                                     alt={item.title ?? "Utstyrtype"}
                                     fill
@@ -199,14 +173,12 @@ export default function WrappedUtstyrPage({ itemTypes, groupId }: { itemTypes: I
 
                         <CardContent className="text-xs text-muted-foreground">
                             <div className="grid gap-1">
-                                <div>ID: {item.id.toString()}</div>
-                                <div>responsible_activity_group: {item.responsible_activity_group?.toString() ?? "-"}</div>
-                                <div>certification_type: {item.certification_type?.toString() ?? "-"}</div>
-                                <div>location: {item.location ?? "-"}</div>
+                                
+                                <div>Sertifisering: {item.certification_type?.toString() ?? "Ingen sertifiseringskrav"}</div>
+                                <div>Lokasjon: {item.location ?? "Vet ikke"}</div>
                             </div>
                         </CardContent>
-                        <CardFooter><Link href={`/dashboard/equipment/by-type/${item.id}`}><Button>Se alle {item.title}</Button></Link></CardFooter>
-                    </Card>
+                    </Card></Link>
                 ))}
             </div>
 
