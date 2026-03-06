@@ -1,7 +1,7 @@
 /**
  * Client-side presentation and interaction layer for `equipment/_groupcard.tsx`.
  */
-import { Card, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Card, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
