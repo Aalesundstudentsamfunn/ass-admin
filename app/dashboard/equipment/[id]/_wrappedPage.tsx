@@ -99,7 +99,7 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
                 // - table is usually "profiles" (not "profile")
                 // - column might be "email" (change if yours differs)
                 const { data, error } = await supabase
-                    .from("profiles")
+                    .from("members")
                     .select("id")
                     .eq("email", trimmed.toLowerCase())
                     .maybeSingle();
@@ -143,7 +143,7 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
             email: email.trim(),
         });
         const supabase = await createClient();
-        const { data: pdata, error: pError } = await supabase.from("profiles").select("id").eq("email", email.trim().toLowerCase()).maybeSingle();
+        const { data: pdata, error: pError } = await supabase.from("members").select("id").eq("email", email.trim().toLowerCase()).maybeSingle();
         if (pError || !pdata?.id) {
             toast.error("Kunne ikke finne bruker for gitt e-post.");
             return;
@@ -182,7 +182,8 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
             return;
         }
 
-        const { error: UpdateItemError } = await supabase.schema("item_schema").from("item").update({ is_rented: true }).eq("id", item.id);
+        const { error: UpdateItemError, data: res } = await supabase.schema("item_schema").from("item").update({ is_rented: true }).eq("id", item.id);
+        console.log("Update item result:", { error: UpdateItemError, res });
 
         if (UpdateItemError) {
             toast.error("Feil ved oppdatering av utstyr. kontakt it. feil: " + UpdateItemError.message);
@@ -215,14 +216,14 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
             <div className="mx-auto grid max-w-6xl items-start gap-6 xl:grid-cols-[minmax(340px,1fr)_minmax(440px,1fr)]">
                 {/* VENSTRE SIDE – BILDE */}
                 <section className="relative aspect-[10/11] w-full overflow-hidden rounded-2xl border border-border/60 bg-muted/20">
-                        <EquipmentImage
-                            imgPath={item.img_path}
-                            alt={item.itemname ?? "Utstyr"}
-                            fill
-                            priority
-                            className="object-cover"
-                            sizes="(max-width: 1280px) 100vw, 480px"
-                        />
+                    <EquipmentImage
+                        imgPath={item.img_path}
+                        alt={item.itemname ?? "Utstyr"}
+                        fill
+                        priority
+                        className="object-cover"
+                        sizes="(max-width: 1280px) 100vw, 480px"
+                    />
                 </section>
 
                 {/* HØYRE SIDE – INFO */}
@@ -381,7 +382,7 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
                                         </p>
                                         {emailStatus === "invalid" && (
                                             <p className="text-xs text-red-600">
-                                                E-posten må finnes i systemet (public.profiles). Be bruker registrere seg på admin.astudent.no/utstyr hvis de ikke har gjort det, og kontakt it hvis det er problemer med registrering.
+                                                E-posten må finnes i systemet (public.members). Be bruker registrere seg på admin.astudent.no/utstyr hvis de ikke har gjort det, og kontakt it hvis det er problemer med registrering.
                                             </p>
                                         )}
                                     </div>
