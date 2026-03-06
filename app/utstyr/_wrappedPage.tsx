@@ -21,9 +21,8 @@ import { EquipmentImage } from "@/components/equipment/equipment-image";
 
 type Item = {
     id: number;
-    itemname: string;
-    img_path: string | null;
-    img_type: string | null;
+    variant: string;
+    img_path: string[] | null;
 };
 
 type ReservationWithItem = {
@@ -119,7 +118,7 @@ export default function UtstyrClient({
                                         <div className="relative h-20 w-20 overflow-hidden rounded-lg bg-muted">
                                             <EquipmentImage
                                                 imgPath={res.item?.img_path}
-                                                alt={res.item?.itemname ?? "Ukjent utstyr"}
+                                                alt={res.item?.variant ?? "Ukjent utstyr"}
                                                 fill
                                                 className="object-cover"
                                                 sizes="80px"
@@ -129,7 +128,7 @@ export default function UtstyrClient({
                                         {/* Info */}
                                         <div className="flex-1 min-w-0">
                                             <p className="font-medium truncate">
-                                                {res.item?.itemname ?? "Ukjent utstyr"}
+                                                {res.item?.variant ?? "Ukjent utstyr"}
                                             </p>
 
                                             <p className="text-sm text-muted-foreground">
@@ -151,7 +150,7 @@ export default function UtstyrClient({
                                         </div>
 
                                         {/* Handlinger */}
-                                        <ReturnDialog reservationId={res.id} itemName={res.item?.itemname ?? "utstyr"} />
+                                        <ReturnDialog reservationId={res.id} itemName={res.item?.variant ?? "utstyr"} />
 
                                         <div
                                             className={cn(
@@ -186,7 +185,7 @@ export default function UtstyrClient({
                                     <div className="relative h-20 w-20 overflow-hidden rounded-lg bg-muted">
                                         <EquipmentImage
                                             imgPath={res.item?.img_path}
-                                            alt={res.item?.itemname ?? "Ukjent utstyr"}
+                                            alt={res.item?.variant ?? "Ukjent utstyr"}
                                             fill
                                             className="object-cover"
                                             sizes="80px"
@@ -195,7 +194,7 @@ export default function UtstyrClient({
 
                                     <div className="flex-1 min-w-0">
                                         <p className="font-medium truncate">
-                                            {res.item?.itemname ?? "Ukjent utstyr"}
+                                            {res.item?.variant ?? "Ukjent utstyr"}
                                         </p>
                                         <p className="text-sm text-muted-foreground">
                                             {res.start_time

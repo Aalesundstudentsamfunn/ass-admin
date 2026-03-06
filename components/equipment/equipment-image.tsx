@@ -23,7 +23,7 @@ function buildEquipmentImageUrl(
 ) {
   // Handle array - use first image
   const pathString = Array.isArray(imgPath) ? imgPath[0] : imgPath;
-  
+
   if (!pathString) {
     return PLACEHOLDER_SRC;
   }
@@ -33,7 +33,7 @@ function buildEquipmentImageUrl(
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  
+
   if (!baseUrl) {
     return PLACEHOLDER_SRC;
   }

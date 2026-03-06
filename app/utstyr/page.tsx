@@ -9,12 +9,10 @@ type ItemReservation = {
   is_returned: boolean;
   item: {
     id: number;
-    itemname: string;
-    img_path: string | null;
-    img_type: string | null;
-  } | null;
-};
-
+    variant: string;
+    img_path: string[] | null;
+  };
+}
 const RESERVATION_SELECT = `
   id,
   start_time,
@@ -22,9 +20,8 @@ const RESERVATION_SELECT = `
   is_returned,
   item:item_id (
     id,
-    itemname,
-    img_path,
-    img_type
+    variant,
+    img_path
   )
 `;
 
