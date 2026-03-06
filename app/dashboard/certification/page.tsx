@@ -70,7 +70,7 @@ const CERTIFICATE_SELECT = `
   id,
   created_at,
   application_id,
-  holder:profiles!holder ( id, firstname, lastname, email ),
+  holder:members!holder ( id, firstname, lastname, email ),
   type:certificate_type!type ( id, type )
 `;
 

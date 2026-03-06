@@ -14,9 +14,9 @@ import { AppShape } from "@/components/certification/certification-card";
 
 const APPLICATION_SELECT = `
   *,
-  profiles:profiles!seeker_id ( id, firstname, lastname, email ),
+  profiles:members!seeker_id ( id, firstname, lastname, email ),
   type:certificate_type!certificate_id ( id, type ),
-  verified_by_profile:profiles!verified_by ( id, firstname, lastname, email )
+  verified_by_profile:members!verified_by ( id, firstname, lastname, email )
 `;
 
 /**
@@ -57,6 +57,7 @@ async function fetchApplications(client: SupabaseClient): Promise<AppShape[]> {
     .select(APPLICATION_SELECT)
     .order("created_at", { ascending: true });
 
+  console.log("Fetched applications data:", data);
   if (error) {
     console.error("Supabase error while loading applications:", error);
     return [];
@@ -133,12 +134,12 @@ export default function CertificationApplicationPage() {
         prev.map((application) =>
           application.id === applicationId
             ? {
-                ...application,
-                verified: true,
-                rejected: false,
-                time_accepted: acceptedAt,
-                verified_by: actorId,
-              }
+              ...application,
+              verified: true,
+              rejected: false,
+              time_accepted: acceptedAt,
+              verified_by: actorId,
+            }
             : application,
         ),
       );
