@@ -4,6 +4,8 @@ import * as React from "react";
 import { toast } from "sonner";
 import type { MemberRow } from "@/components/member-table/shared";
 import { createClient } from "@/lib/supabase/client";
+import { requestActionConfirm } from "@/lib/feedback/action-confirm";
+import { withLoadingToast } from "@/lib/feedback/toast-mutation";
 import {
   bulkUpdateMemberPrivilege,
   enqueueMemberPrintJobs,
@@ -13,7 +15,7 @@ import {
   updateMemberPrivilege,
   updateMembershipStatus,
 } from "@/lib/members/client-actions";
-import { watchPrinterQueueStatus } from "@/lib/printer-queue";
+import { watchPrintJobWithGrace } from "@/lib/printer-queue/print-monitor";
 import {
   canAssignPrivilege,
   canSetOwnPrivilege,
@@ -137,29 +139,12 @@ export function useMembersPageActions({
     }
 
     const supabaseClient = createClient();
-    toast.loading("Venter på utskrift...", {
-      id: toastId,
-      description: "Utskrift starter når skriveren er klar.",
-      duration: Infinity,
-    });
-
-    watchPrinterQueueStatus(supabaseClient, {
+    watchPrintJobWithGrace({
+      supabase: supabaseClient,
       queueId,
-      timeoutMs: 25000,
-      timeoutErrorMessage: "Sjekk om printer-PC er koblet på internett. Kontakt IT om det ikke går.",
-      onCompleted: () => {
-        toast.success("Utskrift sendt til printer.", { id: toastId, duration: 10000 });
-      },
-      onError: (message) => {
-        toast.error("Utskrift feilet.", { id: toastId, description: message, duration: Infinity });
-      },
-      onTimeout: () => {
-        toast.error("Utskrift tar lengre tid enn vanlig.", {
-          id: toastId,
-          description: "Sjekk om printer-PC er koblet på internett. Kontakt IT om det ikke går.",
-          duration: Infinity,
-        });
-      },
+      toastId,
+      queuedDescription: "Utskrift starter når skriveren er klar.",
+      completedMessage: "Utskrift sendt til printer.",
     });
   }, []);
 
@@ -192,15 +177,25 @@ export function useMembersPageActions({
         return;
       }
 
-      // Persist to DB first, then patch local list/dialog state on success.
-      const toastId = toast.loading("Oppdaterer tilgangsnivå...", { duration: 10000 });
-      const { error } = await updateMemberPrivilege(idOf(member.id), next);
-      if (error) {
-        toast.error("Kunne ikke oppdatere tilgangsnivå.", { id: toastId, description: error.message, duration: Infinity });
+      const result = await withLoadingToast({
+        loadingMessage: "Oppdaterer tilgangsnivå...",
+        errorMessage: "Kunne ikke oppdatere tilgangsnivå.",
+        successMessage: "Tilgangsnivå oppdatert.",
+        action: async () => {
+          const { error } = await updateMemberPrivilege(idOf(member.id), next);
+          if (error) {
+            throw new Error(error.message);
+          }
+          return true;
+        },
+      });
+      if (!result) {
         return;
       }
-      patchMembersByIds(setRows, setSelectedMember, [idOf(member.id)], { privilege_type: next });
-      toast.success("Tilgangsnivå oppdatert.", { id: toastId, duration: 6000 });
+
+      patchMembersByIds(setRows, setSelectedMember, [idOf(member.id)], {
+        privilege_type: next,
+      });
     },
     [canEditPrivileges, currentPrivilege, currentUserId, setRows, setSelectedMember],
   );
@@ -212,32 +207,43 @@ export function useMembersPageActions({
    */
   const handleDeleteMember = React.useCallback(
     async (id: string | number) => {
-      // Confirm destructive action before applying optimistic removal.
-      if (!window.confirm("Er du sikker på at du vil slette dette medlemmet?")) {
+      const confirmed = await requestActionConfirm({
+        title: "Slette medlem?",
+        description: "Er du sikker på at du vil slette dette medlemmet?",
+        confirmLabel: "Slett",
+        cancelLabel: "Avbryt",
+        variant: "destructive",
+      });
+      if (!confirmed) {
         return;
       }
 
       const memberId = idOf(id);
       const before = rows;
-      const toastId = toast.loading("Sletter medlem...", { duration: 10000 });
       setIsDeleting(true);
       try {
         // Optimistic UI: remove row immediately while API call is pending.
         removeMembersByIds(setRows, setSelectedMember, setDetailsOpen, [memberId]);
-        const { response, payload } = await deleteMembersRequest([memberId]);
-        if (!response.ok) {
-          throw new Error(payload?.error ?? "Kunne ikke slette medlem.");
+        const result = await withLoadingToast({
+          loadingMessage: "Sletter medlem...",
+          errorMessage: "Kunne ikke slette medlem.",
+          successMessage: "Medlem slettet.",
+          successDuration: 10000,
+          action: async () => {
+            const { response, payload } = await deleteMembersRequest([memberId]);
+            if (!response.ok) {
+              throw new Error(payload?.error ?? "Kunne ikke slette medlem.");
+            }
+            return true;
+          },
+        });
+        if (!result) {
+          throw new Error("Kunne ikke slette medlem.");
         }
-        toast.success("Medlem slettet.", { id: toastId, duration: 10000 });
         refresh();
-      } catch (error: unknown) {
+      } catch {
         // Restore previous table state if deletion fails.
         setRows(before);
-        toast.error("Kunne ikke slette medlem.", {
-          id: toastId,
-          description: error instanceof Error ? error.message : String(error),
-          duration: Infinity,
-        });
       } finally {
         setIsDeleting(false);
       }
@@ -300,7 +306,9 @@ export function useMembersPageActions({
         return;
       }
 
-      patchMembersByIds(setRows, setSelectedMember, eligibleIds, { privilege_type: next });
+      patchMembersByIds(setRows, setSelectedMember, eligibleIds, {
+        privilege_type: next,
+      });
       const skippedCount = unchangedIds.length + blockedIds.length;
       if (skippedCount > 0) {
         toast.warning("Noen valgte medlemmer ble hoppet over.", {

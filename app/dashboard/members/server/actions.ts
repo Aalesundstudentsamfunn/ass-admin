@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { shouldAutoPrint } from "@/lib/members/shared";
+import { parseCommitteeId } from "@/lib/committee-options";
 import { isMembershipActive } from "@/lib/privilege-checks";
 import { logAdminAction } from "@/lib/server/admin-audit-log";
+import { fetchCommitteeNameByIdMap } from "@/lib/server/committee-type";
 import type {
   AddMemberActionResult,
   CheckMemberEmailResult,
@@ -293,7 +295,16 @@ export async function addNewMember(
   const normalizedEmail = normalizeMemberEmail(String(formData.get("email") ?? ""));
   const lastname = String(formData.get("lastname") ?? "");
   const voluntary = Boolean(formData.get("voluntary"));
+  const committeeId = parseCommitteeId(formData.get("committee"));
   const autoPrint = shouldAutoPrint(formData.get("autoPrint"));
+
+  if (voluntary) {
+    if (committeeId === null) {
+      return { ok: false, error: "Komité må velges for frivillig." };
+    }
+  } else if (committeeId !== null) {
+    return { ok: false, error: "Komité kan bare settes for frivillig." };
+  }
 
   try {
     const sb = await createClient();
@@ -378,6 +389,19 @@ export async function addNewMember(
 
     const { userId } = await ensureAuthUser(normalizedEmail, firstname, lastname);
     const privilegeType = toMemberPrivilege(voluntary);
+    let committeeForMemberId: number | null = null;
+    let committeeForPrint: string | null = null;
+    if (voluntary && committeeId !== null) {
+      const { nameById, error: committeeError } = await fetchCommitteeNameByIdMap(sb, [
+        committeeId,
+      ]);
+      const committeeLabel = nameById.get(committeeId) ?? "";
+      if (committeeError || !committeeLabel) {
+        return { ok: false, error: committeeError ?? "Ugyldig komitévalg." };
+      }
+      committeeForMemberId = committeeId;
+      committeeForPrint = committeeLabel;
+    }
 
     const { data: newMember, error: insertError } = await sb
       .from("members")
@@ -386,6 +410,7 @@ export async function addNewMember(
         email: normalizedEmail,
         firstname,
         lastname,
+        committee: committeeForMemberId,
         privilege_type: privilegeType,
         is_membership_active: true,
         created_by: createdBy,
@@ -405,6 +430,21 @@ export async function addNewMember(
       return { ok: false, error: insertError?.message ?? "Failed to add new member." };
     }
 
+    await logMemberAction(sb, {
+      actorId: createdBy,
+      action: "member.create",
+      targetId: newMember.id,
+      status: "ok",
+      details: {
+        email: newMember.email,
+        privilege_type: privilegeType,
+        committee_id: committeeForMemberId,
+        committee: committeeForPrint,
+        is_membership_active: true,
+        auto_print: autoPrint,
+      },
+    });
+
     if (!autoPrint) {
       revalidatePath("/dashboard/members");
       return { ok: true, autoPrint: false };
@@ -414,7 +454,7 @@ export async function addNewMember(
       sb,
       newMember,
       createdBy,
-      privilegeType,
+      committeeForPrint,
     );
 
     if (queueError) {
@@ -426,6 +466,8 @@ export async function addNewMember(
         errorMessage: `added user but failed to add to printer queue: ${queueError.message}`,
         details: {
           email: newMember.email,
+          committee_id: committeeForMemberId,
+          committee: committeeForPrint,
           auto_print: true,
           auth_user_id: userId,
         },
