@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { addNewEquipment } from "@/lib/equipment/client-actions";
+import Image from "next/image";
 
 type ImagePreview = {
     file: File;
@@ -39,7 +40,6 @@ export function AddEquipmentDialog({
         const files = Array.from(e.target.files || []);
         if (!files.length) return;
 
-        const newPreviews: ImagePreview[] = [];
 
         for (const file of files) {
             // Validate file type
@@ -195,7 +195,7 @@ export function AddEquipmentDialog({
                                 <div className="grid grid-cols-3 gap-2">
                                     {imagePreviews.map((preview, index) => (
                                         <div key={index} className="relative">
-                                            <img
+                                            <Image
                                                 src={preview.preview}
                                                 alt={`Preview ${index + 1}`}
                                                 className="h-24 w-24 rounded-lg object-cover"
