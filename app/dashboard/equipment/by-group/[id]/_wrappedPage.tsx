@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ItemType } from "./page";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -18,7 +18,7 @@ interface CertificateType {
     type: string;
 }
 
-export default function WrappedUtstyrPage({ items, groupId }: { items: ItemType[]; groupId: string }) {
+export default function WrappedUtstyrPage({ itemTypes, groupId }: { itemTypes: ItemType[]; groupId: string }) {
     const supabase = useMemo(() => createClient(), []);
     const [query, setQuery] = useState("");
     const [open, setOpen] = useState(false);
@@ -28,6 +28,33 @@ export default function WrappedUtstyrPage({ items, groupId }: { items: ItemType[
     const [certificateTypes, setCertificateTypes] = useState<CertificateType[]>([]);
     const [submitting, setSubmitting] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [typeImages, setTypeImages] = useState<Record<number, string[] | null>>({});
+
+    useEffect(() => {
+        const fetchImages = async () => {
+            const imageMap: Record<number, string[] | null> = {};
+            
+            for (const itemType of itemTypes) {
+                const { data } = await supabase
+                    .schema("item_schema")
+                    .from("items")
+                    .select("img_path")
+                    .eq("item_type", itemType.id)
+                    .limit(1)
+                    .single();
+                
+                if (data?.img_path) {
+                    imageMap[itemType.id] = data.img_path;
+                }
+            }
+            
+            setTypeImages(imageMap);
+        };
+
+        if (itemTypes.length > 0) {
+            fetchImages();
+        }
+    }, [itemTypes, supabase]);
 
     useEffect(() => {
         const fetchCertificateTypes = async () => {
@@ -45,9 +72,9 @@ export default function WrappedUtstyrPage({ items, groupId }: { items: ItemType[
 
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
-        if (!q) return items;
-        return items?.filter((x) => (x.title ?? "").toLowerCase().includes(q));
-    }, [query, items]);
+        if (!q) return itemTypes;
+        return itemTypes?.filter((x) => (x.title ?? "").toLowerCase().includes(q));
+    }, [query, itemTypes]);
 
     const openDialog = () => setOpen(true);
 
@@ -66,10 +93,9 @@ export default function WrappedUtstyrPage({ items, groupId }: { items: ItemType[
             .from("item_type")
             .insert({
                 title: trimmedTitle,
-                description: description.trim() || null,
-                parent_category: null,
                 responsible_activity_group: parseInt(groupId),
                 certification_type: certificationType,
+                location: itemTypes?.[0]?.location ?? null,
             })
 
         setSubmitting(false);
@@ -158,9 +184,8 @@ export default function WrappedUtstyrPage({ items, groupId }: { items: ItemType[
                         <CardHeader>
                             <div className="relative aspect-square w-full overflow-hidden rounded-md">
                                 <EquipmentImage
-                                    imgPath={item.img_path}
-                                    imgType={item.img_type}
-                                    bucketPath="items/types"
+                                    imgPath={typeImages[item.id] ?? null}
+                                    bucketPath="items"
                                     alt={item.title ?? "Utstyrtype"}
                                     fill
                                     className="object-cover"
@@ -170,19 +195,14 @@ export default function WrappedUtstyrPage({ items, groupId }: { items: ItemType[
                             <CardTitle className="text-base">
                                 {item.title ?? "Uten tittel"}
                             </CardTitle>
-                            <CardDescription className="line-clamp-2">
-                                {item.description ?? ""}
-                            </CardDescription>
                         </CardHeader>
 
                         <CardContent className="text-xs text-muted-foreground">
                             <div className="grid gap-1">
                                 <div>ID: {item.id.toString()}</div>
-                                <div>parent_category: {item.parent_category?.toString() ?? "-"}</div>
                                 <div>responsible_activity_group: {item.responsible_activity_group?.toString() ?? "-"}</div>
-                                <div>variants: {item.variants?.toString() ?? "-"}</div>
                                 <div>certification_type: {item.certification_type?.toString() ?? "-"}</div>
-                                <div>img_type: {item.img_type ?? "-"}</div>
+                                <div>location: {item.location ?? "-"}</div>
                             </div>
                         </CardContent>
                         <CardFooter><Link href={`/dashboard/equipment/by-type/${item.id}`}><Button>Se alle {item.title}</Button></Link></CardFooter>
