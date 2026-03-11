@@ -7,6 +7,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
     Dialog,
     DialogContent,
@@ -53,6 +54,7 @@ function fromDateInputValue(value: string) {
  */
 export default function WrappedItemPage({ item }: { item: ItemType }) {
     const [open, setOpen] = React.useState(false);
+    const [editOpen, setEditOpen] = React.useState(false);
 
     const [range, setRange] = React.useState<DateRangeState>({});
     const [email, setEmail] = React.useState("");
@@ -60,6 +62,17 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
         "idle" | "checking" | "valid" | "invalid"
     >("idle");
     const [emailMsg, setEmailMsg] = React.useState<string>("");
+
+    // Edit form state
+    const [editName, setEditName] = React.useState(item.variant);
+    const [editDescription, setEditDescription] = React.useState(item.itemdescription ?? "");
+    const [editImagePath, setEditImagePath] = React.useState(
+        item.img_path && item.img_path.length > 0 ? item.img_path[0] : ""
+    );
+    const [editIsActive, setEditIsActive] = React.useState(item.is_active);
+    const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
+    const [imagePreview, setImagePreview] = React.useState<string | null>(null);
+    const [isUploading, setIsUploading] = React.useState(false);
 
     const canSubmit = Boolean(range?.from && range?.to && emailStatus === "valid");
     const router = useRouter();
@@ -199,6 +212,137 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
         router.refresh();
     }
 
+    function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        // Validate file type
+        if (!file.type.startsWith("image/")) {
+            toast.error("Kun bildefiler er tillatt");
+            return;
+        }
+
+        // Validate file size (max 10MB)
+        if (file.size > 10 * 1024 * 1024) {
+            toast.error("Bildet er for stort (maks 10MB)");
+            return;
+        }
+
+        setSelectedFile(file);
+
+        // Create preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            setImagePreview(e.target?.result as string);
+        };
+        reader.readAsDataURL(file);
+    }
+
+    async function onEditSubmit() {
+        if (!editName.trim()) {
+            toast.error("Navn kan ikke være tomt.");
+            return;
+        }
+
+        setIsUploading(true);
+
+        try {
+            // Only update fields that have actually changed
+            const updates: any = {};
+            
+            if (editName.trim() !== item.variant) {
+                updates.variant = editName.trim();
+            }
+            
+            const trimmedDescription = editDescription && typeof editDescription === 'string' ? editDescription.trim() : '';
+            if (trimmedDescription !== (item.itemdescription || '')) {
+                updates.itemdescription = trimmedDescription || null;
+            }
+            
+            // Check if is_active changed
+            if (editIsActive !== item.is_active) {
+                updates.is_active = editIsActive;
+            }
+            
+            // Handle image upload if a new file was selected
+            if (selectedFile) {
+                const formData = new FormData();
+                formData.append("file", selectedFile);
+                formData.append("itemId", item.id);
+                
+                const currentImagePath = item.img_path && item.img_path.length > 0 ? item.img_path[0] : null;
+                if (currentImagePath) {
+                    formData.append("oldImagePath", currentImagePath);
+                }
+
+                const response = await fetch("/api/equipment/upload-image", {
+                    method: "POST",
+                    body: formData,
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    toast.error(result.error || "Bildeopplasting feilet");
+                    setIsUploading(false);
+                    return;
+                }
+
+                // Image path is already updated by the upload API
+                // Don't add to updates since API handles it
+            }
+            
+            // If nothing changed, don't update
+            if (Object.keys(updates).length === 0) {
+                // Check if only image was uploaded
+                if (selectedFile) {
+                    toast.success("Bilde oppdatert!");
+                    setEditOpen(false);
+                    setSelectedFile(null);
+                    setImagePreview(null);
+                    setIsUploading(false);
+                    router.refresh();
+                    return;
+                }
+                toast.info("Ingen endringer å lagre.");
+                setEditOpen(false);
+                setIsUploading(false);
+                return;
+            }
+            
+            // Update item via API
+            const response = await fetch("/api/equipment/update-item", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    itemId: item.id,
+                    updates: updates,
+                }),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+                toast.error(result.error || "Oppdatering feilet");
+                setIsUploading(false);
+                return;
+            }
+
+            toast.success("Utstyr oppdatert!");
+            setEditOpen(false);
+            setSelectedFile(null);
+            setImagePreview(null);
+            setIsUploading(false);
+            router.refresh();
+        } catch (error) {
+            console.error("Error updating equipment:", error);
+            toast.error("En uventet feil oppstod");
+            setIsUploading(false);
+        }
+    }
+
     return (
         <main className="space-y-6 text-foreground">
             <header className="flex flex-wrap items-start justify-between gap-3">
@@ -218,7 +362,7 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
                 <section className="relative aspect-[10/11] w-full overflow-hidden rounded-2xl border border-border/60 bg-muted/20">
                     <EquipmentImage
                         imgPath={item.img_path}
-                        alt={item.itemname ?? "Utstyr"}
+                        alt={item.variant ?? "Utstyr"}
                         fill
                         priority
                         className="object-cover"
@@ -230,7 +374,7 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
                 <section className="rounded-2xl border border-border/60 bg-card/40 p-5 lg:p-7">
                     <div className="space-y-6">
                         <h2 className="text-2xl font-semibold lg:text-4xl">
-                            {item.itemname}
+                            {item.variant}
                         </h2>
 
                         <div className="flex flex-wrap gap-3">
@@ -294,7 +438,7 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
 
                                 <DialogContent className="sm:max-w-[520px]">
                                     <DialogHeader>
-                                        <DialogTitle>Lei ut: {item.itemname}</DialogTitle>
+                                        <DialogTitle>Lei ut: {item.variant}</DialogTitle>
                                         <DialogDescription>
                                             Les gjennom reglene nøye. Hvis du er usikker kontakt it.
                                         </DialogDescription>
@@ -402,9 +546,93 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
                                 </DialogContent>
                             </Dialog>
 
-                            <Button variant="outline" className="flex-1">
-                                Rediger
-                            </Button>
+                            <Dialog open={editOpen} onOpenChange={setEditOpen}>
+                                <DialogTrigger asChild>
+                                    <Button variant="outline" className="flex-1">
+                                        Rediger
+                                    </Button>
+                                </DialogTrigger>
+
+                                <DialogContent className="sm:max-w-[520px]">
+                                    <DialogHeader>
+                                        <DialogTitle>Rediger utstyr</DialogTitle>
+                                        <DialogDescription>
+                                            Oppdater navn, beskrivelse, status og bilde for dette utstyret.
+                                        </DialogDescription>
+                                    </DialogHeader>
+
+                                    <div className="flex items-center space-x-2">
+                                            <Checkbox
+                                                id="edit-is-active"
+                                                checked={editIsActive}
+                                                onCheckedChange={(checked) => setEditIsActive(checked === true)}
+                                                disabled={isUploading}
+                                            />
+                                            <Label
+                                                htmlFor="edit-is-active"
+                                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                                            >
+                                                Aktivt
+                                            </Label>
+                                        </div>
+                                    <div className="space-y-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="edit-name">Navn *</Label>
+                                            <Input
+                                                id="edit-name"
+                                                placeholder="Utstyrsnavn"
+                                                value={editName}
+                                                onChange={(e) => setEditName(e.target.value)}
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="edit-description">Beskrivelse</Label>
+                                            <textarea
+                                                id="edit-description"
+                                                placeholder="Beskrivelse av utstyret..."
+                                                value={editDescription}
+                                                onChange={(e) => setEditDescription(e.target.value)}
+                                                rows={4}
+                                                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                            />
+                                        </div>
+
+                                        
+                                        
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="edit-image">Bilde</Label>
+                                            <Input
+                                                id="edit-image"
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleFileSelect}
+                                                disabled={isUploading}
+                                            />
+                                           
+                                            {imagePreview && (
+                                                <div className="mt-2">
+                                                    <img
+                                                        src={imagePreview}
+                                                        alt="Preview"
+                                                        className="h-32 w-auto rounded-md border object-cover"
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <DialogFooter className="gap-2 sm:gap-0">
+                                        <Button variant="outline" onClick={() => setEditOpen(false)} disabled={isUploading}>
+                                            Avbryt
+                                        </Button>
+                                        <Button onClick={onEditSubmit} className="min-w-[140px]" disabled={isUploading}>
+                                            {isUploading ? "Lagrer..." : "Lagre endringer"}
+                                        </Button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
                         </div>
 
                         <div>

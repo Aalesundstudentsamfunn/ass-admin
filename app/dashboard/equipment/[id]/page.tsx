@@ -8,12 +8,12 @@ import WrappedItemPage from "./_wrappedPage";
 export type ItemType = {
     id: string; // bigint → string (tryggest i frontend)
     created_at: string; // timestamptz → ISO string
-    img_path: string | null;
+    img_path: Array<string> | null;
     img_type: string | null;
     parent_type: string | null; // FK → item_schema.item_type.id
     is_active: boolean;
     location: string;
-    itemname: string;
+    variant: string;
     itemdescription: string | null;
     group_id: string | null; // FK → activity_group.id
     certification_type: number | null;
