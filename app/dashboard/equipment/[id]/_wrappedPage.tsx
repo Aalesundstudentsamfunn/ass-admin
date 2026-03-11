@@ -3,6 +3,7 @@
  */
 "use client"
 import * as React from "react";
+import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,12 @@ import { useRouter } from "next/navigation";
 type DateRangeState = {
     from?: Date;
     to?: Date;
+};
+
+type ItemUpdatePayload = {
+    variant?: string;
+    itemdescription?: string | null;
+    is_active?: boolean;
 };
 
 function toDateInputValue(date?: Date) {
@@ -66,9 +73,6 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
     // Edit form state
     const [editName, setEditName] = React.useState(item.variant);
     const [editDescription, setEditDescription] = React.useState(item.itemdescription ?? "");
-    const [editImagePath, setEditImagePath] = React.useState(
-        item.img_path && item.img_path.length > 0 ? item.img_path[0] : ""
-    );
     const [editIsActive, setEditIsActive] = React.useState(item.is_active);
     const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
     const [imagePreview, setImagePreview] = React.useState<string | null>(null);
@@ -248,7 +252,7 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
 
         try {
             // Only update fields that have actually changed
-            const updates: any = {};
+            const updates: ItemUpdatePayload = {};
             
             if (editName.trim() !== item.variant) {
                 updates.variant = editName.trim();
@@ -613,9 +617,12 @@ export default function WrappedItemPage({ item }: { item: ItemType }) {
                                            
                                             {imagePreview && (
                                                 <div className="mt-2">
-                                                    <img
+                                                    <Image
                                                         src={imagePreview}
                                                         alt="Preview"
+                                                        width={192}
+                                                        height={128}
+                                                        unoptimized
                                                         className="h-32 w-auto rounded-md border object-cover"
                                                     />
                                                 </div>
