@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { type EmailOtpType } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -27,6 +28,7 @@ export function UpdatePasswordForm({ className, ...props }: React.ComponentProps
 
     const cleanupAuthUrl = (url: URL, shouldClearHash = false) => {
       url.searchParams.delete("code");
+      url.searchParams.delete("token_hash");
       url.searchParams.delete("type");
       url.searchParams.delete("error");
       url.searchParams.delete("error_code");
@@ -44,6 +46,8 @@ export function UpdatePasswordForm({ className, ...props }: React.ComponentProps
       const accessToken = hashParams.get("access_token");
       const refreshToken = hashParams.get("refresh_token");
       const code = currentUrl.searchParams.get("code");
+      const tokenHash = currentUrl.searchParams.get("token_hash");
+      const otpType = (currentUrl.searchParams.get("type") ?? "recovery") as EmailOtpType;
       const authError =
         currentUrl.searchParams.get("error_description") ??
         hashParams.get("error_description") ??
@@ -54,7 +58,20 @@ export function UpdatePasswordForm({ className, ...props }: React.ComponentProps
         setError(authError);
       }
 
-      if (code) {
+      if (tokenHash) {
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: otpType,
+        });
+        if (error) {
+          if (active) {
+            setError(error.message);
+            setIsSessionReady(false);
+          }
+          return;
+        }
+        cleanupAuthUrl(currentUrl);
+      } else if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
         if (error) {
           if (active) {
