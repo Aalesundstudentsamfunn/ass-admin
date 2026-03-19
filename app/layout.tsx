@@ -2,13 +2,12 @@ import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
-import { AuthHashHandler } from "@/components/auth/auth-hash-handler";
 
 const defaultUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Admin – Ålesund Studentsamfunn",
+  title: "Admin - Ålesund Studentsamfunn",
   description: "Portal for frivillige i ÅSS. Kort, utstyr og medlemskap samlet på en side.",
 };
 
@@ -30,7 +29,6 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.className} antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          <AuthHashHandler redirectPath="/auth/update-password" />
           {children}
         </ThemeProvider>
       </body>
