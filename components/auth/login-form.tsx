@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useRouteProgress } from "@/components/navigation/route-progress";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -53,6 +54,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { startNavigation } = useRouteProgress();
   const redirectTarget = getSafeRedirectTarget(searchParams.get("next"));
 
   useEffect(() => {
@@ -77,14 +79,15 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
         password,
       });
       if (error) throw error;
+      startNavigation();
       router.push(redirectTarget ?? "/dashboard");
+      return;
     } catch (error: unknown) {
       if (isBannedAuthError(error)) {
         setError(GENERIC_LOGIN_BLOCKED_MESSAGE);
       } else {
         setError(error instanceof Error ? error.message : "An error occurred");
       }
-    } finally {
       setIsLoading(false);
     }
   };

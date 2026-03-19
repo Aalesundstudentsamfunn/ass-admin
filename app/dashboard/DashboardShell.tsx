@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { CurrentUserBadge } from "@/components/current-user-badge";
+import { useRouteProgress } from "@/components/navigation/route-progress";
 import { canViewAuditLogs } from "@/lib/privilege-checks";
 import { DashboardSession, DashboardSessionProvider } from "@/components/dashboard/session-context";
 
@@ -131,6 +132,7 @@ function NavItem({ item, active, onClick, collapsed }: { item: (typeof navigatio
 export default function DashboardShell({ children, dashboardSession }: { children: React.ReactNode; dashboardSession: DashboardSession }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { startNavigation } = useRouteProgress();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const visibleNavigation = canViewAuditLogs(dashboardSession.privilegeType) ? navigation : navigation.filter((item) => item.href !== "/dashboard/audit");
@@ -141,6 +143,9 @@ export default function DashboardShell({ children, dashboardSession }: { childre
         <div className={cn("flex items-center gap-3", !mobile && sidebarCollapsed && "justify-center")}>
           <button
             onClick={() => {
+              if (pathname !== "/dashboard") {
+                startNavigation();
+              }
               router.push("/dashboard");
               if (mobile) setSidebarOpen(false);
             }}
@@ -168,12 +173,12 @@ export default function DashboardShell({ children, dashboardSession }: { childre
 
         <div className="mt-4 rounded-xl border border-white/40 p-4 dark:border-white/10">
           <div className={cn("flex items-center gap-2", !mobile && sidebarCollapsed ? "flex-col justify-center items-center" : "justify-between")}>
-            <LogoutButton compact={!mobile && sidebarCollapsed} className="rounded-lg transition-colors hover:bg-white/60 dark:hover:bg-white/15" />
-            <ThemeSwitcher compact={!mobile && sidebarCollapsed} className="rounded-lg transition-colors hover:bg-white/60 dark:hover:bg-white/15" />
+            <LogoutButton compact={!mobile && sidebarCollapsed} />
+            <ThemeSwitcher compact={!mobile && sidebarCollapsed} className="rounded-lg transition-[background-color,color,box-shadow] hover:bg-foreground/10 hover:text-foreground hover:shadow-sm dark:hover:bg-white/14" />
           </div>
           {!mobile ? (
             <div className={cn("mt-2 border-t border-white/40 pt-2 dark:border-white/10", sidebarCollapsed ? "flex justify-center" : "flex")}>
-              <Button variant="ghost" size={sidebarCollapsed ? "icon" : "sm"} className={cn("h-9 rounded-lg hover:bg-white/50 dark:hover:bg-white/10", sidebarCollapsed ? "w-9" : "w-full justify-center gap-2")} onClick={() => setSidebarCollapsed((prev) => !prev)} aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"} title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}>
+              <Button variant="ghost" size={sidebarCollapsed ? "icon" : "sm"} className={cn("h-9 rounded-lg transition-[background-color,color,box-shadow] hover:bg-foreground/10 hover:text-foreground hover:shadow-sm dark:hover:bg-white/14", sidebarCollapsed ? "w-9" : "w-full justify-center gap-2")} onClick={() => setSidebarCollapsed((prev) => !prev)} aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"} title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}>
                 {sidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
                 {sidebarCollapsed ? null : <span>Skjul meny</span>}
               </Button>

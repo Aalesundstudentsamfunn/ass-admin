@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useRouteProgress } from "@/components/navigation/route-progress";
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -19,6 +20,7 @@ export function UpdatePasswordForm({ className, ...props }: React.ComponentProps
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { startNavigation } = useRouteProgress();
   const [isSessionReady, setIsSessionReady] = useState(false);
   const passwordsDoNotMatch = confirmPassword.length > 0 && password !== confirmPassword;
 
@@ -142,10 +144,11 @@ export function UpdatePasswordForm({ className, ...props }: React.ComponentProps
         const payload = await markResponse.json().catch(() => ({}));
         throw new Error(payload?.error ?? "Kunne ikke lagre passordstatus.");
       }
+      startNavigation();
       router.push("/dashboard");
+      return;
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
-    } finally {
       setIsLoading(false);
     }
   };

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { RouteProgressProvider } from "@/components/navigation/route-progress";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
@@ -29,7 +30,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.className} antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          {children}
+          <RouteProgressProvider>{children}</RouteProgressProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -68,3 +68,25 @@
     @apply bg-background text-foreground;
   }
 }
+
+button.logout-button {
+  background-color: #dc143c;
+  border-color: rgba(220, 20, 60, 0.45);
+  color: #fff;
+}
+
+button.logout-button:hover:not(:disabled) {
+  background-color: #b01030;
+  color: #fff;
+}
+
+.dark button.logout-button {
+  background-color: #dc143c;
+  border-color: rgba(220, 20, 60, 0.3);
+  color: #09090b;
+}
+
+.dark button.logout-button:hover:not(:disabled) {
+  background-color: #b01030;
+  color: #09090b;
+}
