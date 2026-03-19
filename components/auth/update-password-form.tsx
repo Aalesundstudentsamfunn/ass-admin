@@ -14,16 +14,71 @@ import { useEffect, useState } from "react";
  */
 export function UpdatePasswordForm({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const [isSessionReady, setIsSessionReady] = useState(false);
+  const passwordsDoNotMatch = confirmPassword.length > 0 && password !== confirmPassword;
 
   useEffect(() => {
     let active = true;
     const supabase = createClient();
 
+    const cleanupAuthUrl = (url: URL, shouldClearHash = false) => {
+      url.searchParams.delete("code");
+      url.searchParams.delete("type");
+      url.searchParams.delete("error");
+      url.searchParams.delete("error_code");
+      url.searchParams.delete("error_description");
+      if (shouldClearHash) {
+        url.hash = "";
+      }
+      const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+      window.history.replaceState({}, document.title, nextUrl);
+    };
+
     const initSession = async () => {
+      const currentUrl = new URL(window.location.href);
+      const hashParams = new URLSearchParams(currentUrl.hash.replace(/^#/, ""));
+      const accessToken = hashParams.get("access_token");
+      const refreshToken = hashParams.get("refresh_token");
+      const code = currentUrl.searchParams.get("code");
+      const authError =
+        currentUrl.searchParams.get("error_description") ??
+        hashParams.get("error_description") ??
+        currentUrl.searchParams.get("error") ??
+        hashParams.get("error");
+
+      if (authError && active) {
+        setError(authError);
+      }
+
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) {
+          if (active) {
+            setError(error.message);
+            setIsSessionReady(false);
+          }
+          return;
+        }
+        cleanupAuthUrl(currentUrl);
+      } else if (accessToken && refreshToken) {
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (error) {
+          if (active) {
+            setError(error.message);
+            setIsSessionReady(false);
+          }
+          return;
+        }
+        cleanupAuthUrl(currentUrl, true);
+      }
+
       const { data } = await supabase.auth.getSession();
       if (active) {
         setIsSessionReady(Boolean(data.session));
@@ -34,8 +89,11 @@ export function UpdatePasswordForm({ className, ...props }: React.ComponentProps
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (active) {
+        if (event === "PASSWORD_RECOVERY") {
+          setError(null);
+        }
         setIsSessionReady(Boolean(session));
       }
     });
@@ -48,6 +106,11 @@ export function UpdatePasswordForm({ className, ...props }: React.ComponentProps
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (password !== confirmPassword) {
+      setError("Passordene er ikke like.");
+      return;
+    }
+
     const supabase = createClient();
     setIsLoading(true);
     setError(null);
@@ -82,10 +145,35 @@ export function UpdatePasswordForm({ className, ...props }: React.ComponentProps
             <div className="flex flex-col gap-6">
               <div className="grid gap-2">
                 <Label htmlFor="password">Nytt passord</Label>
-                <Input id="password" type="password" placeholder="Nytt passord" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Nytt passord"
+                  required
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError(null);
+                  }}
+                />
               </div>
+              <div className="grid gap-2">
+                <Label htmlFor="confirm-password">Bekreft nytt passord</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  placeholder="Bekreft nytt passord"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    setError(null);
+                  }}
+                />
+              </div>
+              {passwordsDoNotMatch && <p className="text-sm text-red-500">Passordene er ikke like.</p>}
               {error && <p className="text-sm text-red-500">{error}</p>}
-              <Button type="submit" className="w-full" disabled={isLoading || !isSessionReady}>
+              <Button type="submit" className="w-full" disabled={isLoading || !isSessionReady || passwordsDoNotMatch}>
                 {isLoading ? "Lagrer..." : "Lagre nytt passord"}
               </Button>
             </div>

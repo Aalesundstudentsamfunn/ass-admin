@@ -38,4 +38,4 @@ export function buildAuthRedirect(pathWithQuery: string) {
 export const getInviteRedirectUrl = () => buildAuthRedirect("/auth/login");
 
 export const getPasswordResetRedirectUrl = () =>
-  buildAuthRedirect("/auth/callback?next=/auth/update-password");
+  buildAuthRedirect("/auth/update-password");
