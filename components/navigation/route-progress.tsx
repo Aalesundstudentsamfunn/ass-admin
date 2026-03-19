@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -24,10 +24,8 @@ const RouteProgressContext = createContext<RouteProgressContextValue | null>(nul
  */
 export function RouteProgressProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [isNavigating, setIsNavigating] = useState(false);
   const hideTimeoutRef = useRef<number | null>(null);
-  const searchKey = searchParams.toString();
 
   const clearHideTimeout = useCallback(() => {
     if (hideTimeoutRef.current !== null) {
@@ -106,7 +104,7 @@ export function RouteProgressProvider({ children }: { children: React.ReactNode 
     }, 150);
 
     return clearHideTimeout;
-  }, [pathname, searchKey, isNavigating, clearHideTimeout]);
+  }, [pathname, isNavigating, clearHideTimeout]);
 
   useEffect(() => clearHideTimeout, [clearHideTimeout]);
 
