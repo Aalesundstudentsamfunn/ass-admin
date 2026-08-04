@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="no">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Tilbakestill passord</title>
+  </head>
+
+  <body style="margin:0; padding:0; background-color:#f6f7f9; color:#111827;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f6f7f9;">
+      <tr>
+        <td align="center" style="padding:40px 16px;">
+
+          <!-- Top accent bar -->
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="height:6px; background-color:#f7931e; border-radius:12px 12px 0 0;">
+                &nbsp;
+              </td>
+            </tr>
+          </table>
+
+          <!-- Card -->
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0"
+                 style="background-color:#ffffff; border-radius:0 0 12px 12px; border:1px solid #e5e7eb;">
+            <tr>
+              <td style="padding:28px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+
+                <!-- Text header -->
+                <div style="margin-bottom:14px;">
+                  <div style="font-size:14px; font-weight:800; color:#111827;">
+                    Ålesund Studentsamfunn
+                  </div>
+                  <div style="font-size:12px; color:#6b7280;">
+                    astudent.no
+                  </div>
+                </div>
+
+                <h1 style="margin:12px 0 8px; font-size:20px; font-weight:900; color:#111827;">
+                  Tilbakestill passord
+                </h1>
+
+                <p style="margin:0 0 18px; font-size:14px; line-height:1.7; color:#374151;">
+                  Vi mottok en forespørsel om å tilbakestille passordet for kontoen din.
+                  Klikk på knappen under for å velge et nytt passord.
+                </p>
+
+                <!-- Button -->
+                <!-- Webapp får token_hash slik at lenken virker på tvers av enheter.
+                     Mobilappen beholder ConfirmationURL (PKCE, samme enhet).
+                     Se supabase/templates/README.md for bakgrunn. -->
+                <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 18px;">
+                  <tr>
+                    <td bgcolor="#f7931e" style="border-radius:10px;">
+                      {{ if eq .RedirectTo "https://admin.astudent.no/auth/update-password" }}
+                      <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery"
+                         style="display:inline-block; padding:12px 20px; font-size:14px; font-weight:900; color:#ffffff; text-decoration:none;">
+                        Tilbakestill passord
+                      </a>
+                      {{ else }}
+                      <a href="{{ .ConfirmationURL }}"
+                         style="display:inline-block; padding:12px 20px; font-size:14px; font-weight:900; color:#ffffff; text-decoration:none;">
+                        Tilbakestill passord
+                      </a>
+                      {{ end }}
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Fallback -->
+                <p style="margin:0 0 16px; font-size:12px; line-height:1.7; color:#6b7280;">
+                  Hvis knappen ikke fungerer, kan du kopiere og lime inn denne lenken i nettleseren:
+                  <br />
+                  {{ if eq .RedirectTo "https://admin.astudent.no/auth/update-password" }}
+                  <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery"
+                     style="color:#e68100; text-decoration:underline; word-break:break-all;">{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery</a>
+                  {{ else }}
+                  <a href="{{ .ConfirmationURL }}"
+                     style="color:#e68100; text-decoration:underline; word-break:break-all;">{{ .ConfirmationURL }}</a>
+                  {{ end }}
+                </p>
+
+                <!-- Security note -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                       style="background-color:#fff4e5; border:1px solid #ffd8a8; border-radius:12px;">
+                  <tr>
+                    <td style="padding:12px; font-size:12px; line-height:1.7; color:#1f2937;">
+                      <strong>Sikkerhet:</strong>
+                      Hvis du ikke ba om å tilbakestille passordet, bør du kontakte oss umiddelbart.
+                    </td>
+                  </tr>
+                </table>
+
+                <p style="margin:18px 0 0; font-size:12px; line-height:1.7; color:#6b7280;">
+                  Trenger du hjelp? Kontakt oss på
+                  <a href="mailto:it@astudent.no" style="color:#e68100; text-decoration:underline;">it@astudent.no</a>.
+                </p>
+
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td style="padding:14px 28px 22px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e5e7eb;">
+                  <tr>
+                    <td style="padding-top:14px; font-size:11px; color:#9ca3af; line-height:1.7;">
+                      2026 © Ålesund Studentsamfunn ·
+                      <a href="https://astudent.no" style="color:#9ca3af; text-decoration:underline;">astudent.no</a><br/>
+                      Du mottar denne e-posten fordi det ble bedt om å tilbakestille passordet for kontoen din.
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+          </table>
+
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

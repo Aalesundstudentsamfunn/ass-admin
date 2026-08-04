@@ -8,8 +8,43 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouteProgress } from "@/components/navigation/route-progress";
 import { type EmailOtpType } from "@supabase/supabase-js";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+
+/**
+ * Engangstokens fra e-postlenken kan bare brukes én gang. React kjører effekter
+ * to ganger i utvikling (StrictMode), så vi husker hvilke tokens som allerede er
+ * innløst for å unngå at det andre forsøket feiler med "token already used".
+ */
+const consumedTokens = new Set<string>();
+
+/**
+ * Oversetter Supabase-feil til norsk tekst brukeren kan handle på.
+ *
+ * How: Kjenner igjen kjente feilsignaturer og faller tilbake på originalteksten.
+ * @returns Feilmelding, og om brukeren trenger en ny lenke.
+ */
+function describeAuthError(message: string): { message: string; needsNewLink: boolean } {
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes("code verifier")) {
+    return {
+      message:
+        "Denne lenken må åpnes i samme nettleser som du ba om nullstilling fra. Be om en ny lenke og åpne den på denne enheten.",
+      needsNewLink: true,
+    };
+  }
+
+  if (normalized.includes("expired") || normalized.includes("invalid") || normalized.includes("already used")) {
+    return {
+      message: "Lenken er utløpt eller allerede brukt. Be om en ny lenke for å fortsette.",
+      needsNewLink: true,
+    };
+  }
+
+  return { message, needsNewLink: false };
+}
 
 /**
  * Renders update password form.
@@ -18,6 +53,7 @@ export function UpdatePasswordForm({ className, ...props }: React.ComponentProps
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [needsNewLink, setNeedsNewLink] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { startNavigation } = useRouteProgress();
@@ -42,6 +78,16 @@ export function UpdatePasswordForm({ className, ...props }: React.ComponentProps
       window.history.replaceState({}, document.title, nextUrl);
     };
 
+    const reportError = (message: string) => {
+      if (!active) {
+        return;
+      }
+      const described = describeAuthError(message);
+      setError(described.message);
+      setNeedsNewLink(described.needsNewLink);
+      setIsSessionReady(false);
+    };
+
     const initSession = async () => {
       const currentUrl = new URL(window.location.href);
       const hashParams = new URLSearchParams(currentUrl.hash.replace(/^#/, ""));
@@ -56,43 +102,44 @@ export function UpdatePasswordForm({ className, ...props }: React.ComponentProps
         currentUrl.searchParams.get("error") ??
         hashParams.get("error");
 
-      if (authError && active) {
-        setError(authError);
+      if (authError) {
+        reportError(authError);
       }
 
       if (tokenHash) {
-        const { error } = await supabase.auth.verifyOtp({
-          token_hash: tokenHash,
-          type: otpType,
-        });
-        if (error) {
-          if (active) {
-            setError(error.message);
-            setIsSessionReady(false);
+        // Foretrukket flyt: token_hash virker på tvers av enheter fordi den ikke
+        // er bundet til en PKCE-verifier i nettleserens lagring.
+        if (!consumedTokens.has(tokenHash)) {
+          consumedTokens.add(tokenHash);
+          const { error } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: otpType,
+          });
+          if (error) {
+            reportError(error.message);
+            return;
           }
-          return;
+          cleanupAuthUrl(currentUrl);
         }
-        cleanupAuthUrl(currentUrl);
       } else if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) {
-          if (active) {
-            setError(error.message);
-            setIsSessionReady(false);
+        // Reservevei: PKCE virker bare når lenken åpnes i samme nettleser som ba
+        // om nullstillingen, siden code_verifier ligger lagret der.
+        if (!consumedTokens.has(code)) {
+          consumedTokens.add(code);
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) {
+            reportError(error.message);
+            return;
           }
-          return;
+          cleanupAuthUrl(currentUrl);
         }
-        cleanupAuthUrl(currentUrl);
       } else if (accessToken && refreshToken) {
         const { error } = await supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
         });
         if (error) {
-          if (active) {
-            setError(error.message);
-            setIsSessionReady(false);
-          }
+          reportError(error.message);
           return;
         }
         cleanupAuthUrl(currentUrl, true);
@@ -112,6 +159,7 @@ export function UpdatePasswordForm({ className, ...props }: React.ComponentProps
       if (active) {
         if (event === "PASSWORD_RECOVERY") {
           setError(null);
+          setNeedsNewLink(false);
         }
         setIsSessionReady(Boolean(session));
       }
@@ -122,6 +170,14 @@ export function UpdatePasswordForm({ className, ...props }: React.ComponentProps
       subscription.unsubscribe();
     };
   }, []);
+
+  // Feil som gjelder selve lenken må stå igjen mens brukeren skriver, ellers
+  // forsvinner "be om ny lenke" og knappen blir bare deaktivert uten forklaring.
+  const clearSubmitError = () => {
+    if (!needsNewLink) {
+      setError(null);
+    }
+  };
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,7 +204,10 @@ export function UpdatePasswordForm({ className, ...props }: React.ComponentProps
       router.push("/dashboard");
       return;
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred");
+      const raw = error instanceof Error ? error.message : "Ukjent feil";
+      const described = describeAuthError(raw);
+      setError(described.message);
+      setNeedsNewLink(described.needsNewLink);
       setIsLoading(false);
     }
   };
@@ -173,7 +232,7 @@ export function UpdatePasswordForm({ className, ...props }: React.ComponentProps
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
-                    setError(null);
+                    clearSubmitError();
                   }}
                 />
               </div>
@@ -187,12 +246,21 @@ export function UpdatePasswordForm({ className, ...props }: React.ComponentProps
                   value={confirmPassword}
                   onChange={(e) => {
                     setConfirmPassword(e.target.value);
-                    setError(null);
+                    clearSubmitError();
                   }}
                 />
               </div>
               {passwordsDoNotMatch && <p className="text-sm text-red-500">Passordene er ikke like.</p>}
-              {error && <p className="text-sm text-red-500">{error}</p>}
+              {error && (
+                <div className="space-y-1 text-sm text-red-500">
+                  <p>{error}</p>
+                  {needsNewLink && (
+                    <Link href="/auth/forgot-password" className="underline underline-offset-4">
+                      Be om en ny lenke
+                    </Link>
+                  )}
+                </div>
+              )}
               <Button type="submit" className="w-full" disabled={isLoading || !isSessionReady || passwordsDoNotMatch}>
                 {isLoading ? "Lagrer..." : "Lagre nytt passord"}
               </Button>

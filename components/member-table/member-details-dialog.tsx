@@ -44,6 +44,32 @@ type AddedByProfile = {
 };
 
 /**
+ * Tolker `membership_active_until` (en ren dato) som lokal dato.
+ *
+ * How: Plukker år/måned/dag ut av strengen og bygger datoen lokalt, fordi
+ * `new Date("2027-07-31")` tolkes som UTC og kan lande på feil dag.
+ * @returns Date eller null om verdien mangler/er ugyldig.
+ */
+function parseMembershipExpiry(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!match) {
+    return null;
+  }
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+/**
+ * Returnerer midnatt i dag lokalt, for sammenligning mot utløpsdatoen.
+ */
+function startOfToday() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+/**
  * Member details modal for editing name, privilege, membership and ban state.
  */
 export function MemberDetailsDialog({
@@ -136,6 +162,14 @@ export function MemberDetailsDialog({
   const allowedMax = getMaxAssignablePrivilege(currentPrivilege);
   const selectDisabled = !canEditTarget || !canEditThisTarget || isSaving || !member?.id;
   const membershipActive = isMembershipActive(member?.is_membership_active);
+  // Gyldig til er synlig for frivillige og oppover (priv 2+), som er samme
+  // terskel som kreves for å åpne medlemslistene i det hele tatt.
+  const canViewMembershipExpiry = canManageMembers(currentPrivilege);
+  const membershipExpiry = parseMembershipExpiry(member?.membership_active_until);
+  const membershipExpiryLabel = membershipExpiry
+    ? membershipExpiry.toLocaleDateString("nb-NO", { day: "2-digit", month: "2-digit", year: "numeric" })
+    : "—";
+  const membershipExpired = membershipExpiry ? membershipExpiry < startOfToday() : false;
   const banned = member?.is_banned === true;
   const membershipDisabled = !canEditMembershipStatus || isSaving || !member?.id;
   const allowedOptions =
@@ -383,6 +417,16 @@ export function MemberDetailsDialog({
                 <YesNoStatus value={membershipActive} />
               </DetailRow>
             )}
+            {canViewMembershipExpiry ? (
+              <DetailRow label="Gyldig til">
+                <span className="inline-flex items-center gap-2 font-medium">
+                  <span>{membershipExpiryLabel}</span>
+                  {membershipExpired ? (
+                    <span className="text-xs font-normal text-red-500">(utløpt)</span>
+                  ) : null}
+                </span>
+              </DetailRow>
+            ) : null}
             <DetailRow label="Passord satt">
               <span className="inline-flex items-center gap-2 font-medium">
                 <YesNoStatus value={passwordIsSet} />
