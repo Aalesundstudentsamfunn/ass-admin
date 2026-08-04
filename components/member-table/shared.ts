@@ -19,6 +19,8 @@ export type MemberRow = {
   committee_id?: number | null;
   committee_rank?: number | null;
   is_membership_active?: boolean | null;
+  /** Kilden til sannhet for medlemskap. `is_membership_active` utledes av denne. */
+  membership_active_until?: string | null;
   is_banned?: boolean | null;
   password_set_at?: string | null;
 };

@@ -29,6 +29,8 @@ function mapToUserRows(
       created_at: (row.created_at as string | null | undefined) ?? null,
       password_set_at: (row.password_set_at as string | null | undefined) ?? null,
       is_membership_active: (row.is_membership_active as boolean | null | undefined) ?? null,
+      membership_active_until:
+        (row.membership_active_until as string | null | undefined) ?? null,
       is_banned: (row.is_banned as boolean | null | undefined) ?? null,
       profile_id: null,
       privilege_type: (row.privilege_type as number | null | undefined) ?? null,

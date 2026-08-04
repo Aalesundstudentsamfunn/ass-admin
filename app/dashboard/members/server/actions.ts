@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { shouldAutoPrint } from "@/lib/members/shared";
 import { parseCommitteeId } from "@/lib/committee-options";
-import { isMembershipActive } from "@/lib/privilege-checks";
 import { logAdminAction } from "@/lib/server/admin-audit-log";
 import { fetchCommitteeNameByIdMap } from "@/lib/server/committee-type";
 import type {
@@ -26,8 +25,46 @@ type ExistingMemberLookup = {
   email: string;
   privilege_type: number | null;
   is_membership_active: boolean | null;
+  membership_active_until: string | null;
   is_banned: boolean | null;
 };
+
+/**
+ * Henter utløpsdatoen for inneværende medlemsår fra databasen.
+ *
+ * How: Kaller `compute_membership_expiry()` slik at regelen (31. juli, ruller
+ * til neste år fra august) bare finnes ett sted - i databasen, som også er
+ * default på kolonnen.
+ * @returns ISO-dato som streng, eller null om kallet feiler.
+ */
+async function fetchMembershipExpiry(sb: Awaited<ReturnType<typeof createClient>>) {
+  const { data, error } = await sb.rpc("compute_membership_expiry");
+  if (error || typeof data !== "string") {
+    return null;
+  }
+  return data;
+}
+
+/**
+ * Avgjør om et medlemskap fortsatt løper.
+ *
+ * How: Sammenligner utløpsdatoen med dagens dato. `is_membership_active` er kun
+ * et utledet flagg, og har drevet fra datoen på eldre rader, så datoen er den
+ * eneste kilden vi kan stole på her.
+ * @returns true når medlemskapet er gyldig i dag.
+ */
+function hasRunningMembership(activeUntil: string | null | undefined) {
+  if (!activeUntil) {
+    return false;
+  }
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(activeUntil);
+  if (!match) {
+    return false;
+  }
+  const expiry = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  const now = new Date();
+  return expiry >= new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
 
 /**
  * Logs a member action with target table fixed to `members`.
@@ -82,7 +119,7 @@ export async function checkMemberEmail(
 
     const { data: existingMembers, error: lookupError } = await sb
       .from("members")
-      .select("id, firstname, lastname, email, privilege_type, is_membership_active, is_banned")
+      .select("id, firstname, lastname, email, privilege_type, is_membership_active, membership_active_until, is_banned")
       .ilike("email", normalizedEmail)
       .limit(2);
 
@@ -125,7 +162,7 @@ export async function checkMemberEmail(
       ok: true,
       email: normalizedEmail,
       exists: true,
-      active: isMembershipActive(existingMember.is_membership_active),
+      active: hasRunningMembership(existingMember.membership_active_until),
       banned: existingMember.is_banned === true,
       member: {
         id: existingMember.id,
@@ -164,7 +201,7 @@ export async function activateMember(
 
     const { data: existingMembers, error: lookupError } = await sb
       .from("members")
-      .select("id, firstname, lastname, email, privilege_type, is_membership_active, is_banned")
+      .select("id, firstname, lastname, email, privilege_type, is_membership_active, membership_active_until, is_banned")
       .ilike("email", normalizedEmail)
       .limit(2);
 
@@ -220,7 +257,7 @@ export async function activateMember(
       });
       return { ok: false, error: "E-posten kan ikke brukes." };
     }
-    if (isMembershipActive(existingMember.is_membership_active)) {
+    if (hasRunningMembership(existingMember.membership_active_until)) {
       await logMemberAction(sb, {
         actorId: createdBy,
         action: "member.activate",
@@ -232,11 +269,27 @@ export async function activateMember(
       return { ok: false, error: "Dette medlemskapet er allerede aktivt." };
     }
 
+    const membershipExpiry = await fetchMembershipExpiry(sb);
+    if (!membershipExpiry) {
+      await logMemberAction(sb, {
+        actorId: createdBy,
+        action: "member.activate",
+        targetId: existingMember.id,
+        status: "error",
+        errorMessage: "Kunne ikke beregne utløpsdato for medlemskapet.",
+        details: { email: normalizedEmail },
+      });
+      return { ok: false, error: "Kunne ikke beregne utløpsdato for medlemskapet." };
+    }
+
+    // Datoen er kilden til sannhet; databasetriggeren utleder
+    // is_membership_active av den. Skriver vi bare flagget, blir medlemmet
+    // stående som utløpt og teller ikke i "Betalte medlemmer".
     const { data: updatedMember, error: updateError } = await sb
       .from("members")
-      .update({ is_membership_active: true })
+      .update({ membership_active_until: membershipExpiry })
       .eq("id", existingMember.id)
-      .select("id, firstname, lastname, email, privilege_type, is_membership_active")
+      .select("id, firstname, lastname, email, privilege_type, is_membership_active, membership_active_until")
       .maybeSingle();
 
     if (updateError) {
@@ -270,7 +323,8 @@ export async function activateMember(
       details: {
         email: updatedMember.email,
         privilege_type: updatedMember.privilege_type,
-        is_membership_active: true,
+        is_membership_active: updatedMember.is_membership_active,
+        membership_active_until: updatedMember.membership_active_until,
       },
     });
 
@@ -333,7 +387,10 @@ export async function addNewMember(
     }
 
     const existingMemberRows = (existingMembers ?? []) as Array<
-      Pick<ExistingMemberLookup, "id" | "privilege_type" | "is_membership_active" | "is_banned">
+      Pick<
+        ExistingMemberLookup,
+        "id" | "privilege_type" | "is_membership_active" | "membership_active_until" | "is_banned"
+      >
     >;
     if (existingMemberRows.length > 1) {
       await logMemberAction(sb, {
@@ -364,7 +421,7 @@ export async function addNewMember(
         });
         return { ok: false, error: "E-posten kan ikke brukes." };
       }
-      if (isMembershipActive(existingMember.is_membership_active)) {
+      if (hasRunningMembership(existingMember.membership_active_until)) {
         await logMemberAction(sb, {
           actorId: createdBy,
           action: "member.create",
@@ -415,7 +472,10 @@ export async function addNewMember(
         is_membership_active: true,
         created_by: createdBy,
       })
-      .select("id, firstname, lastname, email, privilege_type, created_by")
+      // membership_active_until settes ikke her med vilje: kolonnens default er
+      // compute_membership_expiry(), samme regel som brukes ved fornying. Vi
+      // leser den tilbake for å få den med i revisjonsloggen.
+      .select("id, firstname, lastname, email, privilege_type, created_by, membership_active_until")
       .single();
 
     if (insertError || !newMember) {
@@ -441,6 +501,7 @@ export async function addNewMember(
         committee_id: committeeForMemberId,
         committee: committeeForPrint,
         is_membership_active: true,
+        membership_active_until: newMember.membership_active_until,
         auto_print: autoPrint,
       },
     });
