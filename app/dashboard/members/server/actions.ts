@@ -24,11 +24,31 @@ type ExistingMemberLookup = {
   lastname: string;
   email: string;
   privilege_type: number | null;
+  committee: number | null;
   is_membership_active: boolean | null;
   membership_active_until: string | null;
   membership_disabled_at: string | null;
   is_banned: boolean | null;
 };
+
+/**
+ * Slår opp komiténavnet et kort skal trykkes med.
+ *
+ * How: Vanlige medlemmer har ingen komité, og da skal kortet trykkes uten. Feiler
+ * oppslaget, trykker vi heller uten komité enn å stoppe en fornying som allerede
+ * er skrevet til databasen.
+ * @returns komiténavn, eller null når medlemmet ikke har en.
+ */
+async function resolveCommitteeName(
+  sb: Awaited<ReturnType<typeof createClient>>,
+  committeeId: number | null | undefined,
+) {
+  if (typeof committeeId !== "number") {
+    return null;
+  }
+  const { nameById } = await fetchCommitteeNameByIdMap(sb, [committeeId]);
+  return nameById.get(committeeId) ?? null;
+}
 
 /**
  * Oversetter en feil fra `activate_membership()` til tekst for skjermen.
@@ -143,7 +163,7 @@ export async function checkMemberEmail(
 
     const { data: existingMembers, error: lookupError } = await sb
       .from("members")
-      .select("id, firstname, lastname, email, privilege_type, is_membership_active, membership_active_until, membership_disabled_at, is_banned")
+      .select("id, firstname, lastname, email, privilege_type, committee, is_membership_active, membership_active_until, membership_disabled_at, is_banned")
       .ilike("email", normalizedEmail)
       .limit(2);
 
@@ -210,6 +230,7 @@ export async function activateMember(
   formData: FormData,
 ): Promise<AddMemberActionResult> {
   const normalizedEmail = normalizeMemberEmail(String(formData.get("email") ?? ""));
+  const autoPrint = shouldAutoPrint(formData.get("autoPrint"));
 
   if (!normalizedEmail) {
     return { ok: false, error: "E-post mangler." };
@@ -225,7 +246,7 @@ export async function activateMember(
 
     const { data: existingMembers, error: lookupError } = await sb
       .from("members")
-      .select("id, firstname, lastname, email, privilege_type, is_membership_active, membership_active_until, membership_disabled_at, is_banned")
+      .select("id, firstname, lastname, email, privilege_type, committee, is_membership_active, membership_active_until, membership_disabled_at, is_banned")
       .ilike("email", normalizedEmail)
       .limit(2);
 
@@ -342,13 +363,56 @@ export async function activateMember(
         privilege_type: updatedMember.privilege_type,
         is_membership_active: updatedMember.is_membership_active,
         membership_active_until: updatedMember.membership_active_until,
+        auto_print: autoPrint,
       },
     });
+
+    if (!autoPrint) {
+      revalidatePath("/dashboard/members");
+      return { ok: true, autoPrint: false };
+    }
+
+    // Fornying gir et nytt medlemsår, og medlemmet står ved kortskriveren når det
+    // skjer. Uten dette var aktivering den ene veien inn i medlemslisten som
+    // ikke skrev ut noe - og med Stello blir den veien den vanlige.
+    const committeeForPrint = await resolveCommitteeName(sb, existingMember.committee);
+    const { data: queueRow, error: queueError } = await queueMemberCardPrint(
+      sb,
+      {
+        id: existingMember.id,
+        firstname: existingMember.firstname,
+        lastname: existingMember.lastname,
+        email: updatedMember.email,
+      },
+      createdBy,
+      committeeForPrint,
+    );
+
+    if (queueError) {
+      await logMemberAction(sb, {
+        actorId: createdBy,
+        action: "member.card_print.enqueue",
+        targetId: existingMember.id,
+        status: "error",
+        errorMessage: `aktiverte medlemskap, men klarte ikke legge i utskriftskø: ${queueError.message}`,
+        details: { email: normalizedEmail, auto_print: true },
+      });
+      // Medlemskapet ER fornyet. Å returnere feil her ville fått staben til å
+      // prøve igjen og møte "allerede aktivt", så dette rapporteres som en
+      // utskriftsfeil, ikke en aktiveringsfeil.
+      return {
+        ok: false,
+        error: `Medlemskapet er fornyet, men kortet kunne ikke legges i utskriftskø: ${queueError.message}`,
+      };
+    }
 
     revalidatePath("/dashboard/members");
     return {
       ok: true,
-      autoPrint: false,
+      autoPrint: true,
+      queueId: queueRow?.id,
+      queueRef: existingMember.id,
+      queueInvoker: createdBy,
     };
   } catch (error: unknown) {
     return { ok: false, error: String(error) };

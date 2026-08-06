@@ -268,11 +268,20 @@ export function CreateUserDialog({
       return;
     }
 
-    toast.success("Medlemskap aktivert.", {
-      id: toastIdRef.current ?? undefined,
-      duration: 10000,
-    });
-    toastIdRef.current = null;
+    if (activateState?.autoPrint === false) {
+      toast.success("Medlemskap aktivert.", {
+        id: toastIdRef.current ?? undefined,
+        description: "Auto-utskrift er deaktivert. Trykk Print kort for å skrive ut.",
+        duration: 10000,
+      });
+      toastIdRef.current = null;
+    } else {
+      startQueueWatch({
+        result: activateState,
+        queuedDescription: "Medlemskap aktivert og kortet ligger i utskriftskø.",
+        completedMessage: "Medlemskap aktivert og utskrift fullført.",
+      });
+    }
 
     activateSubmittedRef.current = false;
     setFirstname("");
@@ -464,6 +473,7 @@ export function CreateUserDialog({
                 action={activateAction}
                 normalizedEmail={normalizedEmail}
                 existingMember={existingMember}
+                autoPrint={autoPrint}
                 isBusy={isBusy}
                 activatePending={activatePending}
                 onClose={() => setOpen(false)}

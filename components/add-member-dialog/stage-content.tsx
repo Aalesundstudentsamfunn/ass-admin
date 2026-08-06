@@ -130,10 +130,11 @@ export function MemberCreateForm({
 /**
  * Form for re-activating an inactive membership.
  */
-export function MemberActivateForm({ action, normalizedEmail, existingMember, isBusy, activatePending, onClose, onSubmitStart }: { action: (payload: FormData) => void; normalizedEmail: string; existingMember: CheckEmailActionResult["member"] | null; isBusy: boolean; activatePending: boolean; onClose: () => void; onSubmitStart: () => void }) {
+export function MemberActivateForm({ action, normalizedEmail, existingMember, autoPrint, isBusy, activatePending, onClose, onSubmitStart }: { action: (payload: FormData) => void; normalizedEmail: string; existingMember: CheckEmailActionResult["member"] | null; autoPrint: boolean; isBusy: boolean; activatePending: boolean; onClose: () => void; onSubmitStart: () => void }) {
   return (
     <form action={action} className="mt-4 space-y-4" onSubmit={onSubmitStart}>
       <input type="hidden" name="email" value={normalizedEmail} />
+      <input type="hidden" name="autoPrint" value={autoPrint ? "true" : "false"} />
 
       <ExistingMemberNotice title="E-posten finnes allerede i databasen." description="Du kan aktivere medlemskapet, men ikke opprette ny bruker på samme e-post." member={existingMember} />
 

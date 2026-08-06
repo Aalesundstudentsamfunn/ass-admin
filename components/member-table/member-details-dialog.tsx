@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { requestActionConfirm } from "@/lib/feedback/action-confirm";
 import { withLoadingToast } from "@/lib/feedback/toast-mutation";
 import { createClient } from "@/lib/supabase/client";
+import { useAutoPrintSetting } from "@/lib/auto-print";
 import {
   canAssignPrivilege,
   canBanMembers,
@@ -107,6 +108,7 @@ export function MemberDetailsDialog({
    * - `addedByProfile` resolves created_by reference for display.
    * - name draft states keep edits local until save succeeds.
    */
+  const { autoPrint } = useAutoPrintSetting();
   const [addedByProfile, setAddedByProfile] = React.useState<AddedByProfile | null>(null);
   const [loadingAddedBy, setLoadingAddedBy] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -287,19 +289,34 @@ export function MemberDetailsDialog({
     }
 
     setIsSaving(true);
-    const renewed = await withLoadingToast<{ membership_active_until: string | null }>({
+    const renewed = await withLoadingToast<{
+      membership_active_until: string | null;
+      auto_print?: boolean;
+      print_error?: string;
+    }>({
       loadingMessage: "Fornyer medlemskap...",
       errorMessage: "Kunne ikke fornye medlemskapet.",
-      successMessage: "Medlemskapet er fornyet.",
+      successMessage: autoPrint
+        ? "Medlemskapet er fornyet og kortet ligger i utskriftskø."
+        : "Medlemskapet er fornyet.",
       action: async () => {
-        const { response, payload } = await renewMemberMembership(member.id);
+        const { response, payload } = await renewMemberMembership(member.id, autoPrint);
         if (!response.ok) {
           throw new Error(payload?.error ?? "Ukjent feil.");
         }
-        return payload as { membership_active_until: string | null };
+        return payload as {
+          membership_active_until: string | null;
+          auto_print?: boolean;
+          print_error?: string;
+        };
       },
     });
     if (renewed) {
+      // Fornyingen gikk gjennom selv om utskriften ikke gjorde det, så dette er
+      // en egen advarsel og ikke en feilet handling.
+      if (renewed.print_error) {
+        toast.warning(renewed.print_error);
+      }
       onMembershipStatusUpdated(true);
       onMembershipExpiryUpdated?.(renewed.membership_active_until ?? null);
     }

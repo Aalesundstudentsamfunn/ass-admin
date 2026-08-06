@@ -63,11 +63,11 @@ export async function updateMemberMembershipStatus(
  * How: ett medlem om gangen med vilje. Fornying deler ut et betalt medlemsår, så
  * det finnes ingen bulk-variant - se kommentaren i selve API-ruta.
  */
-export async function renewMemberMembership(memberId: string | number) {
+export async function renewMemberMembership(memberId: string | number, autoPrint: boolean) {
   const response = await fetch("/api/admin/members/renew-membership", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ member_id: String(memberId) }),
+    body: JSON.stringify({ member_id: String(memberId), auto_print: autoPrint }),
   });
   const payload = await response.json().catch(() => ({}));
   return { response, payload };
