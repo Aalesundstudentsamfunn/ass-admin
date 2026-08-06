@@ -1,7 +1,17 @@
 /**
  * POST /api/admin/members/membership-status
- * Updates is_membership_active for one or more members.
+ * Slår medlemskap av og på for ett eller flere medlemmer.
  * Access is restricted by shared assertPermission guard (requirement: manageMembershipStatus).
+ *
+ * Skriver `membership_disabled_at`, ikke `is_membership_active`. Flagget er
+ * utledet av perioden og denne kolonnen, så et direkte skriv ble overskrevet av
+ * triggeren og uansett nullstilt av nattjobben. Kolonnen er dessuten den eneste
+ * som skiller "deaktivert av Stortinget" fra "perioden løp ut" - med bare
+ * flagget kunne ikke fornying vite om den hadde lov til å slå medlemmet på igjen.
+ *
+ * Merk at av/på her ikke rører perioden: å slå et medlemskap på igjen gir
+ * tilbake den perioden medlemmet allerede hadde betalt for. Er den utløpt, er
+ * Aktiver fortsatt veien videre.
  */
 import { NextResponse } from "next/server";
 import { assertPermission } from "@/lib/server/assert-permission";
@@ -36,7 +46,7 @@ export async function POST(request: Request) {
 
     const { data: existingRows, error: existingRowsError } = await supabase
       .from("members")
-      .select("id, is_membership_active")
+      .select("id, membership_disabled_at")
       .in("id", memberIds);
 
     if (existingRowsError) {
@@ -55,8 +65,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: existingRowsError.message }, { status: 400 });
     }
 
+    // "Aktiv" her betyr bare "ikke deaktivert". Perioden er en egen sak, og et
+    // medlem med utløpt periode skal fortsatt kunne slås av og på.
     const currentById = new Map(
-      (existingRows ?? []).map((row) => [String(row.id), row.is_membership_active === true]),
+      (existingRows ?? []).map((row) => [String(row.id), row.membership_disabled_at === null]),
     );
     const unchangedIds: string[] = [];
     let idsToUpdate: string[] = [];
@@ -140,7 +152,7 @@ export async function POST(request: Request) {
 
     const { error } = await supabase
       .from("members")
-      .update({ is_membership_active: isActive })
+      .update({ membership_disabled_at: isActive ? null : new Date().toISOString() })
       .in("id", idsToUpdate);
 
     if (error) {

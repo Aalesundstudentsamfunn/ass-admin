@@ -1,0 +1,22 @@
+-- One-off backfill: bring is_membership_active in line with reality.
+--
+-- READ BEFORE RUNNING. This is the migration with a visible consequence.
+--
+-- As of 2026-08-06 the table holds 977 members, 976 flagged active, but only 12
+-- with a period that still runs. The 2025/26 season ended 2026-07-31 and nothing
+-- noticed. Running this flips roughly 964 members from active to inactive in one
+-- statement.
+--
+-- That is a correction, not a change of policy - those memberships expired a week
+-- ago and every date-based surface (this admin app since 46fbcff) already treats
+-- them as lapsed. But the mobile app reads the flag, so anything it gates on
+-- membership will start refusing those 964 people the moment this runs. They get
+-- back in the normal way: staff press Aktiver, which now writes a fresh period.
+--
+-- Run it when someone is around to answer the phone, not last thing on a Friday.
+--
+-- The audit trigger records every one of these rows in admin_audit_log with a
+-- full before/after snapshot. That is intended - it is the record of what this
+-- migration did - and cron job 4 purges it after 14 days.
+
+select public.refresh_membership_active_flags() as rows_corrected;

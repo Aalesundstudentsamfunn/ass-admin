@@ -26,32 +26,56 @@ type ExistingMemberLookup = {
   privilege_type: number | null;
   is_membership_active: boolean | null;
   membership_active_until: string | null;
+  membership_disabled_at: string | null;
   is_banned: boolean | null;
 };
 
 /**
- * Henter utløpsdatoen for inneværende medlemsår fra databasen.
+ * Oversetter en feil fra `activate_membership()` til tekst for skjermen.
  *
- * How: Kaller `compute_membership_expiry()` slik at regelen (31. juli, ruller
- * til neste år fra august) bare finnes ett sted - i databasen, som også er
- * default på kolonnen.
- * @returns ISO-dato som streng, eller null om kallet feiler.
+ * How: RPC-en kaster bare sentinelverdier, ikke ferdig tekst, slik at ordlyden
+ * bor her og ikke i databasen.
+ * @returns norsk feilmelding.
  */
-async function fetchMembershipExpiry(sb: Awaited<ReturnType<typeof createClient>>) {
-  const { data, error } = await sb.rpc("compute_membership_expiry");
-  if (error || typeof data !== "string") {
-    return null;
+function activationErrorMessage(message: string) {
+  if (message.includes("MEMBERSHIP_DISABLED")) {
+    return "Medlemskapet er deaktivert. Stortinget må slå det på igjen først.";
   }
-  return data;
+  if (message.includes("ALREADY_ACTIVE")) {
+    return "Dette medlemskapet er allerede aktivt.";
+  }
+  if (message.includes("MEMBER_BANNED")) {
+    return "E-posten kan ikke brukes.";
+  }
+  if (message.includes("MEMBER_NOT_FOUND")) {
+    return "Fant ikke medlemmet.";
+  }
+  if (message.includes("FORBIDDEN") || message.includes("ACTOR_REQUIRED")) {
+    return "Mangler tilgang til å aktivere medlemskap.";
+  }
+  return message;
 }
 
 /**
- * Avgjør om et medlemskap fortsatt løper.
+ * Avgjør om et medlemskap er aktivt nå.
  *
- * How: Sammenligner utløpsdatoen med dagens dato. `is_membership_active` er kun
- * et utledet flagg, og har drevet fra datoen på eldre rader, så datoen er den
- * eneste kilden vi kan stole på her.
- * @returns true når medlemskapet er gyldig i dag.
+ * How: Krever både det utledede flagget og en periode som fortsatt løper.
+ * Flagget alene dekker deaktivering (`membership_disabled_at`), men står stille
+ * fra en periode utløper til nattjobben rekker å utlede det på nytt; datoen
+ * alene overser deaktivering. Begge trengs.
+ * @returns true når medlemskapet gjelder i dag.
+ */
+function hasActiveMembership(
+  member: Pick<ExistingMemberLookup, "is_membership_active" | "membership_active_until">,
+) {
+  return member.is_membership_active === true
+    && hasRunningMembership(member.membership_active_until);
+}
+
+/**
+ * Avgjør om selve perioden fortsatt løper, uten hensyn til deaktivering.
+ *
+ * @returns true når utløpsdatoen er i dag eller senere.
  */
 function hasRunningMembership(activeUntil: string | null | undefined) {
   if (!activeUntil) {
@@ -119,7 +143,7 @@ export async function checkMemberEmail(
 
     const { data: existingMembers, error: lookupError } = await sb
       .from("members")
-      .select("id, firstname, lastname, email, privilege_type, is_membership_active, membership_active_until, is_banned")
+      .select("id, firstname, lastname, email, privilege_type, is_membership_active, membership_active_until, membership_disabled_at, is_banned")
       .ilike("email", normalizedEmail)
       .limit(2);
 
@@ -162,7 +186,7 @@ export async function checkMemberEmail(
       ok: true,
       email: normalizedEmail,
       exists: true,
-      active: hasRunningMembership(existingMember.membership_active_until),
+      active: hasActiveMembership(existingMember),
       banned: existingMember.is_banned === true,
       member: {
         id: existingMember.id,
@@ -201,7 +225,7 @@ export async function activateMember(
 
     const { data: existingMembers, error: lookupError } = await sb
       .from("members")
-      .select("id, firstname, lastname, email, privilege_type, is_membership_active, membership_active_until, is_banned")
+      .select("id, firstname, lastname, email, privilege_type, is_membership_active, membership_active_until, membership_disabled_at, is_banned")
       .ilike("email", normalizedEmail)
       .limit(2);
 
@@ -257,7 +281,7 @@ export async function activateMember(
       });
       return { ok: false, error: "E-posten kan ikke brukes." };
     }
-    if (hasRunningMembership(existingMember.membership_active_until)) {
+    if (hasActiveMembership(existingMember)) {
       await logMemberAction(sb, {
         actorId: createdBy,
         action: "member.activate",
@@ -269,40 +293,33 @@ export async function activateMember(
       return { ok: false, error: "Dette medlemskapet er allerede aktivt." };
     }
 
-    const membershipExpiry = await fetchMembershipExpiry(sb);
-    if (!membershipExpiry) {
+    // All aktivering går gjennom `activate_membership()`. Den skriver perioden,
+    // lar triggeren utlede `is_membership_active`, og avviser deaktiverte
+    // medlemskap - det er også veien mobilappen bruker via edge-funksjonen, så
+    // regelen finnes bare ett sted.
+    const { data: activated, error: activateError } = await sb.rpc("activate_membership", {
+      p_member_id: existingMember.id,
+    });
+
+    if (activateError) {
+      const message = activationErrorMessage(activateError.message ?? "");
       await logMemberAction(sb, {
         actorId: createdBy,
         action: "member.activate",
         targetId: existingMember.id,
         status: "error",
-        errorMessage: "Kunne ikke beregne utløpsdato for medlemskapet.",
+        errorMessage: message,
         details: { email: normalizedEmail },
       });
-      return { ok: false, error: "Kunne ikke beregne utløpsdato for medlemskapet." };
+      return { ok: false, error: message };
     }
 
-    // Datoen er kilden til sannhet; databasetriggeren utleder
-    // is_membership_active av den. Skriver vi bare flagget, blir medlemmet
-    // stående som utløpt og teller ikke i "Betalte medlemmer".
-    const { data: updatedMember, error: updateError } = await sb
-      .from("members")
-      .update({ membership_active_until: membershipExpiry })
-      .eq("id", existingMember.id)
-      .select("id, firstname, lastname, email, privilege_type, is_membership_active, membership_active_until")
-      .maybeSingle();
-
-    if (updateError) {
-      await logMemberAction(sb, {
-        actorId: createdBy,
-        action: "member.activate",
-        targetId: existingMember.id,
-        status: "error",
-        errorMessage: updateError.message,
-        details: { email: normalizedEmail },
-      });
-      return { ok: false, error: updateError.message };
-    }
+    const updatedMember = (Array.isArray(activated) ? activated[0] : activated) as
+      | Pick<
+          ExistingMemberLookup,
+          "id" | "email" | "privilege_type" | "is_membership_active" | "membership_active_until"
+        >
+      | undefined;
 
     if (!updatedMember) {
       await logMemberAction(sb, {
@@ -421,7 +438,7 @@ export async function addNewMember(
         });
         return { ok: false, error: "E-posten kan ikke brukes." };
       }
-      if (hasRunningMembership(existingMember.membership_active_until)) {
+      if (hasActiveMembership(existingMember)) {
         await logMemberAction(sb, {
           actorId: createdBy,
           action: "member.create",
@@ -469,13 +486,13 @@ export async function addNewMember(
         lastname,
         committee: committeeForMemberId,
         privilege_type: privilegeType,
-        is_membership_active: true,
         created_by: createdBy,
       })
-      // membership_active_until settes ikke her med vilje: kolonnens default er
-      // compute_membership_expiry(), samme regel som brukes ved fornying. Vi
-      // leser den tilbake for å få den med i revisjonsloggen.
-      .select("id, firstname, lastname, email, privilege_type, created_by, membership_active_until")
+      // Verken membership_active_until eller is_membership_active settes her med
+      // vilje: kolonnens default er compute_membership_expiry(), samme regel som
+      // brukes ved fornying, og triggeren utleder flagget av den. Vi leser begge
+      // tilbake for å få dem med i revisjonsloggen.
+      .select("id, firstname, lastname, email, privilege_type, created_by, is_membership_active, membership_active_until")
       .single();
 
     if (insertError || !newMember) {
@@ -500,7 +517,7 @@ export async function addNewMember(
         privilege_type: privilegeType,
         committee_id: committeeForMemberId,
         committee: committeeForPrint,
-        is_membership_active: true,
+        is_membership_active: newMember.is_membership_active,
         membership_active_until: newMember.membership_active_until,
         auto_print: autoPrint,
       },
