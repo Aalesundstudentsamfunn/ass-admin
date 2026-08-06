@@ -215,6 +215,10 @@ export default function MembersTablePage({
         currentUserPrivilege={currentPrivilege ?? null}
         onPrivilegeUpdated={(next) => patchSelectedMember({ privilege_type: next })}
         onMembershipStatusUpdated={(next) => patchSelectedMember({ is_membership_active: next })}
+        onMembershipBlockUpdated={(next) =>
+          patchSelectedMember({ membership_disabled_at: next ? new Date().toISOString() : null })
+        }
+        onMembershipExpiryUpdated={(next) => patchSelectedMember({ membership_active_until: next })}
         onNameUpdated={(firstname, lastname) => patchSelectedMember({ firstname, lastname })}
         onBanUpdated={(next) => patchSelectedMember({ is_banned: next })}
       />

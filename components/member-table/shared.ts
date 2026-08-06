@@ -18,9 +18,12 @@ export type MemberRow = {
   committee?: string | null;
   committee_id?: number | null;
   committee_rank?: number | null;
+  /** Utledet av de to under. Skriv aldri direkte - databasen eier den. */
   is_membership_active?: boolean | null;
-  /** Kilden til sannhet for medlemskap. `is_membership_active` utledes av denne. */
+  /** Betalt periode. Flyttes bare av `activate_membership()`. */
   membership_active_until?: string | null;
+  /** Sperre satt av Stortinget. Non-null = medlemskapet er trukket tilbake. */
+  membership_disabled_at?: string | null;
   is_banned?: boolean | null;
   password_set_at?: string | null;
 };

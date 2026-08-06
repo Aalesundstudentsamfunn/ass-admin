@@ -58,6 +58,22 @@ export async function updateMemberMembershipStatus(
 }
 
 /**
+ * Renews one member's membership to the current period.
+ *
+ * How: ett medlem om gangen med vilje. Fornying deler ut et betalt medlemsår, så
+ * det finnes ingen bulk-variant - se kommentaren i selve API-ruta.
+ */
+export async function renewMemberMembership(memberId: string | number) {
+  const response = await fetch("/api/admin/members/renew-membership", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ member_id: String(memberId) }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  return { response, payload };
+}
+
+/**
  * Calls API endpoint to update member first/last name.
  */
 export async function updateMemberName(

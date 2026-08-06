@@ -30,6 +30,7 @@ import {
   YesNoStatus,
 } from "./member-details-primitives";
 import {
+  renewMemberMembership,
   sendMemberPasswordReset,
   updateMemberBanStatus,
   updateMemberMembershipStatus,
@@ -80,6 +81,8 @@ export function MemberDetailsDialog({
   currentUserPrivilege,
   onPrivilegeUpdated,
   onMembershipStatusUpdated,
+  onMembershipBlockUpdated,
+  onMembershipExpiryUpdated,
   onNameUpdated,
   onBanUpdated,
   showBanControls = true,
@@ -91,6 +94,10 @@ export function MemberDetailsDialog({
   currentUserPrivilege?: number | null;
   onPrivilegeUpdated: (next: number) => void;
   onMembershipStatusUpdated: (next: boolean) => void;
+  /** Sperren endret seg. Valgfri: bare listene som viser den trenger den. */
+  onMembershipBlockUpdated?: (next: boolean) => void;
+  /** Perioden ble fornyet. Valgfri, av samme grunn. */
+  onMembershipExpiryUpdated?: (next: string | null) => void;
   onNameUpdated: (firstname: string, lastname: string) => void;
   onBanUpdated: (next: boolean) => void;
   showBanControls?: boolean;
@@ -171,7 +178,16 @@ export function MemberDetailsDialog({
     : "—";
   const membershipExpired = membershipExpiry ? membershipExpiry < startOfToday() : false;
   const banned = member?.is_banned === true;
-  const membershipDisabled = !canEditMembershipStatus || isSaving || !member?.id;
+  const blockControlDisabled = !canEditMembershipStatus || isSaving || !member?.id;
+  // Sperren er sin egen tilstand. `is_membership_active` er utledet av perioden
+  // OG denne, så nedtrekket må vise sperren - viser det det utledede flagget,
+  // står det "Nei" på et utløpt medlem mens serveren mener sperren allerede er
+  // av, og valget blir en no-op som ser ut som en feil.
+  const membershipBlocked = Boolean(member?.membership_disabled_at);
+  // Fornying deles ut av frivillige og oppover, samme terskel som Aktiver i
+  // legg-til-medlem-flyten. Sperren er Stortingets (4+).
+  const canRenewMembership = canManageMembers(currentPrivilege);
+  const renewDisabled = !canRenewMembership || isSaving || !member?.id || banned || membershipBlocked;
   const allowedOptions =
     allowedMax === null
       ? []
@@ -228,8 +244,10 @@ export function MemberDetailsDialog({
     if (!member) {
       return;
     }
-    const next = value === "true";
-    if (next === membershipActive) {
+    // `value` er sperrens tilstand: "true" = sperret. API-et tar fortsatt
+    // `is_active`, som er det motsatte.
+    const nextBlocked = value === "true";
+    if (nextBlocked === membershipBlocked) {
       return;
     }
     if (!canEditMembershipStatus) {
@@ -239,11 +257,11 @@ export function MemberDetailsDialog({
 
     setIsSaving(true);
     const result = await withLoadingToast({
-      loadingMessage: "Oppdaterer medlemsstatus...",
+      loadingMessage: nextBlocked ? "Sperrer medlemskap..." : "Opphever sperre...",
       errorMessage: "Kunne ikke oppdatere medlemsstatus.",
-      successMessage: "Medlemsstatus oppdatert.",
+      successMessage: nextBlocked ? "Medlemskapet er sperret." : "Sperren er opphevet.",
       action: async () => {
-        const { response, payload } = await updateMemberMembershipStatus(member.id, next);
+        const { response, payload } = await updateMemberMembershipStatus(member.id, !nextBlocked);
         if (!response.ok) {
           throw new Error(payload?.error ?? "Ukjent feil.");
         }
@@ -251,7 +269,39 @@ export function MemberDetailsDialog({
       },
     });
     if (result) {
-      onMembershipStatusUpdated(next);
+      // Å oppheve en sperre gir ikke tilbake en utløpt periode, så det utledede
+      // flagget følger perioden - ikke valget som nettopp ble gjort.
+      onMembershipStatusUpdated(!nextBlocked && !membershipExpired);
+      onMembershipBlockUpdated?.(nextBlocked);
+    }
+    setIsSaving(false);
+  };
+
+  const handleRenewMembership = async () => {
+    if (!member) {
+      return;
+    }
+    if (!canRenewMembership) {
+      toast.error("Du har ikke tilgang til å fornye medlemskap.");
+      return;
+    }
+
+    setIsSaving(true);
+    const renewed = await withLoadingToast<{ membership_active_until: string | null }>({
+      loadingMessage: "Fornyer medlemskap...",
+      errorMessage: "Kunne ikke fornye medlemskapet.",
+      successMessage: "Medlemskapet er fornyet.",
+      action: async () => {
+        const { response, payload } = await renewMemberMembership(member.id);
+        if (!response.ok) {
+          throw new Error(payload?.error ?? "Ukjent feil.");
+        }
+        return payload as { membership_active_until: string | null };
+      },
+    });
+    if (renewed) {
+      onMembershipStatusUpdated(true);
+      onMembershipExpiryUpdated?.(renewed.membership_active_until ?? null);
     }
     setIsSaving(false);
   };
@@ -396,33 +446,53 @@ export function MemberDetailsDialog({
             <DetailRow label="Komité">
               <span className="font-medium">{member.committee?.trim() || "—"}</span>
             </DetailRow>
+            {/* Utledet av perioden og sperren, aldri redigerbar. Skal den endres,
+                er det enten Forny (perioden) eller Sperret (sperren). */}
+            <DetailRow label="Aktivt medlemskap">
+              <YesNoStatus value={membershipActive} />
+            </DetailRow>
             {canEditMembershipStatus ? (
-              <DetailRow label="Aktivt medlemskap">
+              <DetailRow label="Sperret">
                 <span className="inline-flex items-center gap-2">
-                  <StatusIcon value={membershipActive} />
+                  <StatusIcon value={!membershipBlocked} />
                   <select
-                    value={String(membershipActive)}
-                    disabled={membershipDisabled}
+                    value={String(membershipBlocked)}
+                    disabled={blockControlDisabled}
                     onChange={(event) => handleMembershipStatusChange(event.target.value)}
                     className="h-8 w-24 rounded-xl border border-border/60 bg-background/60 px-2 text-xs"
                     style={{ fontVariantNumeric: "tabular-nums" }}
                   >
-                    <option value="true">Ja</option>
                     <option value="false">Nei</option>
+                    <option value="true">Ja</option>
                   </select>
                 </span>
               </DetailRow>
-            ) : (
-              <DetailRow label="Aktivt medlemskap">
-                <YesNoStatus value={membershipActive} />
-              </DetailRow>
-            )}
+            ) : null}
             {canViewMembershipExpiry ? (
               <DetailRow label="Gyldig til">
                 <span className="inline-flex items-center gap-2 font-medium">
                   <span>{membershipExpiryLabel}</span>
                   {membershipExpired ? (
                     <span className="text-xs font-normal text-red-500">(utløpt)</span>
+                  ) : null}
+                  {membershipExpired && canRenewMembership ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      disabled={renewDisabled}
+                      onClick={handleRenewMembership}
+                      title={
+                        banned
+                          ? "Brukeren er utestengt."
+                          : membershipBlocked
+                            ? "Medlemskapet er sperret. Opphev sperren først."
+                            : undefined
+                      }
+                    >
+                      Forny
+                    </Button>
                   ) : null}
                 </span>
               </DetailRow>

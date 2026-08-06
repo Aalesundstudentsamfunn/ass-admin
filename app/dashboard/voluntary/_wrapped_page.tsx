@@ -136,6 +136,26 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
   }, []);
 
   /**
+   * Applies an arbitrary member patch to local list + selected dialog row.
+   *
+   * How: samme mønster som `applyMembershipStatusToRows`, men generisk, slik at
+   * sperre og periode ikke trenger hver sin nesten like kopi.
+   * @returns void
+   */
+  const applyMemberPatchToRows = React.useCallback(
+    (ids: string[], patch: Partial<UserRow>) => {
+      const idSet = new Set(ids);
+      setRows((prev) =>
+        prev.map((row) => (idSet.has(String(row.id)) ? { ...row, ...patch } : row)),
+      );
+      setSelectedMember((prev) =>
+        prev && idSet.has(String(prev.id)) ? { ...prev, ...patch } : prev,
+      );
+    },
+    [],
+  );
+
+  /**
    * Bulk-updates privileges for all selected rows the current actor is allowed to change.
    *
    * @returns Promise<void>
@@ -264,6 +284,20 @@ export default function VoluntaryPage({ initialData }: { initialData: UserRow[] 
         onMembershipStatusUpdated={(next) => {
           if (selectedMember) {
             applyMembershipStatusToRows([String(selectedMember.id)], next);
+          }
+        }}
+        onMembershipBlockUpdated={(next) => {
+          if (selectedMember) {
+            applyMemberPatchToRows([String(selectedMember.id)], {
+              membership_disabled_at: next ? new Date().toISOString() : null,
+            });
+          }
+        }}
+        onMembershipExpiryUpdated={(next) => {
+          if (selectedMember) {
+            applyMemberPatchToRows([String(selectedMember.id)], {
+              membership_active_until: next,
+            });
           }
         }}
         onNameUpdated={(firstname, lastname) => {

@@ -67,6 +67,8 @@ const PRIVILEGE_LABELS = new Map(PRIVILEGE_OPTIONS.map((option) => [option.value
 const FIELD_LABELS: Record<string, string> = {
   privilege_type: "Tilgang",
   is_membership_active: "Aktivt medlemskap",
+  membership_active_until: "Gyldig til",
+  membership_disabled_at: "Sperret medlemskap",
   is_banned: "Kontostatus",
   firstname: "Fornavn",
   lastname: "Etternavn",
