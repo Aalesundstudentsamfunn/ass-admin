@@ -1,50 +1,26 @@
 import { createClient } from "@/lib/supabase/server";
 import DataTable from "./_wrapped_page";
-import type { UserRow } from "./_wrapped_page";
 import { ActionsProvider } from "./providers";
 import { addNewMember, activateMember, checkMemberEmail } from "./server/actions";
+import { fetchMembersPage } from "./server/fetch-members";
 import { normalizePrivilege } from "@/lib/privilege-checks";
 import { canUseBulkTemporaryPasswordAction } from "@/lib/server/temporary-password-access";
-import {
-  parseCommitteeId,
-} from "@/lib/committee-options";
+import { DEFAULT_MEMBER_QUERY, type MemberQuery } from "@/lib/members/member-query";
 import { fetchCommitteeNameByIdMap } from "@/lib/server/committee-type";
 
 /**
- * Maps raw `members` rows to the table shape used by members/voluntary views.
+ * Reads the first value of a search param that may arrive repeated.
  */
-function mapToUserRows(
-  rows: Record<string, unknown>[],
-  committeeNameById: Map<number, string>,
-): UserRow[] {
-  return rows.map((row): UserRow => {
-    const committeeId = parseCommitteeId(row.committee);
-    const committeeName = committeeId === null ? null : committeeNameById.get(committeeId) ?? null;
-    return {
-      id: String(row.id ?? ""),
-      firstname: String(row.firstname ?? ""),
-      lastname: String(row.lastname ?? ""),
-      email: String(row.email ?? ""),
-      added_by: (row.created_by as string | null | undefined) ?? null,
-      created_at: (row.created_at as string | null | undefined) ?? null,
-      password_set_at: (row.password_set_at as string | null | undefined) ?? null,
-      is_membership_active: (row.is_membership_active as boolean | null | undefined) ?? null,
-      membership_active_until:
-        (row.membership_active_until as string | null | undefined) ?? null,
-      membership_disabled_at:
-        (row.membership_disabled_at as string | null | undefined) ?? null,
-      is_banned: (row.is_banned as boolean | null | undefined) ?? null,
-      profile_id: null,
-      privilege_type: (row.privilege_type as number | null | undefined) ?? null,
-      committee: committeeName,
-      committee_id: committeeId,
-      committee_rank: committeeId,
-    };
-  });
+function firstParam(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
 }
 
 /**
- * Loads active members table data and wires member server actions into the page provider.
+ * Renders the first page of active members and wires member server actions into the page provider.
+ *
+ * Why only a page: the member list outgrows PostgREST's 1000-row response cap, so paging,
+ * sorting and search all happen in the database. This renders page one; the client table
+ * asks a server action for the rest.
  */
 export default async function MembersPage({
   searchParams,
@@ -52,8 +28,7 @@ export default async function MembersPage({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const resolvedSearchParams = (await searchParams) ?? {};
-  const newParamRaw = resolvedSearchParams.new;
-  const newParam = Array.isArray(newParamRaw) ? newParamRaw[0] : newParamRaw;
+  const newParam = firstParam(resolvedSearchParams.new);
   const autoOpenCreateDialog = newParam === "1" || newParam === "true";
 
   const supabase = await createClient();
@@ -73,23 +48,26 @@ export default async function MembersPage({
     });
   }
 
-  const { data, error } = await supabase
-    .from("members")
-    .select("*")
-    .order("created_at", { ascending: false });
+  // Must match the table's own starting state, or it refetches the same page on mount.
+  const initialQuery: MemberQuery = {
+    ...DEFAULT_MEMBER_QUERY,
+    search: (firstParam(resolvedSearchParams.email) ?? "").trim(),
+  };
+
   const {
     options: committeeOptions,
     nameById: committeeNameById,
   } = await fetchCommitteeNameByIdMap(supabase);
 
-  if (error) {
-    return <div>Error: {error.message}</div>;
+  let initialRows;
+  let initialTotalCount = 0;
+  try {
+    const page = await fetchMembersPage(supabase, initialQuery, committeeNameById);
+    initialRows = page.rows;
+    initialTotalCount = page.totalCount;
+  } catch (error: unknown) {
+    return <div>Error: {error instanceof Error ? error.message : "Kunne ikke hente medlemmer."}</div>;
   }
-
-  const rows = mapToUserRows(
-    (data ?? []) as Record<string, unknown>[],
-    committeeNameById,
-  );
 
   return (
     <ActionsProvider
@@ -98,7 +76,9 @@ export default async function MembersPage({
       activateMember={activateMember}
     >
       <DataTable
-        initialData={rows}
+        initialData={initialRows}
+        initialTotalCount={initialTotalCount}
+        initialQuery={initialQuery}
         canBulkTemporaryPasswords={canBulkTemporaryPasswords}
         committeeOptions={committeeOptions}
         autoOpenCreateDialog={autoOpenCreateDialog}

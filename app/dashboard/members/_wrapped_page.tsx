@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Printer, Trash2 } from "lucide-react";
 import { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,9 @@ import { useCurrentPrivilege } from "@/lib/use-current-privilege";
 import { useCurrentUserId } from "@/lib/use-current-user-id";
 import { useMemberPageSizeDefault } from "@/lib/table-settings";
 import type { CommitteeOption } from "@/lib/committee-options";
+import type { MemberQuery } from "@/lib/members/member-query";
+import { useMembersServerPage } from "@/lib/members/use-members-server-page";
+import { loadAllMatchingMembers, loadMembersPage } from "./server/list-actions";
 import { canDeleteMembers as canDeleteMembersByPrivilege, canEditMemberPrivileges, canManageMembershipStatus, canResetPasswords as canResetPasswordsByPrivilege, getMaxAssignablePrivilege } from "@/lib/privilege-checks";
 import { useMembersPageActions } from "@/lib/members/use-members-page-actions";
 
@@ -82,18 +85,27 @@ function buildColumns({ onDelete, onPrint, isDeleting, canEditPrivileges, bulkOp
  */
 export default function MembersTablePage({
   initialData,
+  initialTotalCount,
+  initialQuery,
   canBulkTemporaryPasswords,
   committeeOptions = [],
   autoOpenCreateDialog = false,
 }: {
   initialData: UserRow[];
+  initialTotalCount: number;
+  initialQuery: MemberQuery;
   canBulkTemporaryPasswords: boolean;
   committeeOptions?: CommitteeOption[];
   autoOpenCreateDialog?: boolean;
 }) {
-  const router = useRouter();
   const defaultPageSize = useMemberPageSizeDefault();
-  const [rows, setRows] = React.useState<UserRow[]>(initialData);
+  const { rows, setRows, totalCount, query, onQueryChange, isLoading, reload } =
+    useMembersServerPage({
+      initialRows: initialData,
+      initialTotalCount,
+      initialQuery,
+      load: loadMembersPage,
+    });
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [selectedMember, setSelectedMember] = React.useState<UserRow | null>(null);
   const [detailsOpen, setDetailsOpen] = React.useState(false);
@@ -106,11 +118,55 @@ export default function MembersTablePage({
   const canEditPrivileges = canEditMemberPrivileges(currentPrivilege);
   const allowedMax = getMaxAssignablePrivilege(currentPrivilege);
   const bulkOptions = React.useMemo(() => getBulkPrivilegeOptions(allowedMax), [allowedMax]);
-  const refresh = React.useCallback(() => router.refresh(), [router]);
 
+  const isFirstRender = React.useRef(true);
   React.useEffect(() => {
-    setRows(initialData);
-  }, [initialData]);
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    // A server action that calls `revalidatePath` re-renders this page with fresh props;
+    // that is the signal to re-run whichever query the table is currently showing.
+    reload();
+  }, [initialData, reload]);
+
+  /**
+   * Resolves the members a "velg alle" preset should select.
+   *
+   * How: Re-runs the active filter on the server without its pagination, narrowed to the
+   * preset's privilege range. A preset that contradicts an active role filter matches
+   * nothing, which is how the client-side version behaved.
+   */
+  const handleSelectAllMatching = React.useCallback(
+    async (preset: "voluntary" | "members" | "everyone"): Promise<UserRow[]> => {
+      const presetRoleFilter = preset === "voluntary" ? "voluntary" : "member";
+      if (preset !== "everyone" && query.roleFilter !== "all" && query.roleFilter !== presetRoleFilter) {
+        return [];
+      }
+      try {
+        const result = await loadAllMatchingMembers({
+          ...query,
+          roleFilter: preset === "everyone" ? query.roleFilter : presetRoleFilter,
+        });
+        if (!result.ok) {
+          toast.error("Kunne ikke hente treffene.", { description: result.error });
+          return [];
+        }
+        if (result.truncated) {
+          toast.warning(
+            `Filteret treffer ${result.totalCount} medlemmer. Valgte de ${result.rows.length} første.`,
+          );
+        }
+        return result.rows;
+      } catch (error: unknown) {
+        toast.error("Kunne ikke hente treffene.", {
+          description: error instanceof Error ? error.message : "Ukjent feil.",
+        });
+        return [];
+      }
+    },
+    [query],
+  );
 
   const { handlePrint, handleRowPrivilegeChange, handleDeleteMember, handleBulkPrivilege, handleBulkMembershipStatus, handleBulkPasswordReset, handleBulkTemporaryPasswords: handleBulkTemporaryPasswordsAction, handleBulkPrint, handleBulkDelete } = useMembersPageActions({
     rows,
@@ -125,7 +181,7 @@ export default function MembersTablePage({
     setSelectedMember,
     setDetailsOpen,
     setIsDeleting,
-    refresh,
+    refresh: reload,
   });
 
   const patchSelectedMember = React.useCallback(
@@ -137,7 +193,7 @@ export default function MembersTablePage({
       setRows((prev) => prev.map((row) => (String(row.id) === selectedId ? { ...row, ...patch } : row)));
       setSelectedMember((prev) => (prev ? { ...prev, ...patch } : prev));
     },
-    [selectedMember],
+    [selectedMember, setRows],
   );
 
   const columns = React.useMemo(
@@ -184,7 +240,13 @@ export default function MembersTablePage({
           canBulkTemporaryPasswords={canBulkTemporaryPasswords}
           canEditPrivileges={canEditPrivileges}
           bulkOptions={bulkOptions}
-          onRefresh={refresh}
+          onRefresh={reload}
+          serverMode={{
+            totalCount,
+            isLoading,
+            onQueryChange,
+            onSelectAllMatching: handleSelectAllMatching,
+          }}
           showSelectionQuickActions
           toolbarActions={
             <CreateUserDialog
