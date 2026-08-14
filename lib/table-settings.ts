@@ -5,10 +5,12 @@
  */
 
 import { getStoredSetting, setStoredSetting, useStoredSetting } from "@/lib/settings-storage";
+import { DEFAULT_MEMBER_PAGE_SIZE } from "@/lib/members/member-query";
 
 const MEMBER_PAGE_SIZE_KEY = "ass_admin_member_page_size";
 export const MEMBER_PAGE_SIZES = [5, 10, 15, 25, 50, 75, 100] as const;
-const MEMBER_PAGE_SIZE_DEFAULT = 10;
+// Shared with the server-side query default so the first render is not refetched.
+const MEMBER_PAGE_SIZE_DEFAULT = DEFAULT_MEMBER_PAGE_SIZE;
 
 /**
  * Ensures page-size values always map to approved options.

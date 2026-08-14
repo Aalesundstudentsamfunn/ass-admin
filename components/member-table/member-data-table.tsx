@@ -22,6 +22,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@/lib/utils";
 import { MEMBER_PAGE_SIZES } from "@/lib/table-settings";
 import { isMembershipActive, isVoluntaryOrHigher, memberPrivilege } from "@/lib/privilege-checks";
+import {
+  DEFAULT_MEMBER_SORT_ID,
+  isMemberSortId,
+  type MemberQuery,
+} from "@/lib/members/member-query";
 import type { MemberRow, PrivilegeOption } from "./shared";
 import {
   filterMembersBySelectionPreset,
@@ -35,6 +40,25 @@ import {
 } from "./member-data-table-controls";
 
 const DEFAULT_MEMBER_SORT: SortingState = [{ id: "created_at_sort", desc: true }];
+
+/** How long the search box sits still before the table asks the server for rows. */
+const SERVER_SEARCH_DEBOUNCE_MS = 300;
+
+/**
+ * Wiring for tables whose rows live in the database rather than in the browser.
+ *
+ * `data` is then one page, `totalCount` is what the filter matches overall, and the table
+ * reports every search/sort/filter/page change through `onQueryChange` instead of
+ * narrowing rows itself.
+ */
+export type MemberServerMode = {
+  totalCount: number;
+  isLoading: boolean;
+  /** Must be referentially stable - it drives the fetch effect upstream. */
+  onQueryChange: (query: MemberQuery) => void;
+  /** Resolves every member matching the current filter, for the "velg alle" presets. */
+  onSelectAllMatching?: (preset: "voluntary" | "members" | "everyone") => Promise<MemberRow[]>;
+};
 
 /**
  * Returns true when sorting state is exactly the default table sort.
@@ -99,6 +123,7 @@ export function MemberDataTable({
   searchPlaceholder = "Søk navn eller e-post…",
   defaultSorting,
   filterMode = "member-default",
+  serverMode,
 }: {
   columns: ColumnDef<MemberRow, unknown>[];
   data: MemberRow[];
@@ -123,6 +148,7 @@ export function MemberDataTable({
   searchPlaceholder?: string;
   defaultSorting?: SortingState;
   filterMode?: "member-default" | "voluntary-roles";
+  serverMode?: MemberServerMode;
 }) {
   const resolvedDefaultSorting = React.useMemo(
     () =>
@@ -142,14 +168,30 @@ export function MemberDataTable({
   const [roleFilter, setRoleFilter] = React.useState<"all" | "voluntary" | "member">("all");
   const [voluntaryRoleFilter, setVoluntaryRoleFilter] = React.useState<"all" | 2 | 3 | 4 | 5>("all");
   const [membershipFilter, setMembershipFilter] = React.useState<"all" | "active" | "inactive">("all");
-  const pageSizeOptions = MEMBER_PAGE_SIZES;
   const searchParams = useSearchParams();
+  // Seeded from the URL so the first server query matches the page the server rendered;
+  // the effect below keeps it in step with the search box afterwards.
+  const [debouncedSearch, setDebouncedSearch] = React.useState(
+    () => (searchParamKey ? searchParams.get(searchParamKey) ?? "" : ""),
+  );
+  const [isSelectingAll, setIsSelectingAll] = React.useState(false);
+  // Rows that have been on screen at least once, so a selection made on page 1 still
+  // resolves to a member after paging away from it.
+  const [knownMembers, setKnownMembers] = React.useState<Map<string, MemberRow>>(() => new Map());
+  const pageSizeOptions = MEMBER_PAGE_SIZES;
   const initializedFilter = React.useRef(false);
+  const isServerMode = Boolean(serverMode);
+  const isFetching = serverMode?.isLoading ?? false;
+  const serverTotalCount = serverMode?.totalCount ?? 0;
+  const emitServerQuery = serverMode?.onQueryChange;
+  const selectAllMatching = serverMode?.onSelectAllMatching;
   const onSortingChange = React.useCallback((updater: React.SetStateAction<SortingState>) => {
     setSorting((previous) => {
       const raw = typeof updater === "function" ? updater(previous) : updater;
       return normalizeMemberSorting(raw, resolvedDefaultSorting);
     });
+    // Re-sorting reorders the whole result set, not just the page in view.
+    setPagination((previous) => (previous.pageIndex === 0 ? previous : { ...previous, pageIndex: 0 }));
   }, [resolvedDefaultSorting]);
   const filteredData = React.useMemo(
     () =>
@@ -181,7 +223,8 @@ export function MemberDataTable({
   );
 
   const table = useReactTable({
-    data: filteredData,
+    // In server mode the rows arriving as `data` are already the page to render.
+    data: isServerMode ? data : filteredData,
     columns,
     state: { sorting, columnFilters, columnVisibility, pagination, rowSelection },
     onSortingChange,
@@ -193,6 +236,13 @@ export function MemberDataTable({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    // Keying selection by member id instead of row index keeps it attached to the right
+    // person when the rows underneath are re-sorted or replaced by the next page.
+    getRowId: (row) => String(row.id),
+    manualPagination: isServerMode,
+    manualSorting: isServerMode,
+    manualFiltering: isServerMode,
+    rowCount: isServerMode ? serverTotalCount : undefined,
     enableRowSelection: true,
     enableMultiSort: false,
     enableSortingRemoval: false,
@@ -226,7 +276,17 @@ export function MemberDataTable({
   }, [bulkOptions, bulkPrivilege]);
 
   const selectedRows = table.getSelectedRowModel().rows;
-  const selectedMembers = selectedRows.map((row) => row.original as MemberRow);
+  const selectedMembers = React.useMemo(() => {
+    if (!isServerMode) {
+      return selectedRows.map((row) => row.original as MemberRow);
+    }
+    // Off-page selections are not in the row model, so they are resolved from the rows
+    // this table has already seen.
+    return Object.entries(rowSelection)
+      .filter(([, selected]) => selected)
+      .map(([id]) => knownMembers.get(id))
+      .filter((member): member is MemberRow => Boolean(member));
+  }, [isServerMode, knownMembers, rowSelection, selectedRows]);
   const hasSelection = selectedMembers.length > 0;
   const hasSearchFilter = Boolean(table.getColumn("search")?.getFilterValue());
   const hasDefaultSort = isDefaultMemberSort(sorting, resolvedDefaultSorting);
@@ -235,6 +295,56 @@ export function MemberDataTable({
       ? hasDefaultSort && voluntaryRoleFilter === "all"
       : hasDefaultSort && roleFilter === "all" && membershipFilter === "all";
   const searchValue = (table.getColumn("search")?.getFilterValue() as string) ?? "";
+
+  React.useEffect(() => {
+    if (!isServerMode) {
+      return;
+    }
+    setKnownMembers((previous) => {
+      let next: Map<string, MemberRow> | null = null;
+      for (const member of data) {
+        const id = String(member.id);
+        if (previous.get(id) !== member) {
+          next = next ?? new Map(previous);
+          next.set(id, member);
+        }
+      }
+      return next ?? previous;
+    });
+  }, [data, isServerMode]);
+
+  // Typing should not fire one query per keystroke.
+  React.useEffect(() => {
+    if (!isServerMode) {
+      return;
+    }
+    const timer = window.setTimeout(() => setDebouncedSearch(searchValue), SERVER_SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [isServerMode, searchValue]);
+
+  const serverQuery = React.useMemo<MemberQuery | null>(() => {
+    if (!isServerMode) {
+      return null;
+    }
+    const activeSort = sorting[0];
+    return {
+      search: debouncedSearch.trim(),
+      roleFilter,
+      membershipFilter,
+      sortId: isMemberSortId(activeSort?.id) ? activeSort.id : DEFAULT_MEMBER_SORT_ID,
+      sortDesc: activeSort?.desc !== false,
+      pageIndex: pagination.pageIndex,
+      pageSize: pagination.pageSize,
+    };
+  }, [debouncedSearch, isServerMode, membershipFilter, pagination, roleFilter, sorting]);
+
+  React.useEffect(() => {
+    if (!emitServerQuery || !serverQuery) {
+      return;
+    }
+    emitServerQuery(serverQuery);
+  }, [emitServerQuery, serverQuery]);
+
   const quickFilterOptions = React.useMemo(
     () =>
       filterMode === "voluntary-roles"
@@ -389,7 +499,32 @@ export function MemberDataTable({
    * Fast bulk selection presets for selection mode.
    */
   const quickSelect = React.useCallback(
-    (preset: "voluntary" | "members" | "visible" | "everyone") => {
+    async (preset: "voluntary" | "members" | "visible" | "everyone") => {
+      if (isServerMode) {
+        // Only the current page is loaded, so anything wider has to be fetched.
+        if (preset === "visible" || !selectAllMatching) {
+          setSelectionByRows(table.getRowModel().rows);
+          return;
+        }
+        setIsSelectingAll(true);
+        try {
+          const members = await selectAllMatching(preset);
+          setKnownMembers((previous) => {
+            const next = new Map(previous);
+            members.forEach((member) => next.set(String(member.id), member));
+            return next;
+          });
+          const nextSelection: Record<string, boolean> = {};
+          members.forEach((member) => {
+            nextSelection[String(member.id)] = true;
+          });
+          setRowSelection(nextSelection);
+        } finally {
+          setIsSelectingAll(false);
+        }
+        return;
+      }
+
       const sourceRows =
         preset === "visible" ? table.getRowModel().rows : table.getPreFilteredRowModel().rows;
       const selectedRows = filterMembersBySelectionPreset(
@@ -401,14 +536,17 @@ export function MemberDataTable({
         sourceRows.filter((row) => selectedIds.has(String((row.original as MemberRow).id))),
       );
     },
-    [setSelectionByRows, table],
+    [isServerMode, selectAllMatching, setSelectionByRows, table],
   );
 
   return (
     <div className="space-y-3">
       <SearchFilterToolbar
         searchValue={searchValue}
-        onSearchChange={(value) => table.getColumn("search")?.setFilterValue(value)}
+        onSearchChange={(value) => {
+          table.getColumn("search")?.setFilterValue(value);
+          table.setPageIndex(0);
+        }}
         searchPlaceholder={searchPlaceholder}
         isDefaultSort={isDefaultSort}
         quickFilters={quickFilterOptions}
@@ -458,14 +596,21 @@ export function MemberDataTable({
           onBulkPrint={onBulkPrint}
           onBulkDelete={onBulkDelete}
           onResetSelection={() => table.resetRowSelection()}
+          resetSelectionAfterAction={isServerMode}
         />
       ) : null}
       {selectionMode && showSelectionQuickActions ? (
-        <MemberQuickSelectionBar onSelectPreset={quickSelect} />
+        <MemberQuickSelectionBar onSelectPreset={quickSelect} isBusy={isSelectingAll} />
       ) : null}
 
       <GlassPanel>
-        <div className="overflow-x-auto rounded-2xl">
+        <div
+          className={cn(
+            "overflow-x-auto rounded-2xl transition-opacity",
+            isFetching && "pointer-events-none opacity-60",
+          )}
+          aria-busy={isFetching}
+        >
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
@@ -537,7 +682,10 @@ export function MemberDataTable({
                           size="sm"
                           variant="outline"
                           className="rounded-xl"
-                          onClick={() => table.getColumn("search")?.setFilterValue("")}
+                          onClick={() => {
+                            table.getColumn("search")?.setFilterValue("");
+                            table.setPageIndex(0);
+                          }}
                         >
                           Nullstill filter
                         </Button>
@@ -553,7 +701,7 @@ export function MemberDataTable({
 
       <TablePaginationControls
         rowCount={table.getRowModel().rows.length}
-        filteredCount={table.getFilteredRowModel().rows.length}
+        filteredCount={isServerMode ? serverTotalCount : table.getFilteredRowModel().rows.length}
         pageIndex={table.getState().pagination.pageIndex}
         pageCount={table.getPageCount()}
         canPrevious={table.getCanPreviousPage()}

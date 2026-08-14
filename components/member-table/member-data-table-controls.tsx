@@ -98,6 +98,7 @@ export function MemberBulkActionsBar({
   onBulkPrint,
   onBulkDelete,
   onResetSelection,
+  resetSelectionAfterAction = false,
 }: {
   selectedCount: number;
   selectedMembers: MemberRow[];
@@ -116,6 +117,12 @@ export function MemberBulkActionsBar({
   onBulkPrint?: (members: MemberRow[]) => Promise<void>;
   onBulkDelete?: (members: MemberRow[]) => Promise<void>;
   onResetSelection: () => void;
+  /**
+   * Clear the selection once an action succeeds. Needed when rows are paged in from the
+   * server: a deleted member would otherwise stay selected, since the table cannot tell
+   * "no longer in the result set" from "on another page".
+   */
+  resetSelectionAfterAction?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const [isApplying, setIsApplying] = React.useState(false);
@@ -142,12 +149,15 @@ export function MemberBulkActionsBar({
       setIsApplying(true);
       try {
         await action();
+        if (resetSelectionAfterAction) {
+          onResetSelection();
+        }
         setOpen(false);
       } finally {
         setIsApplying(false);
       }
     },
-    [],
+    [onResetSelection, resetSelectionAfterAction],
   );
 
   return (
@@ -366,24 +376,28 @@ export function MemberBulkActionsBar({
  */
 export function MemberQuickSelectionBar({
   onSelectPreset,
+  isBusy = false,
 }: {
   onSelectPreset: (preset: "voluntary" | "members" | "visible" | "everyone") => void;
+  /** True while a preset is fetching matching rows from the server. */
+  isBusy?: boolean;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/60 bg-background/40 px-3 py-2 text-xs">
       <span className="font-medium text-muted-foreground">Hurtigvalg</span>
-      <Button size="sm" variant="outline" className="rounded-xl" onClick={() => onSelectPreset("voluntary")}>
+      <Button size="sm" variant="outline" className="rounded-xl" disabled={isBusy} onClick={() => onSelectPreset("voluntary")}>
         Velg alle frivillige
       </Button>
-      <Button size="sm" variant="outline" className="rounded-xl" onClick={() => onSelectPreset("members")}>
+      <Button size="sm" variant="outline" className="rounded-xl" disabled={isBusy} onClick={() => onSelectPreset("members")}>
         Velg alle medlemmer
       </Button>
-      <Button size="sm" variant="outline" className="rounded-xl" onClick={() => onSelectPreset("visible")}>
+      <Button size="sm" variant="outline" className="rounded-xl" disabled={isBusy} onClick={() => onSelectPreset("visible")}>
         Velg synlige
       </Button>
-      <Button size="sm" variant="outline" className="rounded-xl" onClick={() => onSelectPreset("everyone")}>
+      <Button size="sm" variant="outline" className="rounded-xl" disabled={isBusy} onClick={() => onSelectPreset("everyone")}>
         Velg alle
       </Button>
+      {isBusy ? <span className="text-muted-foreground">Henter treff…</span> : null}
     </div>
   );
 }
