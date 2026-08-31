@@ -11,10 +11,13 @@
 //
 // POST /functions/v1/stello-membership-webhook
 //
-//   Stello-Signature: t=<unix seconds>,v1=<hex hmac-sha256>
+//   Stello-Signature: t=<unix seconds>,v1=<hex>[,v1=<hex>]
 //
-// v1 is HMAC-SHA256 over the exact bytes `${t}.${rawBody}` keyed with the shared
-// secret, hex encoded. Stripe's scheme, and chosen for that reason: Stello is
+// Each v1 is HMAC-SHA256 over the exact bytes `${t}.${rawBody}` keyed with the
+// shared secret, hex encoded. There may be more than one, and ANY match is
+// accepted: for 24 hours after a secret rotation Stello signs with both the new
+// and the old secret, which is what lets the secret rotate with no failed
+// deliveries. Stripe's scheme, and chosen for that reason: Stello is
 // building this as an integration any organiser can enable, so the side ÅSS
 // implements should be the one with the most existing prose to point at.
 //
@@ -100,34 +103,45 @@ function timingSafeEqual(a: string, b: string) {
   return diff === 0;
 }
 
-/** Pulls `t` and `v1` out of a `Stello-Signature` header. */
+/**
+ * Pulls `t` and every `v1` out of a `Stello-Signature` header.
+ *
+ * Plural: during a secret rotation Stello sends one v1 per live secret.
+ */
 function parseSignatureHeader(header: string) {
   let timestamp: string | null = null;
-  let signature: string | null = null;
+  const signatures: string[] = [];
 
   for (const part of header.split(",")) {
-    const [key, value] = part.split("=", 2).map((piece) => piece?.trim() ?? "");
+    const separator = part.indexOf("=");
+    if (separator < 0) continue;
+    const key = part.slice(0, separator).trim();
+    const value = part.slice(separator + 1).trim();
     if (key === "t") timestamp = value;
-    if (key === "v1") signature = value;
+    if (key === "v1" && value) signatures.push(value);
   }
 
-  return { timestamp, signature };
+  return { timestamp, signatures };
 }
 
 /**
  * Verifies the delivery signature over the raw request body.
  *
- * How: re-signs `${t}.${rawBody}` with the shared secret and compares. The raw
- * text is signed rather than a re-serialised object, because any difference in
- * key order or whitespace would break a signature that is otherwise fine.
+ * How: re-signs `${t}.${rawBody}` with the shared secret and compares against
+ * every candidate, accepting on any match. The raw text is signed rather than a
+ * re-serialised object, because any difference in key order or whitespace would
+ * break a signature that is otherwise fine.
+ *
+ * The timestamp is inside the signed material, so refusing anything outside the
+ * replay window is what stops a captured delivery being replayed later.
  */
 async function verifySignature(
   rawBody: string,
   header: string,
   secret: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { timestamp, signature } = parseSignatureHeader(header);
-  if (!timestamp || !signature) {
+  const { timestamp, signatures } = parseSignatureHeader(header);
+  if (!timestamp || signatures.length === 0) {
     return { ok: false, error: "Malformed signature header." };
   }
 
@@ -156,11 +170,11 @@ async function verifySignature(
     ),
   );
 
-  if (!timingSafeEqual(expected, signature.toLowerCase())) {
-    return { ok: false, error: "Signature mismatch." };
-  }
+  const matched = signatures.some((candidate) =>
+    timingSafeEqual(expected, candidate.toLowerCase())
+  );
 
-  return { ok: true };
+  return matched ? { ok: true } : { ok: false, error: "Signature mismatch." };
 }
 
 /** Validates the delivery body, returning either a payload or why it was refused. */
